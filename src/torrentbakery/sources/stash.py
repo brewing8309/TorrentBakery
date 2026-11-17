@@ -14,7 +14,7 @@ SCENE_QUERY = """
 query Scene($id: ID!) {
   findScene(id: $id) {
     title details date urls
-    studio { name parent { name } }
+    studio { name }
     performers { name }
     tags { name }
     files { path }

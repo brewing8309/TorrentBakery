@@ -76,3 +76,19 @@ def test_config_roundtrip(tmp_path):
     assert oct(p.stat().st_mode)[-3:] == "600"
     back = config_mod.load(p)
     assert back.trackers["t"] == cfg.trackers["t"] and back.stash.api_key == "k" and back.path_map == [("/a", "/b")]
+
+
+def test_graphql_error_body_wins_over_http_status():
+    import pytest
+    from torrentbakery.sources.gql import gql
+
+    t = httpx.MockTransport(lambda r: httpx.Response(400, json={"errors": [{"message": 'Cannot query field "parent" on type "Studio".'}]}))
+    with pytest.raises(RuntimeError, match="Cannot query field"):
+        gql("http://stash.example/graphql", "query{x}", {}, "", t)
+    with pytest.raises(httpx.HTTPStatusError):  # no GraphQL body: the status error stays
+        gql("http://stash.example/graphql", "query{x}", {}, "", httpx.MockTransport(lambda r: httpx.Response(401)))
+
+
+def test_stash_query_uses_stash_field_names():
+    # Stash calls it parent_studio; `parent` is stash-box's name and Stash rejects it (HTTP 400, seen live)
+    assert "parent {" not in stash.SCENE_QUERY

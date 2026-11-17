@@ -8,10 +8,14 @@ def gql(url: str, query: str, variables: dict, api_key: str = "", transport: htt
     headers = {"ApiKey": api_key} if api_key else {}
     with httpx.Client(transport=transport, timeout=30, headers=headers) as client:
         res = client.post(url, json={"query": query, "variables": variables})
-    res.raise_for_status()
-    body = res.json()
+    try:
+        body = res.json()
+    except ValueError:
+        body = {}
+    # Stash/stash-box answer an invalid query with HTTP 400 *and* the reason in the body: show the reason, not just the status
     if body.get("errors"):
         raise RuntimeError(body["errors"][0]["message"])
+    res.raise_for_status()
     return body["data"]
 
 
