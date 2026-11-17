@@ -232,3 +232,24 @@ def test_male_performers_are_left_out_of_title_and_tags():
     assert release_tags({**rel, "tags": ["Blowjob"]}) == "jane.doe eve blowjob"
     only_male = {**REL, "performers": ["Toby Dick"], "male_performers": ["Toby Dick"]}
     assert render_title("", only_male, MEDIA) == "[Studio] Scene (2024-05-17) [1080p]" and performer_tags(only_male) == []
+
+
+HF_PAGE = UPLOAD_PAGE.replace('''<input type="file" id="file" name="file_input">''', '''<input type="file" id="file" name="file_input">
+<input type="submit" name="checkonly" value="Load &amp; check torrent">''').replace(
+    '<input type="submit" value="Upload torrent">', '<textarea id="mediainfo" name="mediainfo"></textarea><input type="submit" name="submit" id="post" value="Upload torrent">')
+
+
+def test_form_with_check_button_posts_the_upload_button_and_mediainfo(tmp_path):
+    posts = []
+    r = req(tmp_path)
+    r.mediainfo = "General\nFormat : MPEG-4"
+    get_publisher("emp", Config(trackers={"emp": tracker()}), transport(posts, HF_PAGE)).publish(r)
+    body = posts[0].content
+    assert b'name="submit"\r\n\r\nUpload torrent' in body and b"checkonly" not in body
+    assert b'name="mediainfo"\r\n\r\nGeneral' in body
+
+
+def test_form_returned_without_message_gets_a_hint(tmp_path):
+    page = httpx.Response(200, text=UPLOAD_PAGE)
+    with pytest.raises(TrackerError, match="upload form again"):
+        get_publisher("emp", Config(trackers={"emp": tracker()}), transport([], post_response=page)).publish(req(tmp_path))

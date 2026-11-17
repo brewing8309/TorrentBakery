@@ -32,6 +32,7 @@ class PublishRequest:
     image: str  # cover URL
     category: str = ""
     anonymous: bool = False
+    mediainfo: str = ""  # raw MediaInfo text, for forms that have their own field
 
 
 @dataclass

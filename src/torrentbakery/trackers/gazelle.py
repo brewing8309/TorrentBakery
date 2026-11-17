@@ -140,7 +140,7 @@ class GazellePublisher:
     def _build(self, form: dict, req: PublishRequest) -> dict[str, str | list[str]]:
         data: dict[str, str | list[str]] = {}
         radios: dict[str, list[dict]] = {}
-        submit_done = False
+        upload_button = self._upload_button(form)
         for ctl in form["controls"]:
             if not ctl.get("name"):
                 continue
@@ -151,9 +151,8 @@ class GazellePublisher:
                 data.setdefault(ctl["name"], []).append(ctl["value"] or "on")  # type: ignore[union-attr]
             elif kind == "input" and typ == "radio":
                 radios.setdefault(ctl["name"], []).append(ctl)
-            elif kind == "input" and typ == "submit" and not submit_done:
-                data[ctl["name"]] = ctl["value"]
-                submit_done = True
+            elif kind == "input" and typ == "submit" and ctl is upload_button:
+                data[ctl["name"]] = ctl["value"]  # a browser sends only the button that was clicked
             elif kind == "textarea":
                 data[ctl["name"]] = ctl["value"].lstrip("\n")
             elif kind == "select":
@@ -167,6 +166,9 @@ class GazellePublisher:
             if ctl is None:
                 raise TrackerError(f"{self.name}: the upload form has no field #{self.ids[key]}; this site needs a field override")
             data[ctl["name"]] = value
+        mi = next((c for c in form["controls"] if c["kind"] == "textarea" and c["id"] == "mediainfo" and c["name"]), None)
+        if mi is not None and req.mediainfo:
+            data[mi["name"]] = req.mediainfo
         cat = req.category or self.tracker.category
         cat_ctl = next((c for c in form["controls"] if c["kind"] == "select" and (c["id"] in CATEGORY_IDS or c["name"] in CATEGORY_IDS)), None)
         if cat_ctl is not None:
@@ -177,6 +179,17 @@ class GazellePublisher:
             data[cat_ctl["name"]] = cat
         self._set_anonymous(form, data, req.anonymous or self.tracker.anonymous)
         return data
+
+    @staticmethod
+    def _upload_button(form: dict) -> dict | None:
+        """The form can have several submit buttons (HappyFappy: "Load & check torrent" comes first and only checks the file).
+        Take the one that uploads: id "post" or a label with "upload", else the last button that is not a check/preview."""
+        buttons = [c for c in form["controls"] if c["kind"] == "input" and c["type"] == "submit" and c["name"]]
+        for b in buttons:
+            if b["id"] == "post" or "upload" in b["value"].lower():
+                return b
+        rest = [b for b in buttons if not any(w in (b["name"] + b["value"]).lower() for w in ("check", "preview"))]
+        return (rest or buttons or [None])[-1]
 
     @staticmethod
     def _set_anonymous(form: dict, data: dict, anon: bool) -> None:
@@ -219,7 +232,10 @@ class GazellePublisher:
             if m:
                 return PublishResult(torrent_url=loc, torrent_id=m.group(1), sent=sent)
             raise TrackerError(f"{self.name}: unexpected redirect to {loc}")
-        raise TrackerError(f"{self.name}: upload rejected: {_error_text(r.text) or f'HTTP {r.status_code}, no error text on the page'}")
+        msg = _error_text(r.text)
+        if not msg and 'id="upload_table"' in r.text:
+            msg = "the tracker showed the upload form again without a message (a required field may be empty, or the torrent was only checked)"
+        raise TrackerError(f"{self.name}: upload rejected: {msg or f'HTTP {r.status_code}, no error text on the page'}")
 
 
 def _error_text(html: str) -> str:

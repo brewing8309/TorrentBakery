@@ -58,6 +58,13 @@ def performer_tags(release: dict) -> list[str]:
     return [t for t in (empify(p) for p in credited_performers(release)) if t]
 
 
+def _mediainfo(out_dir: Path) -> str:
+    try:
+        return (out_dir / "mediainfo.txt").read_text()
+    except OSError:
+        return ""
+
+
 def _read_meta(out_dir: Path) -> dict:
     try:
         return json.loads((out_dir / "release.json").read_text())
@@ -128,7 +135,7 @@ def publish(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, 
         raise TrackerError("this bake has no image-host upload; the tracker needs a cover URL. Bake again with an image host.")
     pub = get_publisher(name, cfg, transport)
     step("Uploading to " + name)
-    res = pub.publish(PublishRequest(p.torrent, p.title, p.description, p.tags, p.image, p.category, cfg.trackers[name].anonymous), dry_run=dry_run)
+    res = pub.publish(PublishRequest(p.torrent, p.title, p.description, p.tags, p.image, p.category, cfg.trackers[name].anonymous, mediainfo=_mediainfo(out_dir)), dry_run=dry_run)
     out = {"tracker": name, "dry_run": dry_run, "title": p.title, "tags": p.tags, "category": p.category, "torrent": p.torrent.name,
            "torrent_url": res.torrent_url, "torrent_id": res.torrent_id, "sent": res.sent, "suggestions": p.suggestions, "qbit": None, "time": time.time()}
     if dry_run:
