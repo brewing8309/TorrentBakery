@@ -4,7 +4,7 @@ Bakes a release package from a video file: `.torrent`, 5×7 screenshot sheet, ma
 Planned: Stash / stash-box metadata, image-host upload (pixhost, hamsterimg, imagebam, imgbox), web UI, later TMDB/IMDb for regular movies.
 
 ## Status
-Phase 1 (local file → package) and Phase 2 (Stash + stash-box metadata) are implemented and covered by mocked tests; not yet run against a live Stash. Next: Phase 3 image hosts, Phase 4 web UI.
+Phases 1–3 (local file → package, Stash/stash-box metadata, image-host upload) are implemented and covered by mocked tests. Verified live: the stash-box query against StashDB. Not yet verified live: Stash itself and the image-host uploads (pixhost is built from its OpenAPI spec; imgbox, imagebam and hamsterimg replay the hosts' web/API flows). Next: Phase 4 web UI.
 
 ## Usage
 Needs `ffmpeg`, `ffprobe` and `mediainfo` on the PATH.
@@ -26,6 +26,13 @@ tb stash box-add stashdb https://stashdb.org/graphql --api-key KEY
 tb bake file.mp4 --stashbox https://stashdb.org/scenes/<id>   # plain file + stash-box metadata
 ```
 For `stash:<id>`, a stash-box link on the scene is used if Stash holds its key: title, performers, tags, description, links and the cover (largest landscape image) then come from the stash-box, otherwise from Stash (cover: Stash screenshot).
+
+## Image hosts
+```
+tb bake file.mp4 --upload pixhost.cc          # also pixhost.to, pixho.st, imgbox, imagebam, hamsterimg
+tb host set hamsterimg -o api_key=KEY         # hamsterimg (Chevereto) needs an API key; others need none
+```
+Uploads are marked adult by default (`--sfw` to change). The images are always also written to the output folder/ZIP, so you can upload them by hand instead.
 
 ## Tracker profiles
 ```

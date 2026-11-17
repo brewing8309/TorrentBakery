@@ -8,6 +8,7 @@ import typer
 
 from . import config as config_mod
 from .config import StashBoxCfg, Tracker
+from .hosts import HOST_NAMES, get_uploader
 from .pipeline import bake
 from .sources import stash as stash_source
 from .sources import stashbox as stashbox_source
@@ -30,6 +31,8 @@ def bake_cmd(
     out: Path = typer.Option(Path("out"), "--out", "-o", help="Output root directory"),
     tracker: str = typer.Option(None, "--tracker", "-t", help="Tracker profile (see `tb tracker list`)"),
     cover: Path = typer.Option(None, "--cover", exists=True, dir_okay=False, help="Use this image as main image"),
+    upload: str = typer.Option(None, "--upload", "-u", help=f"Upload images to a host ({', '.join(HOST_NAMES)})"),
+    sfw: bool = typer.Option(False, "--sfw", help="Mark uploads as family safe (default: adult content)"),
     stashbox: str = typer.Option(None, "--stashbox", help="Scene URL on a stash-box, e.g. https://stashdb.org/scenes/<id> (for plain files)"),
 ) -> None:
     cfg = config_mod.load()
@@ -46,7 +49,8 @@ def bake_cmd(
                 raise typer.BadParameter(f"{source} is not a file (use stash:<id> for Stash scenes)")
             if stashbox:
                 release, auto_cover = _from_stashbox_url(cfg, stashbox, Path(tmp))
-        result = bake(path, out, cfg, release=release, tracker=tracker, cover=cover or auto_cover)
+        uploader = get_uploader(upload, cfg) if upload else None
+        result = bake(path, out, cfg, release=release, tracker=tracker, cover=cover or auto_cover, uploader=uploader, nsfw=not sfw)
     typer.echo(f"Baked into {result} (+ {result}.zip)")
 
 
@@ -121,3 +125,28 @@ def stash_map_add(stash_path: str, local_path: str) -> None:
     cfg.path_map.append((stash_path, local_path))
     config_mod.save(cfg)
     typer.echo(f"Mapped {stash_path} -> {local_path}")
+
+
+host_app = typer.Typer(help="Image host settings.", no_args_is_help=True)
+app.add_typer(host_app, name="host")
+
+
+@host_app.command("list")
+def host_list() -> None:
+    cfg = config_mod.load()
+    for name in HOST_NAMES:
+        opts = cfg.hosts.get(name, {})
+        typer.echo(f"{name}" + (f"  ({', '.join(opts)})" if opts else ""))
+
+
+@host_app.command("set")
+def host_set(name: str, option: list[str] = typer.Option(..., "--option", "-o", help="key=value, e.g. api_key=…")) -> None:
+    """Save host options (hamsterimg needs api_key; optional base_url)."""
+    if name not in HOST_NAMES:
+        raise typer.BadParameter(f"unknown host {name!r}; known: {', '.join(HOST_NAMES)}")
+    cfg = config_mod.load()
+    for o in option:
+        k, _, v = o.partition("=")
+        cfg.hosts.setdefault(name, {})[k] = v
+    config_mod.save(cfg)
+    typer.echo(f"Saved options for {name}")
