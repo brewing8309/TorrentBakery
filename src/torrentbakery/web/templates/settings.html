@@ -57,10 +57,11 @@
         <td class="act">
           {% if t.site %}<button type="button" class="ghost" onclick="testTracker({{ name | tojson | forceescape }}, 'tt-{{ loop.index0 }}')">Test login</button>
           <form class="inline" method="post" action="/settings/tracker/{{ name | urlencode }}/announce"><button class="ghost">Fetch announce URL</button></form>{% endif %}
+          <button type="button" class="ghost" onclick="editTracker({{ name | tojson | forceescape }})">Edit</button>
           <form class="inline" method="post" action="/settings/tracker/{{ name | urlencode }}/delete"><button class="ghost">Remove</button></form></td></tr>
   {% else %}<tr><td class="mute">No profile yet.</td></tr>{% endfor %}</table>
-  <h2>Add or replace a profile</h2>
-  <form method="post" action="/settings/tracker">
+  <h2 id="tracker-form-title">Add or replace a profile</h2>
+  <form method="post" action="/settings/tracker" id="tracker-form">
     <div class="row">
       <div><label for="t-name">Name</label><input type="text" id="t-name" name="name" required placeholder="MyTracker">
         <p class="help">Free to choose; it appears in the dropdown on the start page. The same name replaces the profile; blank announce URL and cookie keep the saved ones.</p></div>
@@ -93,7 +94,7 @@
       <p><label><input type="checkbox" name="auto_publish" value="1"> Publish automatically after baking</label></p>
       <p class="help">Needs an image host on the start page: the tracker requires a cover URL.</p>
     </details>
-    <p><button>Save profile</button></p>
+    <p><button>Save profile</button> <button type="button" class="ghost" id="tracker-cancel" hidden>Cancel editing</button></p>
   </form>
 </section>
 
@@ -208,7 +209,25 @@
   </form>
 </section>
 
+<script id="tracker-data" type="application/json">{{ tracker_data | tojson }}</script>
 <script>
+const trackerData = JSON.parse(document.getElementById("tracker-data").textContent);
+const tform = document.getElementById("tracker-form"), tcancel = document.getElementById("tracker-cancel"), ttitle = document.getElementById("tracker-form-title");
+function editTracker(name) {
+  const t = trackerData[name], f = tform.elements;
+  tform.reset();
+  f.name.value = name; f.name.readOnly = true;  // a different name would create a second profile
+  f.source.value = t.source; f.private.checked = t.private; f.site.value = t.site; f.base_url.value = t.base_url; f.category.value = t.category;
+  f.title_template.value = t.title_template; f.anonymous.checked = t.anonymous; f.auto_publish.checked = t.auto_publish;
+  f.announce.placeholder = "saved; leave empty to keep it (a new URL replaces it)"; f.cookie.placeholder = "saved; leave empty to keep it";
+  tform.querySelector("details").open = true;
+  ttitle.textContent = "Edit profile " + name; tcancel.hidden = false;
+  tform.scrollIntoView({behavior: "smooth", block: "start"});
+}
+tcancel.addEventListener("click", () => {
+  tform.reset(); tform.elements.name.readOnly = false; tcancel.hidden = true; ttitle.textContent = "Add or replace a profile";
+  tform.elements.announce.placeholder = "https://tracker.example/abc123passkey/announce"; tform.elements.cookie.placeholder = "session=…; other=…";
+});
 async function testTracker(name, id) {
   const out = document.getElementById(id);
   out.className = "mute"; out.textContent = " Testing …";

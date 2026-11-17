@@ -53,9 +53,13 @@ def render_title(template: str, release: dict, media: dict) -> str:
         duration=media.get("duration", 0), framerate=media.get("fps", 0)).split())
 
 
+def performer_tags(release: dict) -> list[str]:
+    return [t for t in (empify(p) for p in release.get("performers", [])) if t]
+
+
 def auto_tags(release: dict, media: dict) -> list[str]:
     """Tags derived from the metadata itself (performer, date, resolution, codec, frame rate)."""
-    tags = [empify(p) for p in release.get("performers", [])]
+    tags = performer_tags(release)
     parts = release.get("date", "").split("-")
     if len(parts[0]) == 4:
         tags += [".".join(parts[:i]) for i in range(1, len(parts) + 1)]
@@ -108,7 +112,8 @@ def prepare(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, 
     suggestions: dict[str, str] = {}
     if tags is None:
         mapped, suggestions = (tagmap or TagMap.load()).map_tags(release.get("tags", []), name)
-        tags = list(dict.fromkeys(mapped + auto_tags(release, media)))
+        tags = mapped + auto_tags(release, media)
+    tags = list(dict.fromkeys(performer_tags(release) + tags))  # performers are always tagged, first, also when the tag field was edited by hand
     base = next(iter(sorted(out_dir.glob("*.torrent"), key=lambda p: ".tracker." in p.name)), None)
     if base is None:
         raise TrackerError(f"{out_dir} holds no .torrent")

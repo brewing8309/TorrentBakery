@@ -149,7 +149,7 @@ def test_prepare_rebuilds_torrent_for_tracker(baked):
     p = prepare(cfg, baked, "emp", tagmap=TagMap.load(baked / "none.toml"))
     t = Torrent.read(p.torrent)
     assert p.torrent.name == "Scene.tracker.emp.torrent" and t.source == "Emp" and t.private and t.trackers[0][0].endswith("/PASS123/announce")
-    assert p.title.startswith("[Studio]") and p.tags[0] == "blowjob" and p.image == "https://img/c.jpg"
+    assert p.title.startswith("[Studio]") and p.tags[:3] == ["jane.doe", "eve", "blowjob"] and p.image == "https://img/c.jpg"
     assert Torrent.read(baked / "Scene.torrent").infohash != t.infohash  # the source flag changes the hash, so the base torrent stays untouched
 
 
@@ -216,3 +216,9 @@ def test_bake_source_auto_publish_hook(tmp_path, monkeypatch):
     monkeypatch.setattr(service, "publish_release", boom)
     assert service.bake_source(cfg, str(media), tmp_path / "out", tracker="emp") == out  # the bake still succeeds
     assert "cookie expired" in (out / "publish-error.txt").read_text()
+
+
+def test_performers_always_tagged_even_with_hand_edited_tags(baked):
+    cfg = Config(trackers={"emp": tracker()})
+    p = prepare(cfg, baked, "emp", tags=["only", "this", "eve"], tagmap=TagMap.load(baked / "none.toml"), build_torrent=False)
+    assert p.tags == ["jane.doe", "eve", "only", "this"]

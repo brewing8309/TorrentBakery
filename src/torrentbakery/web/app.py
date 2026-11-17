@@ -18,7 +18,7 @@ from ..config import SITE_SOURCES, StashBoxCfg, Tracker
 from ..hosts import HOST_NAMES
 from ..media.files import is_video
 from ..publish import prepare
-from ..render.post import format_tags
+from ..render.post import release_tags
 from ..sources.gql import gql
 from ..tags import TagMap, load_user_map, save_user_map
 from ..trackers import SITES, TrackerError, get_publisher
@@ -166,7 +166,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
                        "job_tracker": job.options.get("tracker") or "", "has_image_host": bool(meta.get("uploads")), "files": job_files(job), "post": post, "uploads": meta.get("uploads", {}), "host": meta.get("image_host", ""), "cover_file": meta.get("cover_file", "cover.jpg"),
                        "folder_name": meta.get("folder_name", ""), "folder_path": meta.get("folder_path", ""),
                        "release_title": meta.get("release", {}).get("title") or title,
-                       "tags": format_tags(meta.get("release", {}).get("tags", []))})
+                       "tags": release_tags(meta.get("release", {}))})
 
     @app.get("/jobs/{job_id}/state")
     def job_state(job_id: str):
@@ -247,6 +247,9 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         c = cfg()
         um = load_user_map(tags_file())
         return templates.TemplateResponse(request, "settings.html", {"c": c, "hosts": HOST_NAMES, "hamster_key": bool(c.hosts.get("hamsterimg", {}).get("api_key")), "sites": SITES,
+                                                                    # what the Edit button puts into the form: everything except the secrets (announce URL with passkey, cookie)
+                                                                    "tracker_data": {n: {"source": t.source, "private": t.private, "site": t.site, "base_url": t.base_url, "category": t.category, "anonymous": t.anonymous,
+                                                                                         "auto_publish": t.auto_publish, "title_template": t.title_template} for n, t in c.trackers.items()},
                                                                     "qbit_password": bool(c.qbit.password), "cookies": {n: bool(t.cookie) for n, t in c.trackers.items()},
                                                                     "tag_default": um.get("tags", {}), "tag_tracker": um.get("tracker", {}), "tag_ignored": um.get("ignored", [])})
 

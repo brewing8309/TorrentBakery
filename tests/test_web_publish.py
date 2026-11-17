@@ -99,3 +99,11 @@ def test_publish_failure_is_shown_and_auto_publish_error_file(tmp_path):
         if c.get(f"/jobs/{jid}/publish/state").json()["status"] == "error":
             break
     assert "cookie expired" in c.get(f"/jobs/{jid}/publish/state").json()["error"] and "cookie expired" in c.get(f"/jobs/{jid}").text
+
+
+def test_edit_data_has_no_secrets(tmp_path):
+    c, _, _ = setup(tmp_path)
+    page = c.get("/settings").text
+    data = json.loads(page.split('id="tracker-data" type="application/json">')[1].split("</script>")[0])
+    assert data["emp"]["site"] == "empornium" and data["emp"]["category"] == "2" and data["emp"]["base_url"] == "https://tr.example"
+    assert "cookie" not in data["emp"] and "announce" not in data["emp"] and "SECRETCOOKIE" not in page and "PASSKEY123" not in page

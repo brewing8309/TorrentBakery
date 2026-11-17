@@ -46,7 +46,7 @@ def test_bake(video, tmp_path):
 
     meta = __import__("json").loads((out / "release.json").read_text())
     assert meta["folder_name"] == video.parent.name and meta["folder_path"] == str(video.parent)  # parent folder of the file
-    assert (out / "tags.txt").read_text() == "x face.fuck y big.boobs\n"  # lowercase, spaces inside a tag become dots, duplicates drop out
+    assert (out / "tags.txt").read_text() == "a b x face.fuck y big.boobs\n"  # performers first; lowercase, spaces inside a tag become dots, duplicates drop out
     assert (tmp_path / f"{out.name}.zip").exists()
     names = zipfile.ZipFile(tmp_path / f"{out.name}.zip").namelist()
     assert {"post.bbcode", "cover.webp", "contactsheet.jpg", "release.json", "tags.txt"} <= set(names)
