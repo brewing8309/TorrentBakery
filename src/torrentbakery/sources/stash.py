@@ -5,7 +5,7 @@ from pathlib import Path
 import httpx
 
 from ..config import Config, map_path
-from ..models import Release
+from ..models import MALE_GENDERS, Release
 from . import stashbox
 from .base import Resolved
 from .gql import download_raw, gql
@@ -15,7 +15,7 @@ query Scene($id: ID!) {
   findScene(id: $id) {
     title details date urls
     studio { name }
-    performers { name }
+    performers { name gender }
     tags { name }
     files { path }
     paths { webp }
@@ -44,6 +44,7 @@ def resolve(cfg: Config, scene_id: str, workdir: Path, transport: httpx.BaseTran
         date=scene["date"] or "",
         studio=scene["studio"]["name"] if scene["studio"] else "",
         performers=[p["name"] for p in scene["performers"]],
+        male_performers=[p["name"] for p in scene["performers"] if p.get("gender") in MALE_GENDERS],
         tags=[t["name"] for t in scene["tags"]],
         description=scene["details"] or "",
         urls=list(scene["urls"]),

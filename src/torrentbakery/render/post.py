@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from pathlib import Path
 
 from jinja2 import ChoiceLoader, Environment, FileSystemLoader, PackageLoader, StrictUndefined
 
-from ..models import MediaInfo, Release
+from ..models import MediaInfo, Release, credited_performers
 from ..tags import empify
 from ..media.probe import fmt_codec, fmt_duration, fmt_language, fmt_size
 
@@ -21,9 +22,9 @@ def format_tags(tags: list[str]) -> str:
 
 
 def release_tags(release: dict | Release) -> str:
-    """The tag string of a release: the performers always come first (lowercase, spaces as dots), then the Stash tags."""
-    d = release if isinstance(release, dict) else {"performers": release.performers, "tags": release.tags}
-    return format_tags([empify(n) for n in d.get("performers", [])] + d.get("tags", []))
+    """The tag string of a release: the performers (not the male ones) always come first (lowercase, spaces as dots), then the Stash tags."""
+    d = release if isinstance(release, dict) else asdict(release)
+    return format_tags([empify(n) for n in credited_performers(d)] + d.get("tags", []))
 
 
 def render_post(release: Release, info: MediaInfo, images: dict[str, str], template: str = "default.bbcode.j2", extra_dir: Path | None = None, links: dict[str, str] | None = None) -> str:

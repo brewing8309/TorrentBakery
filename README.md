@@ -77,7 +77,7 @@ tb bake stash:1234 -t emp -u pixhost.to --publish # bake and upload in one go (n
 ```
 In the web UI, the result page has a "Publish to tracker" section with a preview (title, tags, category list read live from the tracker); `--auto-publish` / the profile setting uploads right after baking. A failed upload never fails the bake; the reason is shown on the result page. The cookie expires at some point: "Test login" tells you, paste a fresh one.
 
-Stash tags are translated to tracker tags with the default list from stash-empornium (Unlicense) plus your own entries (`tb tags map "Big Tits" "big.tits boobs" [-t emp]`, `tb tags ignore TAG`, or in the web UI). Performer names, date, resolution, codec and frame rate are added as tags. Tags the list does not know are sent in dotted form, and the preview offers to remember them.
+Stash tags are translated to tracker tags with the default list from stash-empornium (Unlicense) plus your own entries (`tb tags map "Big Tits" "big.tits boobs" [-t emp]`, `tb tags ignore TAG`, or in the web UI). The performers are always added as tags (first); metadata such as date, resolution or codec is not tagged. Tags the list does not know are sent in dotted form, and the preview offers to remember them.
 
 The field names of the four upload pages are looked up by the element ids the userscript uses; they are not verified against the live sites yet, so run `--dry-run` first.
 

@@ -14,6 +14,7 @@ from torf import Torrent
 from .clients import QbitError, QBittorrent, map_save_path
 from .config import Config, Tracker
 from .media.torrent import make_torrent
+from .models import credited_performers
 from .tags import TagMap, empify
 from .trackers import PublishRequest, TrackerError, get_publisher
 
@@ -46,7 +47,7 @@ def _performers_text(names: list[str]) -> str:
 
 def render_title(template: str, release: dict, media: dict) -> str:
     env = SandboxedEnvironment(undefined=StrictUndefined, autoescape=False)
-    perf = release.get("performers", [])
+    perf = credited_performers(release)  # male performers are named neither in the title nor in the tags
     return " ".join(env.from_string(template or DEFAULT_TITLE).render(
         studio=release.get("studio", ""), performers=perf, performers_text=_performers_text(perf), title=release.get("title", ""),
         date=release.get("date", ""), resolution=_resolution(media), codec=media.get("video_codec", ""),
@@ -54,22 +55,7 @@ def render_title(template: str, release: dict, media: dict) -> str:
 
 
 def performer_tags(release: dict) -> list[str]:
-    return [t for t in (empify(p) for p in release.get("performers", [])) if t]
-
-
-def auto_tags(release: dict, media: dict) -> list[str]:
-    """Tags derived from the metadata itself (performer, date, resolution, codec, frame rate)."""
-    tags = performer_tags(release)
-    parts = release.get("date", "").split("-")
-    if len(parts[0]) == 4:
-        tags += [".".join(parts[:i]) for i in range(1, len(parts) + 1)]
-    if media.get("height"):
-        tags.append(_resolution(media))
-    if media.get("video_codec"):
-        tags.append(empify(media["video_codec"]))
-    if media.get("fps"):
-        tags.append(f"{round(media['fps'])}.fps")
-    return [t for t in tags if t]
+    return [t for t in (empify(p) for p in credited_performers(release)) if t]
 
 
 def _read_meta(out_dir: Path) -> dict:
@@ -112,7 +98,7 @@ def prepare(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, 
     suggestions: dict[str, str] = {}
     if tags is None:
         mapped, suggestions = (tagmap or TagMap.load()).map_tags(release.get("tags", []), name)
-        tags = mapped + auto_tags(release, media)
+        tags = mapped
     tags = list(dict.fromkeys(performer_tags(release) + tags))  # performers are always tagged, first, also when the tag field was edited by hand
     base = next(iter(sorted(out_dir.glob("*.torrent"), key=lambda p: ".tracker." in p.name)), None)
     if base is None:

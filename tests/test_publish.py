@@ -6,7 +6,7 @@ from torf import Torrent
 
 from torrentbakery.clients import QBittorrent, QbitError, map_save_path
 from torrentbakery.config import Config, QbitCfg, Tracker
-from torrentbakery.publish import auto_tags, prepare, publish, render_title
+from torrentbakery.publish import performer_tags, prepare, publish, render_title
 from torrentbakery.tags import TagMap, empify
 from torrentbakery.trackers import LoginError, PublishRequest, TrackerError, get_publisher
 
@@ -120,10 +120,10 @@ MEDIA = {"height": 1080, "width": 1920, "video_codec": "h264", "fps": 29.97, "du
 REL = {"title": "Scene", "date": "2024-05-17", "studio": "Studio", "performers": ["Jane Doe", "Eve"], "tags": ["Blowjob"]}
 
 
-def test_title_and_auto_tags():
+def test_title_and_performer_tags():
     assert render_title("", REL, MEDIA) == "[Studio] Jane Doe & Eve - Scene (2024-05-17) [1080p]"
     assert render_title("{{ title }}|{{ resolution }}", REL, MEDIA) == "Scene|1080p"
-    assert auto_tags(REL, MEDIA) == ["jane.doe", "eve", "2024", "2024.05", "2024.05.17", "1080p", "h264", "30.fps"]
+    assert performer_tags(REL) == ["jane.doe", "eve"]  # metadata (date, resolution, codec, fps) is deliberately not tagged
 
 
 @pytest.fixture
@@ -149,7 +149,7 @@ def test_prepare_rebuilds_torrent_for_tracker(baked):
     p = prepare(cfg, baked, "emp", tagmap=TagMap.load(baked / "none.toml"))
     t = Torrent.read(p.torrent)
     assert p.torrent.name == "Scene.tracker.emp.torrent" and t.source == "Emp" and t.private and t.trackers[0][0].endswith("/PASS123/announce")
-    assert p.title.startswith("[Studio]") and p.tags[:3] == ["jane.doe", "eve", "blowjob"] and p.image == "https://img/c.jpg"
+    assert p.title.startswith("[Studio]") and p.tags == ["jane.doe", "eve", "blowjob"] and p.image == "https://img/c.jpg"
     assert Torrent.read(baked / "Scene.torrent").infohash != t.infohash  # the source flag changes the hash, so the base torrent stays untouched
 
 
@@ -222,3 +222,13 @@ def test_performers_always_tagged_even_with_hand_edited_tags(baked):
     cfg = Config(trackers={"emp": tracker()})
     p = prepare(cfg, baked, "emp", tags=["only", "this", "eve"], tagmap=TagMap.load(baked / "none.toml"), build_torrent=False)
     assert p.tags == ["jane.doe", "eve", "only", "this"]
+
+
+def test_male_performers_are_left_out_of_title_and_tags():
+    rel = {**REL, "performers": ["Jane Doe", "Toby Dick", "Eve"], "male_performers": ["Toby Dick"]}
+    assert render_title("", rel, MEDIA) == "[Studio] Jane Doe & Eve - Scene (2024-05-17) [1080p]"
+    assert performer_tags(rel) == ["jane.doe", "eve"]
+    from torrentbakery.render.post import release_tags
+    assert release_tags({**rel, "tags": ["Blowjob"]}) == "jane.doe eve blowjob"
+    only_male = {**REL, "performers": ["Toby Dick"], "male_performers": ["Toby Dick"]}
+    assert render_title("", only_male, MEDIA) == "[Studio] Scene (2024-05-17) [1080p]" and performer_tags(only_male) == []

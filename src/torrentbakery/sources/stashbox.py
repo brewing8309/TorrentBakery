@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from ..models import Release
+from ..models import MALE_GENDERS, Release
 from .gql import gql
 
 SCENE_QUERY = """
@@ -43,6 +43,7 @@ def fetch(endpoint: str, api_key: str, scene_id: str, transport: httpx.BaseTrans
         date=scene["release_date"] or "",
         studio=studio,
         performers=[a["as"] or a["performer"]["name"] for a in scene["performers"]],
+        male_performers=[a["as"] or a["performer"]["name"] for a in scene["performers"] if a["performer"].get("gender") in MALE_GENDERS],
         tags=[t["name"] for t in scene["tags"]],
         description=scene["details"] or "",
         urls=[page_url(endpoint, scene_id)] + [u["url"] for u in scene["urls"]],

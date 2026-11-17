@@ -34,8 +34,18 @@ class Release:
     date: str = ""
     studio: str = ""
     performers: list[str] = field(default_factory=list)
+    male_performers: list[str] = field(default_factory=list)  # names from `performers` that are male: kept in the post, left out of title and tags
     tags: list[str] = field(default_factory=list)
     description: str = ""
     urls: list[str] = field(default_factory=list)
     cover_url: str = ""
     source_ids: dict[str, str] = field(default_factory=dict)
+
+
+MALE_GENDERS = {"MALE", "TRANSGENDER_MALE"}  # Stash / stash-box gender values
+
+
+def credited_performers(release: dict) -> list[str]:
+    """The performers a title and the tags name: all but the male ones (a release without gender data keeps everybody)."""
+    male = set(release.get("male_performers", []))
+    return [p for p in release.get("performers", []) if p not in male]

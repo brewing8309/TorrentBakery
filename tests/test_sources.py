@@ -50,7 +50,7 @@ def handler(video_path):
 def test_stashbox_fetch_maps_fields():
     r = stashbox.fetch(BOX, "boxkey", "abc", httpx.MockTransport(handler(None)))
     assert r.title == "Box Title" and r.date == "2025-05-06" and r.studio == "Studio X"
-    assert r.performers == ["Alias", "Other"] and r.tags == ["t1"]
+    assert r.performers == ["Alias", "Other"] and r.male_performers == ["Other"] and r.tags == ["t1"]
     assert r.cover_url == "https://img.example/wide.jpg"  # largest landscape
     assert r.urls[0] == "https://box.example/scenes/abc" and "https://studio.example/s/1" in r.urls
 
