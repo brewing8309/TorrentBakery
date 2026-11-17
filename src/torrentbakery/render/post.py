@@ -9,10 +9,10 @@ from ..media.probe import fmt_codec, fmt_duration, fmt_language, fmt_size
 
 
 def format_tags(tags: list[str]) -> str:
-    """Tags for an upload form's tag field: space separated, so a space inside a tag becomes a dot ("Face Fuck" -> "Face.Fuck")."""
+    """Tags for an upload form's tag field: lowercase, space separated, so a space inside a tag becomes a dot ("Face Fuck" -> "face.fuck")."""
     seen, out = set(), []
     for t in tags:
-        t = ".".join(t.split())
+        t = ".".join(t.split()).lower()
         if t and t.lower() not in seen:
             seen.add(t.lower())
             out.append(t)

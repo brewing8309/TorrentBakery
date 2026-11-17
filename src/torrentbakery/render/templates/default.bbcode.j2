@@ -10,7 +10,7 @@
 {% endif %}
 {% if release.performers %}[b]Performers:[/b] {{ release.performers | join(", ") }}
 {% endif %}
-{% if release.tags %}[b]Tags:[/b] {{ release.tags | join(", ") }}
+{% if release.tags %}[b]Tags:[/b] {{ release.tags | map("lower") | join(", ") }}
 {% endif %}
 
 {% if release.description %}

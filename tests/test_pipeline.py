@@ -40,10 +40,11 @@ def test_bake(video, tmp_path):
     post = (out / "post.bbcode").read_text()
     for needle in ("Test Scene", "Studio X", "A, B", "640x360", "[b]Video:[/b] H.264", "[b]Audio:[/b] AAC, 1 ch", "[b]Overall bit rate:[/b]", "[spoiler=MediaInfo]"):
         assert needle in post
+    assert "Face Fuck" not in post and "face fuck" in post  # tags are lowercase in the post too
     assert "{{" not in post and "[list]" not in post and "[*]" not in post  # the target forum does not render lists
     assert ", und" not in post  # undefined audio language is left out
 
-    assert (out / "tags.txt").read_text() == "x Face.Fuck y big.boobs\n"  # spaces inside a tag become dots, duplicates drop out
+    assert (out / "tags.txt").read_text() == "x face.fuck y big.boobs\n"  # lowercase, spaces inside a tag become dots, duplicates drop out
     assert (tmp_path / f"{out.name}.zip").exists()
     names = zipfile.ZipFile(tmp_path / f"{out.name}.zip").namelist()
     assert {"post.bbcode", "cover.webp", "contactsheet.jpg", "release.json", "tags.txt"} <= set(names)

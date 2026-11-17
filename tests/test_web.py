@@ -192,5 +192,5 @@ def test_job_page_offers_copyable_tags(tmp_path, cfg_path):
     jid = c.post("/jobs", data={"source": "stash:1"}, follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
     wait_done(c, jid)
     page = c.get(f"/jobs/{jid}").text
-    assert '<textarea id="tags" rows="2" readonly>Face.Fuck Asian Big.Tits</textarea>' in page
+    assert '<textarea id="tags" rows="2" readonly>face.fuck asian big.tits</textarea>' in page
     assert '<input type="text" id="release-title" readonly value="T">' in page and "copyText('release-title'" in page
