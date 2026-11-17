@@ -53,7 +53,7 @@ if systemctl is-active --quiet torrentbakery.service; then
     echo "Läuft: http://$(hostname -I 2>/dev/null | awk '{print $1}'):${PORT_NOW:-8080}/"
     echo "Achtung: Die Oberfläche hat keinen Login. Nur in einem vertrauenswürdigen Netz betreiben"
     echo "(nur lokal: TB_HOST=127.0.0.1 in /etc/default/torrentbakery, dann systemctl restart torrentbakery)."
-    echo "Einstellungen (Tracker, Stash, Medienordner) im Browser unter 'Settings'. CLI: tb --help"
+    echo "Einstellungen (Tracker, Stash, Medienordner) im Browser unter „Einstellungen“. CLI: tb --help"
 else
     echo "Der Dienst ist nicht gestartet:" >&2
     journalctl -u torrentbakery.service -n 20 --no-pager -o cat >&2
