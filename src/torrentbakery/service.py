@@ -8,6 +8,7 @@ from .config import Config
 from .hosts import get_uploader
 from .media.files import find_main_video
 from .pipeline import bake
+from .publish import publish as publish_release
 from .sources import stash as stash_source
 from .sources import stashbox as stashbox_source
 
@@ -24,11 +25,13 @@ def _from_stashbox_url(cfg: Config, url: str):
 
 def bake_source(
     cfg: Config, source: str, out: Path, *, tracker: str | None = None, cover: Path | None = None, upload: str | None = None,
-    nsfw: bool = True, stashbox: str | None = None, cover_source: str | None = None, cover_format: str | None = None, media_roots: list[str] | None = None, progress=None,
+    nsfw: bool = True, stashbox: str | None = None, cover_source: str | None = None, cover_format: str | None = None, media_roots: list[str] | None = None, progress=None, publish: bool | None = None,
 ) -> Path:
     """Shared entry for CLI and web UI. `source` is a file path, a release folder or `stash:<scene-id>`.
     A folder becomes one torrent of the whole folder; its largest video provides media info, screenshots and cover.
-    With `media_roots`, paths must lie inside one of them (the web UI must not read arbitrary paths)."""
+    With `media_roots`, paths must lie inside one of them (the web UI must not read arbitrary paths).
+    `publish` uploads the result to the tracker right away; None follows the profile's auto_publish. A failed upload never fails the bake
+    (the files are done): the reason lands in publish-error.txt in the output folder."""
     if tracker and tracker not in cfg.trackers:
         raise ValueError(f"unknown tracker profile {tracker!r}; known: {', '.join(cfg.trackers) or 'none'}")
     uploader = get_uploader(upload, cfg) if upload else None
@@ -51,4 +54,13 @@ def bake_source(
                 raise ValueError(f"{source} is not a file or folder (use stash:<id> for Stash scenes)")
             if stashbox:
                 release = _from_stashbox_url(cfg, stashbox)
-        return bake(path, out, cfg, release=release, tracker=tracker, cover=cover or auto_cover, cover_format=cover_format, uploader=uploader, nsfw=nsfw, progress=progress, torrent_path=folder)
+        result = bake(path, out, cfg, release=release, tracker=tracker, cover=cover or auto_cover, cover_format=cover_format, uploader=uploader, nsfw=nsfw, progress=progress, torrent_path=folder)
+    t = cfg.trackers.get(tracker) if tracker else None
+    if t and t.site and (t.auto_publish if publish is None else publish):
+        err = result / "publish-error.txt"
+        err.unlink(missing_ok=True)
+        try:
+            publish_release(cfg, result, tracker, progress=progress)
+        except Exception as e:  # reported on the result page; the bake itself succeeded
+            err.write_text(f"{type(e).__name__}: {e}\n")
+    return result

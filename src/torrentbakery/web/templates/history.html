@@ -5,7 +5,7 @@
   <h1>History</h1>
   <p class="lead">Every bake, newest first. It is kept across restarts; the baked files stay in the output folder.</p>
   <table>
-    <tr><th>When</th><th>Release</th><th>Source</th><th>Tracker · Host</th><th>Status</th></tr>
+    <tr><th>When</th><th>Release</th><th>Source</th><th>Tracker · Host</th><th>Status</th><th>Published</th></tr>
     {% for j in jobs %}
     <tr>
       <td class="mute" style="white-space:nowrap">{{ j.created | datetime }}</td>
@@ -13,8 +13,9 @@
       <td class="mute">{{ j.source.rsplit("/", 1)[-1] }}</td>
       <td class="mute">{{ j.options.get("tracker") or "–" }} · {{ j.options.get("upload") or "–" }}</td>
       <td class="{{ 'ok' if j.status == 'done' else 'err' if j.status == 'error' else 'mute' }}">{{ j.status }}{% if j.status == "error" %}<br><span class="help">{{ j.error[:140] }}</span>{% endif %}</td>
+      <td class="mute">{% for tn, r in published.get(j.id, {}).items() %}<a href="{{ r.torrent_url }}" target="_blank" rel="noopener">{{ tn }}</a>{% if not loop.last %}, {% endif %}{% else %}–{% endfor %}</td>
     </tr>
-    {% else %}<tr><td colspan="5" class="mute">Nothing baked yet.</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="6" class="mute">Nothing baked yet.</td></tr>{% endfor %}
   </table>
 </section>
 {% endblock %}

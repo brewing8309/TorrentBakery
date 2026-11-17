@@ -6,4 +6,5 @@
 - Animated cover (WebP/GIF) from 1.5-second clips spread over the video, or Stash's own preview.
 - Web UI history that survives restarts; English interface with explained settings.
 - Saved tracker profiles; CLI (`tb`) and web UI (`tb serve`).
+- Publish to Gazelle trackers (Empornium, HappyFappy, FemdomCult, Enthralled) with a session cookie, add to qBittorrent, Stash→tracker tag mapping (default list from stash-empornium); `tb publish`, web UI publish section.
 - Installable from a release tarball (`install.sh`, systemd service, `uninstall.sh`).

@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .. import config as config_mod
+from ..publish import publish as publish_release
 from ..service import bake_source
 
 
@@ -26,6 +27,7 @@ class Job:
     out_dir: Path | None = None
     created: float = field(default_factory=time.time)
     finished: float = 0.0
+    pub: dict = field(default_factory=dict)  # state of the latest manual publish: status, stage, fraction, error, result (not persisted; publish.json on disk is)
 
 
 class JobManager:
@@ -33,8 +35,8 @@ class JobManager:
     Finished jobs are appended to <out>/history.jsonl and reloaded at start, so the history survives restarts;
     the results themselves stay on disk in the output folder."""
 
-    def __init__(self, out_root: Path, config_path: Path | None = None, runner=bake_source):
-        self.out_root, self.config_path, self.runner = out_root, config_path, runner
+    def __init__(self, out_root: Path, config_path: Path | None = None, runner=bake_source, publisher=publish_release):
+        self.out_root, self.config_path, self.runner, self.publisher = out_root, config_path, runner, publisher
         self.history_file = out_root / "history.jsonl"
         self.jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
@@ -47,6 +49,22 @@ class JobManager:
             self.jobs[job.id] = job
         self._pool.submit(self._run, job)
         return job
+
+    def submit_publish(self, job: Job, **kw) -> None:
+        """Queue an upload of a finished bake behind whatever else is running (it may hash a tracker-specific torrent)."""
+        job.pub = {"status": "queued", "stage": "", "fraction": 0.0, "error": "", "result": None, "tracker": kw.get("name", "")}
+        self._pool.submit(self._run_publish, job, kw)
+
+    def _run_publish(self, job: Job, kw: dict) -> None:
+        def progress(stage: str, fraction: float = 0.0) -> None:
+            job.pub["stage"], job.pub["fraction"] = stage, fraction
+
+        job.pub["status"] = "running"
+        try:
+            job.pub["result"] = self.publisher(config_mod.load(self.config_path), job.out_dir, progress=progress, **kw)
+            job.pub["status"] = "done"
+        except Exception as e:  # shown on the job page
+            job.pub["status"], job.pub["error"] = "error", f"{type(e).__name__}: {e}"
 
     def all(self) -> list[Job]:
         return sorted(self.jobs.values(), key=lambda j: j.created, reverse=True)

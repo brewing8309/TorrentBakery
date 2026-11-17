@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from dataclasses import replace
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -12,11 +13,15 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.templating import Jinja2Templates
 
 from .. import config as config_mod
-from ..config import StashBoxCfg, Tracker
+from ..clients import QbitError, QBittorrent
+from ..config import SITE_SOURCES, StashBoxCfg, Tracker
 from ..hosts import HOST_NAMES
 from ..media.files import is_video
+from ..publish import prepare
 from ..render.post import format_tags
 from ..sources.gql import gql
+from ..tags import TagMap, load_user_map, save_user_map
+from ..trackers import SITES, TrackerError, get_publisher
 from .jobs import JobManager
 
 SEARCH_QUERY = """
@@ -37,6 +42,8 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     jobs = manager or JobManager(out_root, config_path)
     cfg = lambda: config_mod.load(config_path)  # noqa: E731 - re-read per request so settings edits apply at once
 
+    tags_file = lambda: (config_path or config_mod.CONFIG_PATH).with_name("tags.toml")  # noqa: E731 - sits next to the config
+
     def save(c) -> RedirectResponse:
         config_mod.save(c, config_path)
         return RedirectResponse("/settings", status_code=303)
@@ -54,11 +61,19 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     @app.get("/")
     def index(request: Request):
         c = cfg()
-        return templates.TemplateResponse(request, "index.html", {"default_host": c.default_host, "cover_source": c.cover_source, "cover_format": c.cover_format, "trackers": list(c.trackers), "hosts": HOST_NAMES, "stash": bool(c.stash.url), "roots": c.web_media_roots, "jobs": jobs.recent(), "total_jobs": len(jobs.jobs)})
+        return templates.TemplateResponse(request, "index.html", {"default_host": c.default_host, "cover_source": c.cover_source, "cover_format": c.cover_format, "trackers": list(c.trackers), "publishable": [n for n, t in c.trackers.items() if t.site], "hosts": HOST_NAMES, "stash": bool(c.stash.url), "roots": c.web_media_roots, "jobs": jobs.recent(), "total_jobs": len(jobs.jobs)})
 
     @app.get("/history")
     def history(request: Request):
-        return templates.TemplateResponse(request, "history.html", {"jobs": jobs.all()})
+        published = {}
+        for j in jobs.all():
+            f = j.out_dir / "publish.json" if j.out_dir else None
+            if f and f.exists():
+                try:
+                    published[j.id] = json.loads(f.read_text())
+                except ValueError:
+                    pass
+        return templates.TemplateResponse(request, "history.html", {"jobs": jobs.all(), "published": published})
 
     @app.get("/browse")
     def browse(path: str = ""):
@@ -116,7 +131,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
 
     @app.post("/jobs")
     def create_job(source: str = Form(...), label: str = Form(""), tracker: str = Form(""), upload: str = Form(""), sfw: str = Form(""), stashbox: str = Form(""),
-                   cover_source: str = Form(""), cover_format: str = Form("")):
+                   cover_source: str = Form(""), cover_format: str = Form(""), publish: str = Form("")):
         source = source.strip()
         if not source:
             raise HTTPException(400, "source required")
@@ -125,7 +140,8 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         if cover_source not in ("", "own", "stash") or cover_format not in ("", "webp", "gif"):
             raise HTTPException(400, "invalid cover option")
         job = jobs.submit(source, label=label.strip()[:200], tracker=tracker or None, upload=upload or None, nsfw=not sfw, stashbox=stashbox.strip() or None,
-                          cover_source=cover_source or None, cover_format=cover_format or None)
+                          cover_source=cover_source or None, cover_format=cover_format or None,
+                          publish={"yes": True, "no": False}.get(publish))  # "" = follow the profile's auto_publish
         return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
     @app.get("/jobs/{job_id}")
@@ -137,7 +153,17 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
             if (job.out_dir / "release.json").exists():
                 meta = json.loads((job.out_dir / "release.json").read_text())
         title = job.label or job.title or meta.get("release", {}).get("title") or job.source.rsplit("/", 1)[-1]
-        return templates.TemplateResponse(request, "job.html", {"job": job, "title": title, "files": job_files(job), "post": post, "uploads": meta.get("uploads", {}), "host": meta.get("image_host", ""), "cover_file": meta.get("cover_file", "cover.jpg"),
+        published, pub_error = {}, ""
+        if job.out_dir and (job.out_dir / "publish.json").exists():
+            try:
+                published = json.loads((job.out_dir / "publish.json").read_text())
+            except ValueError:
+                pass
+        if job.out_dir and (job.out_dir / "publish-error.txt").exists():
+            pub_error = (job.out_dir / "publish-error.txt").read_text().strip()
+        c = cfg()
+        return templates.TemplateResponse(request, "job.html", {"job": job, "title": title, "published": published, "pub_error": pub_error, "publishable": [n for n, t in c.trackers.items() if t.site],
+                       "job_tracker": job.options.get("tracker") or "", "has_image_host": bool(meta.get("uploads")), "files": job_files(job), "post": post, "uploads": meta.get("uploads", {}), "host": meta.get("image_host", ""), "cover_file": meta.get("cover_file", "cover.jpg"),
                        "folder_name": meta.get("folder_name", ""), "folder_path": meta.get("folder_path", ""),
                        "release_title": meta.get("release", {}).get("title") or title,
                        "tags": format_tags(meta.get("release", {}).get("tags", []))})
@@ -146,6 +172,59 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     def job_state(job_id: str):
         j = job_or_404(job_id)
         return {"status": j.status, "stage": j.stage, "fraction": j.fraction, "error": j.error}
+
+    # ---- publish ----
+    def publishable_job(job_id: str, tracker: str):
+        job = job_or_404(job_id)
+        if job.status != "done" or not job.out_dir:
+            raise HTTPException(409, "the bake is not finished")
+        t = cfg().trackers.get(tracker)
+        if t is None or not t.site:
+            raise HTTPException(400, f"{tracker!r} is not a publishing tracker profile (set a site in Settings)")
+        return job
+
+    @app.get("/jobs/{job_id}/publish/preview")
+    def publish_preview(job_id: str, tracker: str):
+        """Reads the tracker's upload form (category list) and shows what would be sent. Nothing is posted."""
+        job = publishable_job(job_id, tracker)
+        c = cfg()
+        try:
+            p = prepare(c, job.out_dir, tracker, tagmap=TagMap.load(tags_file()), build_torrent=False)
+            form = get_publisher(tracker, c, transport).fetch_form()
+        except (TrackerError, ValueError, KeyError, OSError) as e:
+            return {"ok": False, "message": str(e)}
+        return {"ok": True, "title": p.title, "tags": " ".join(p.tags), "category": p.category, "categories": form.categories, "suggestions": p.suggestions,
+                "image": bool(p.image), "torrent": p.torrent.name}
+
+    @app.post("/jobs/{job_id}/publish")
+    def publish_start(job_id: str, tracker: str = Form(...), title: str = Form(""), category: str = Form(""), tags: str = Form("")):
+        job = publishable_job(job_id, tracker)
+        if job.pub.get("status") in ("queued", "running"):
+            raise HTTPException(409, "a publish is already running for this release")
+        jobs.submit_publish(job, name=tracker, title=title.strip() or None, category=category.strip() or None, tags=tags.split() or None,
+                            tagmap=TagMap.load(tags_file()), transport=transport)
+        return RedirectResponse(f"/jobs/{job.id}#publish", status_code=303)
+
+    @app.get("/jobs/{job_id}/publish/state")
+    def publish_state(job_id: str):
+        pub = job_or_404(job_id).pub
+        r = pub.get("result") or {}
+        return {"status": pub.get("status", ""), "stage": pub.get("stage", ""), "fraction": pub.get("fraction", 0.0), "error": pub.get("error", ""),
+                "torrent_url": r.get("torrent_url", ""), "qbit": r.get("qbit")}
+
+    @app.post("/jobs/{job_id}/tags")
+    def publish_tag_teach(job_id: str, stash_tag: str = Form(...), tracker_tags: str = Form(""), tracker: str = Form(""), ignore: str = Form("")):
+        """Accept (map) or ignore a suggestion from the publish preview. tracker "" = for every tracker."""
+        job_or_404(job_id)
+        data = load_user_map(tags_file())
+        if ignore:
+            data["ignored"] = sorted({*data.get("ignored", []), stash_tag})
+        elif tracker_tags.strip():
+            (data.setdefault("tracker", {}).setdefault(tracker, {}) if tracker else data.setdefault("tags", {}))[stash_tag] = tracker_tags.strip()
+        else:
+            raise HTTPException(400, "tracker tags required")
+        save_user_map(data, tags_file())
+        return {"ok": True}
 
     @app.get("/jobs/{job_id}/files/{name}")
     def job_file(job_id: str, name: str):
@@ -166,15 +245,47 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     @app.get("/settings")
     def settings(request: Request):
         c = cfg()
-        return templates.TemplateResponse(request, "settings.html", {"c": c, "hosts": HOST_NAMES, "hamster_key": bool(c.hosts.get("hamsterimg", {}).get("api_key"))})
+        um = load_user_map(tags_file())
+        return templates.TemplateResponse(request, "settings.html", {"c": c, "hosts": HOST_NAMES, "hamster_key": bool(c.hosts.get("hamsterimg", {}).get("api_key")), "sites": SITES,
+                                                                    "qbit_password": bool(c.qbit.password), "cookies": {n: bool(t.cookie) for n, t in c.trackers.items()},
+                                                                    "tag_default": um.get("tags", {}), "tag_tracker": um.get("tracker", {}), "tag_ignored": um.get("ignored", [])})
 
     @app.post("/settings/tracker")
-    def tracker_add(name: str = Form(...), announce: str = Form(...), source: str = Form(""), private: str = Form("")):
+    def tracker_add(name: str = Form(...), announce: str = Form(""), source: str = Form(""), private: str = Form(""), site: str = Form(""), base_url: str = Form(""),
+                    cookie: str = Form(""), category: str = Form(""), anonymous: str = Form(""), auto_publish: str = Form(""), title_template: str = Form("")):
         c = cfg()
-        urls = [u.strip() for u in announce.splitlines() if u.strip()]
-        if not name.strip() or not urls:
-            raise HTTPException(400, "name and at least one announce URL required")
-        c.trackers[name.strip()] = Tracker(urls, source.strip(), bool(private))
+        name = name.strip()
+        old = c.trackers.get(name, Tracker())
+        urls = [u.strip() for u in announce.splitlines() if u.strip()] or old.announce  # blank keeps the saved ones (they hold the passkey)
+        if not name or not (urls or (site and base_url.strip())):
+            raise HTTPException(400, "name and an announce URL required (or a site address and cookie, to fetch it)")
+        if site and site not in SITE_SOURCES:
+            raise HTTPException(400, "unknown site type")
+        c.trackers[name] = replace(old, announce=urls, source=source.strip(), private=bool(private), site=site, base_url=base_url.strip().rstrip("/"),
+                                   cookie=cookie.strip() or old.cookie, category=category.strip(), anonymous=bool(anonymous), auto_publish=bool(auto_publish and site),
+                                   title_template=title_template.strip())
+        return save(c)
+
+    @app.post("/settings/tracker/{name}/test")
+    def tracker_test(name: str):
+        try:
+            form = get_publisher(name, cfg(), transport).fetch_form()
+        except (TrackerError, ValueError, KeyError) as e:
+            return {"ok": False, "message": str(e)}
+        except httpx.HTTPError as e:
+            return {"ok": False, "message": f"not reachable: {type(e).__name__}"}
+        return {"ok": True, "message": "Logged in, upload form found." + ("" if form.announce else " (No announce URL on the page.)"), "categories": form.categories}
+
+    @app.post("/settings/tracker/{name}/announce")
+    def tracker_announce(name: str):
+        c = cfg()
+        try:
+            form = get_publisher(name, c, transport).fetch_form()
+        except (TrackerError, ValueError, KeyError) as e:
+            raise HTTPException(400, str(e))
+        if not form.announce:
+            raise HTTPException(400, "the upload page shows no announce URL")
+        c.trackers[name].announce = [form.announce]
         return save(c)
 
     @app.post("/settings/tracker/{name}/delete")
@@ -271,5 +382,46 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         c = cfg()
         c.web_media_roots = [r.strip() for r in roots.splitlines() if r.strip()]
         return save(c)
+
+    @app.post("/settings/qbit")
+    def qbit_set(url: str = Form(""), username: str = Form(""), password: str = Form(""), category: str = Form(""), start: str = Form(""), path_map: str = Form("")):
+        c = cfg()
+        q = c.qbit
+        q.url, q.username, q.category, q.start = url.strip().rstrip("/"), username.strip(), category.strip(), bool(start)
+        if password:  # never shown again, so blank means keep
+            q.password = password
+        q.path_map = [tuple(x.strip() for x in line.split("=", 1)) for line in path_map.splitlines() if "=" in line]  # type: ignore[misc]
+        return save(c)
+
+    @app.post("/settings/qbit/test")
+    def qbit_test():
+        try:
+            return {"ok": True, "message": "Connected: " + QBittorrent(cfg().qbit, transport).test()}
+        except QbitError as e:
+            return {"ok": False, "message": str(e)}
+
+    @app.post("/settings/tags")
+    def tags_add(stash_tag: str = Form(...), tracker_tags: str = Form(...), tracker: str = Form("")):
+        data = load_user_map(tags_file())
+        (data.setdefault("tracker", {}).setdefault(tracker, {}) if tracker else data.setdefault("tags", {}))[stash_tag.strip()] = tracker_tags.strip()
+        save_user_map(data, tags_file())
+        return RedirectResponse("/settings#tags", status_code=303)
+
+    @app.post("/settings/tags/ignore")
+    def tags_ignore(stash_tag: str = Form(...)):
+        data = load_user_map(tags_file())
+        data["ignored"] = sorted({*data.get("ignored", []), stash_tag.strip()})
+        save_user_map(data, tags_file())
+        return RedirectResponse("/settings#tags", status_code=303)
+
+    @app.post("/settings/tags/delete")
+    def tags_delete(kind: str = Form(...), stash_tag: str = Form(...), tracker: str = Form("")):
+        data = load_user_map(tags_file())
+        if kind == "ignored":
+            data["ignored"] = [t for t in data.get("ignored", []) if t != stash_tag]
+        elif kind == "map":
+            (data.get("tracker", {}).get(tracker, {}) if tracker else data.get("tags", {})).pop(stash_tag, None)
+        save_user_map(data, tags_file())
+        return RedirectResponse("/settings#tags", status_code=303)
 
     return app

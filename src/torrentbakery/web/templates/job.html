@@ -28,6 +28,81 @@
       {% for f in files if f.endswith(".torrent") %}<a class="btn ghost" href="/jobs/{{ job.id }}/files/{{ f | urlencode }}">{{ f }}</a>{% endfor %}
     </p>
   </section>
+  <section id="publish">
+    <h2>Publish to tracker</h2>
+    {% if pub_error %}<p class="err">Automatic publishing failed: {{ pub_error }}</p>{% endif %}
+    {% for tname, r in published.items() %}
+      <p class="ok">Published on <b>{{ tname }}</b>: <a href="{{ r.torrent_url }}" target="_blank" rel="noopener">{{ r.torrent_url }}</a>
+        {% if r.qbit %}· qBittorrent: <span class="{{ 'ok' if r.qbit.ok else 'err' }}">{{ r.qbit.message }}</span>{% endif %}</p>
+    {% endfor %}
+    {% if job.pub.status in ("queued", "running") %}
+      <p id="pub-stage" class="mute">{{ job.pub.stage or job.pub.status }}</p>
+      <div class="bar"><div id="pub-bar"></div></div>
+      <script>
+        (async function poll() {
+          try {
+            const s = await (await fetch("/jobs/{{ job.id }}/publish/state")).json();
+            if (s.status === "done" || s.status === "error") return location.reload();
+            document.getElementById("pub-stage").textContent = s.stage || s.status;
+            document.getElementById("pub-bar").style.width = Math.round(s.fraction * 100) + "%";
+          } catch (e) {}
+          setTimeout(poll, 1000);
+        })();
+      </script>
+    {% else %}
+      {% if job.pub.status == "error" %}<p class="err">{{ job.pub.error }}</p>{% endif %}
+      {% if not publishable %}
+        <p class="help">To upload this release to a tracker, give a <a href="/settings#tracker">tracker profile</a> a site type, address and session cookie.</p>
+      {% else %}
+      {% if not has_image_host %}<p class="note">This bake has no image-host upload, so there is no cover URL for the tracker. Bake again with an image host to publish.</p>{% endif %}
+      <p class="help">Uploads the torrent with the title, post, tags and cover below to the tracker, then adds it to qBittorrent if that is set up. The upload is public: check the preview first.</p>
+      <form method="post" action="/jobs/{{ job.id }}/publish" id="pub-form">
+        <div class="row">
+          <div><label for="pub-tracker">Tracker</label>
+            <select id="pub-tracker" name="tracker">{% for n in publishable %}<option{% if n == job_tracker %} selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+          <div><label for="pub-category">Category</label><select id="pub-category" name="category"><option value="">(load the preview)</option></select></div>
+        </div>
+        <label for="pub-title">Torrent title</label><input type="text" id="pub-title" name="title">
+        <label for="pub-tags">Tags</label><textarea id="pub-tags" name="tags" rows="2"></textarea>
+        <div id="pub-suggest"></div>
+        <p id="pub-msg" class="mute"></p>
+        <p><button type="button" class="ghost" id="pub-preview">Load preview</button>
+           <button id="pub-go"{% if not has_image_host %} disabled{% endif %}>Publish</button></p>
+      </form>
+      <script>
+        const $ = id => document.getElementById(id), jobId = "{{ job.id }}";
+        const msg = (t, cls) => { $("pub-msg").textContent = t; $("pub-msg").className = cls || "mute"; };
+        async function teach(row, body) {
+          const r = await fetch(`/jobs/${jobId}/tags`, {method: "POST", body: new URLSearchParams(body)});
+          if (r.ok) row.remove();
+        }
+        async function preview() {
+          msg("Reading the tracker's upload form…");
+          const r = await (await fetch(`/jobs/${jobId}/publish/preview?tracker=` + encodeURIComponent($("pub-tracker").value))).json();
+          if (!r.ok) return msg(r.message, "err");
+          $("pub-title").value = r.title; $("pub-tags").value = r.tags;
+          const sel = $("pub-category"); sel.replaceChildren();
+          for (const [v, l] of r.categories) sel.add(new Option(l, v, false, v === r.category));
+          const box = $("pub-suggest"); box.replaceChildren();
+          for (const [tag, proposed] of Object.entries(r.suggestions)) {
+            const row = document.createElement("p"), inp = document.createElement("input");
+            inp.type = "text"; inp.value = proposed; inp.style.width = "14em";
+            row.append("Unknown tag ", Object.assign(document.createElement("b"), {textContent: tag}), " → ", inp, " ");
+            const ok = Object.assign(document.createElement("button"), {type: "button", textContent: "Remember"});
+            const no = Object.assign(document.createElement("button"), {type: "button", textContent: "Never send", className: "ghost"});
+            ok.onclick = () => teach(row, {stash_tag: tag, tracker_tags: inp.value, tracker: $("pub-tracker").value});
+            no.onclick = () => teach(row, {stash_tag: tag, ignore: "1"});
+            row.append(ok, " ", no); box.append(row);
+          }
+          msg(r.suggestions && Object.keys(r.suggestions).length ? "Tags the mapping does not know are sent in their dotted form; remember or drop them." : "Ready.", "ok");
+        }
+        $("pub-preview").onclick = preview; $("pub-tracker").onchange = preview;
+        $("pub-form").onsubmit = e => { if (!confirm("Upload to " + $("pub-tracker").value + " now? The upload is public.")) e.preventDefault(); };
+        preview();
+      </script>
+      {% endif %}
+    {% endif %}
+  </section>
   <section>
     <h2>Title</h2>
     <input type="text" id="release-title" readonly value="{{ release_title }}">

@@ -49,24 +49,50 @@
 
 <section id="tracker">
   <h1>2. Tracker profiles <span class="badge req">needed for torrents</span></h1>
-  <p class="lead">A profile bundles what your tracker (or forum) requires for the torrent. You pick a profile when baking; without one the torrent has no announce URL, which no tracker accepts. You can create as many as you like, e.g. one per tracker.</p>
+  <p class="lead">A profile bundles what your tracker (or forum) requires for the torrent. You pick a profile when baking; without one the torrent has no announce URL, which no tracker accepts. You can create as many as you like, e.g. one per tracker. A profile with a <b>site type</b> and session cookie can also upload the finished release to the tracker.</p>
   <table>{% for name, t in c.trackers.items() %}
-    <tr><td><b>{{ name }}</b><br><span class="mute">{{ t.announce | map("urlhost") | join(", ") }} · source "{{ t.source or "–" }}" · {{ "private" if t.private else "public" }}</span></td>
-        <td class="act"><form class="inline" method="post" action="/settings/tracker/{{ name | urlencode }}/delete"><button class="ghost">Remove</button></form></td></tr>
+    <tr><td><b>{{ name }}</b><br><span class="mute">{{ t.announce | map("urlhost") | join(", ") or "no announce URL yet" }} · source "{{ t.effective_source or "–" }}" · {{ "private" if t.private else "public" }}
+        {% if t.site %}<br>publishes to {{ t.site }} ({{ t.base_url | urlhost }}) · cookie {{ "saved" if cookies[name] else "missing" }}{% if t.auto_publish %} · automatic after baking{% endif %}{% endif %}</span>
+        <span id="tt-{{ loop.index0 }}" class="mute"></span></td>
+        <td class="act">
+          {% if t.site %}<button type="button" class="ghost" onclick="testTracker({{ name | tojson | forceescape }}, 'tt-{{ loop.index0 }}')">Test login</button>
+          <form class="inline" method="post" action="/settings/tracker/{{ name | urlencode }}/announce"><button class="ghost">Fetch announce URL</button></form>{% endif %}
+          <form class="inline" method="post" action="/settings/tracker/{{ name | urlencode }}/delete"><button class="ghost">Remove</button></form></td></tr>
   {% else %}<tr><td class="mute">No profile yet.</td></tr>{% endfor %}</table>
   <h2>Add or replace a profile</h2>
   <form method="post" action="/settings/tracker">
     <div class="row">
       <div><label for="t-name">Name</label><input type="text" id="t-name" name="name" required placeholder="MyTracker">
-        <p class="help">Free to choose; it appears in the dropdown on the start page. The same name replaces the profile.</p></div>
+        <p class="help">Free to choose; it appears in the dropdown on the start page. The same name replaces the profile; blank announce URL and cookie keep the saved ones.</p></div>
       <div><label for="t-source">Source tag <span class="badge">optional</span></label><input type="text" id="t-source" name="source" placeholder="ABC">
-        <p class="help">Some private trackers require a "source" field in the torrent (see their upload rules). Otherwise leave empty.</p></div>
+        <p class="help">Some private trackers require a "source" field in the torrent (see their upload rules). For a site type below it defaults to the right one (Emp, HF, FDC, Ent).</p></div>
     </div>
     <label for="t-announce">Announce URL</label>
-    <textarea id="t-announce" name="announce" rows="2" required placeholder="https://tracker.example/abc123passkey/announce"></textarea>
-    <p class="help">Your personal announce URL from your tracker's upload page, usually containing your passkey. Several URLs: one per line. This page later shows only the server name, never the passkey.</p>
+    <textarea id="t-announce" name="announce" rows="2" placeholder="https://tracker.example/abc123passkey/announce"></textarea>
+    <p class="help">Your personal announce URL from your tracker's upload page, usually containing your passkey. Several URLs: one per line. This page later shows only the server name, never the passkey. With a site type and cookie you can leave it empty and use "Fetch announce URL" afterwards.</p>
     <label><input type="checkbox" name="private" value="1" checked> Private torrent</label>
     <p class="help">Turns off DHT and peer exchange. Keep it on for private trackers, switch it off only for public ones.</p>
+    <details>
+      <summary><b>Publishing</b> <span class="badge">optional</span></summary>
+      <p class="help">Lets TorrentBakery fill in and send the tracker's upload form for you, like the stash-empornium userscript does in the browser. It uses the session cookie of your logged-in account.</p>
+      <div class="row">
+        <div><label for="t-site">Site type</label>
+          <select id="t-site" name="site"><option value="">none (torrent only)</option>{% for x in sites %}<option>{{ x }}</option>{% endfor %}</select></div>
+        <div><label for="t-url">Site address</label><input type="text" id="t-url" name="base_url" placeholder="https://www.empornium.sx"></div>
+      </div>
+      <label for="t-cookie">Session cookie</label>
+      <input type="password" id="t-cookie" name="cookie" autocomplete="off" placeholder="session=…; other=…">
+      <p class="help">In your browser, logged in to the tracker: developer tools → Application/Storage → Cookies; copy the cookies as <code>name=value; name2=value2</code>. It is saved in the config file (readable only by the service user) and never shown again. When it expires, "Test login" says so; paste a fresh one.</p>
+      <div class="row">
+        <div><label for="t-cat">Default category id</label><input type="text" id="t-cat" name="category" placeholder="e.g. 2">
+          <p class="help">"Test login" lists the ids the tracker offers. You can still pick another one per upload.</p></div>
+        <div><label for="t-title">Title template <span class="badge">optional</span></label><input type="text" id="t-title" name="title_template" placeholder="[{{ '{{ studio }}' }}] {{ '{{ title }}' }}">
+          <p class="help">Jinja. Variables: studio, performers, performers_text, title, date, resolution, codec, duration, framerate. Empty = <code>[Studio] Performers - Title (date) [1080p]</code>.</p></div>
+      </div>
+      <label><input type="checkbox" name="anonymous" value="1"> Upload anonymously</label>
+      <p><label><input type="checkbox" name="auto_publish" value="1"> Publish automatically after baking</label></p>
+      <p class="help">Needs an image host on the start page: the tracker requires a cover URL.</p>
+    </details>
     <p><button>Save profile</button></p>
   </form>
 </section>
@@ -139,6 +165,68 @@
     <p><button>Save</button></p>
   </form>
 </section>
+
+<section id="qbit">
+  <h1>7. qBittorrent <span class="badge">optional</span></h1>
+  <p class="lead">After an upload, the torrent is added to qBittorrent, checked against the existing files and started, so you seed right away. qBittorrent must be able to reach the media files. Uses its Web UI (Options → Web UI).</p>
+  <form method="post" action="/settings/qbit">
+    <div class="row">
+      <div><label>Web UI address</label><input type="text" name="url" value="{{ c.qbit.url }}" placeholder="http://10.10.1.5:8080"></div>
+      <div><label>User name</label><input type="text" name="username" value="{{ c.qbit.username }}" autocomplete="off"></div>
+      <div><label>Password</label><input type="password" name="password" autocomplete="off" placeholder="{{ 'saved, blank keeps it' if qbit_password else 'password' }}"></div>
+    </div>
+    <div class="row">
+      <div><label>Category <span class="badge">optional</span></label><input type="text" name="category" value="{{ c.qbit.category }}"></div>
+      <div><label>&nbsp;</label><label><input type="checkbox" name="start" value="1"{% if c.qbit.start %} checked{% endif %}> Start seeding after the check</label></div>
+    </div>
+    <label>Folder translation <span class="badge">optional</span></label>
+    <textarea name="path_map" rows="2" placeholder="/media/BF-stshpp=/data/media">{% for a, b in c.qbit.path_map %}{{ a }}={{ b }}
+{% endfor %}</textarea>
+    <p class="help">One line <code>folder here=same folder for qBittorrent</code>. Only needed when qBittorrent sees the share under a different path than this container.</p>
+    <p><button>Save</button> <button type="button" class="ghost" id="qbit-test">Test saved connection</button> <span id="qbit-result" class="mute"></span></p>
+  </form>
+</section>
+
+<section id="tags">
+  <h1>8. Tag mapping <span class="badge">optional</span></h1>
+  <p class="lead">When publishing, Stash tags are translated into the tracker's tags. The built-in list (from <a href="https://github.com/bdbenim/stash-empornium" target="_blank" rel="noopener">stash-empornium</a>) covers about 1000 tags; add your own here, optionally for one tracker only. Tags the list does not know are sent in dotted form (<code>face.fuck</code>); the publish preview offers to remember or drop them.</p>
+  <table>
+    {% for st, tt in tag_default.items() %}<tr><td>{{ st }} → <code>{{ tt }}</code> <span class="mute">all trackers</span></td><td class="act"><form class="inline" method="post" action="/settings/tags/delete"><input type="hidden" name="kind" value="map"><input type="hidden" name="stash_tag" value="{{ st }}"><button class="ghost">Remove</button></form></td></tr>{% endfor %}
+    {% for tn, m in tag_tracker.items() %}{% for st, tt in m.items() %}<tr><td>{{ st }} → <code>{{ tt }}</code> <span class="mute">only {{ tn }}</span></td><td class="act"><form class="inline" method="post" action="/settings/tags/delete"><input type="hidden" name="kind" value="map"><input type="hidden" name="tracker" value="{{ tn }}"><input type="hidden" name="stash_tag" value="{{ st }}"><button class="ghost">Remove</button></form></td></tr>{% endfor %}{% endfor %}
+    {% for st in tag_ignored %}<tr><td>{{ st }} <span class="mute">never sent</span></td><td class="act"><form class="inline" method="post" action="/settings/tags/delete"><input type="hidden" name="kind" value="ignored"><input type="hidden" name="stash_tag" value="{{ st }}"><button class="ghost">Remove</button></form></td></tr>{% endfor %}
+    {% if not tag_default and not tag_tracker and not tag_ignored %}<tr><td class="mute">No own entries yet.</td></tr>{% endif %}
+  </table>
+  <form method="post" action="/settings/tags" class="row">
+    <div><label>Stash tag</label><input type="text" name="stash_tag" placeholder="Big Tits" required></div>
+    <div><label>Tracker tags</label><input type="text" name="tracker_tags" placeholder="big.tits boobs" required></div>
+    <div><label>Only for</label><select name="tracker"><option value="">all trackers</option>{% for n in c.trackers %}<option>{{ n }}</option>{% endfor %}</select></div>
+    <div style="flex:0 0 auto;align-self:end"><button>Add</button></div>
+  </form>
+  <form method="post" action="/settings/tags/ignore" class="row">
+    <div><label>Never send this Stash tag</label><input type="text" name="stash_tag" required></div>
+    <div style="flex:0 0 auto;align-self:end"><button class="ghost">Ignore</button></div>
+  </form>
+</section>
+
+<script>
+async function testTracker(name, id) {
+  const out = document.getElementById(id);
+  out.className = "mute"; out.textContent = " Testing …";
+  try {
+    const r = await (await fetch("/settings/tracker/" + encodeURIComponent(name) + "/test", { method: "POST" })).json();
+    out.className = r.ok ? "ok" : "err";
+    out.textContent = " " + (r.ok ? "✅ " : "❌ ") + r.message + (r.ok && r.categories.length ? " Categories: " + r.categories.map(c => c[0] + " = " + c[1]).join(", ") : "");
+  } catch (e) { out.className = "err"; out.textContent = " ❌ Test failed."; }
+}
+document.getElementById("qbit-test").addEventListener("click", async () => {
+  const out = document.getElementById("qbit-result");
+  out.className = "mute"; out.textContent = "Testing …";
+  try {
+    const r = await (await fetch("/settings/qbit/test", { method: "POST" })).json();
+    out.className = r.ok ? "ok" : "err"; out.textContent = (r.ok ? "✅ " : "❌ ") + r.message;
+  } catch (e) { out.className = "err"; out.textContent = "❌ Test failed."; }
+});
+</script>
 
 <script>
 const form = document.getElementById("stash-form"), out = document.getElementById("stash-result");
