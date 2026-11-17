@@ -18,27 +18,27 @@
     {% if not stash and not roots %}<p class="note">There is no source yet: connect Stash or permit a media folder in <a href="/settings">Settings</a>.</p>{% endif %}
     <div class="row">
       <div><label for="tracker">Tracker profile</label>
-        <select id="tracker" name="tracker"><option value="">none (torrent without announce URL)</option>{% for t in trackers %}<option>{{ t }}</option>{% endfor %}</select>
+        <select id="tracker" name="tracker"><option value="">none (torrent without announce URL)</option>{% for t in trackers %}<option{% if t == last.get("tracker") %} selected{% endif %}>{{ t }}</option>{% endfor %}</select>
         <p class="help">Sets announce URL, source tag and private/public.{% if not trackers %} <a href="/settings#tracker">Create a profile</a>{% endif %}</p>
         {% if publishable %}<label for="publish">Publish after baking</label>
-        <select id="publish" name="publish"><option value="">as set in the profile</option><option value="yes">yes, upload to the tracker</option><option value="no">no, only bake</option></select>
+        <select id="publish" name="publish"><option value="">as set in the profile</option><option value="yes"{% if last.get("publish") == "yes" %} selected{% endif %}>yes, upload to the tracker</option><option value="no"{% if last.get("publish") == "no" %} selected{% endif %}>no, only bake</option></select>
         <p class="help">Needs an image host (the tracker wants a cover URL). {{ publishable | join(", ") }} can publish.</p>{% endif %}</div>
       <div><label for="upload">Image host</label>
-        <select id="upload" name="upload"><option value="">none (images as files only)</option>{% for h in hosts %}<option{% if h == default_host %} selected{% endif %}>{{ h }}</option>{% endfor %}</select>
+        <select id="upload" name="upload"><option value="">none (images as files only)</option>{% set chosen_host = last["upload"] if "upload" in last else default_host %}{% for h in hosts %}<option{% if h == chosen_host %} selected{% endif %}>{{ h }}</option>{% endfor %}</select>
         <p class="help">Uploads the cover and the screenshot sheet and puts the host links into the post. Without a host the post only contains file names and you upload the images yourself. Set a default host in <a href="/settings#hosts">Settings</a>.</p></div>
     </div>
     <div class="row">
       <div><label for="cover_source">Animated cover: source</label>
-        <select id="cover_source" name="cover_source"><option value="own"{% if cover_source == "own" %} selected{% endif %}>build my own</option><option value="stash"{% if cover_source == "stash" %} selected{% endif %}>use Stash's preview</option></select>
+        <select id="cover_source" name="cover_source"><option value="own"{% if (last.get("cover_source") or cover_source) == "own" %} selected{% endif %}>build my own</option><option value="stash"{% if (last.get("cover_source") or cover_source) == "stash" %} selected{% endif %}>use Stash's preview</option></select>
         <p class="help">Build my own: 1.5-second clips spread evenly over the whole video (30 minutes gives 12 clips, 18 seconds). Stash's preview: the animated preview Stash generated itself; only for Stash scenes, falls back to "build my own" if Stash has none.</p></div>
       <div><label for="cover_format">Animated cover: format</label>
-        <select id="cover_format" name="cover_format"><option value="webp"{% if cover_format == "webp" %} selected{% endif %}>WebP (small)</option><option value="gif"{% if cover_format == "gif" %} selected{% endif %}>GIF (plays everywhere)</option></select>
+        <select id="cover_format" name="cover_format"><option value="webp"{% if (last.get("cover_format") or cover_format) == "webp" %} selected{% endif %}>WebP (small)</option><option value="gif"{% if (last.get("cover_format") or cover_format) == "gif" %} selected{% endif %}>GIF (plays everywhere)</option></select>
         <p class="help">WebP is much smaller at the same quality. Hosts that do not take WebP (imgbox, imagebam) automatically get a GIF.</p></div>
     </div>
     <label for="stashbox">Stash-box scene address <span class="badge">optional</span></label>
     <input type="text" id="stashbox" name="stashbox" placeholder="https://stashdb.org/scenes/…">
     <p class="help">Plain files only: fetches title, performers and links from this StashDB page. Not needed for Stash scenes. The key for it is in <a href="/settings#stashbox">Settings</a>.</p>
-    <label><input type="checkbox" name="sfw" value="1"> Mark images as family safe</label>
+    <label><input type="checkbox" name="sfw" value="1"{% if last.get("sfw") %} checked{% endif %}> Mark images as family safe</label>
     <p class="help">The default is "adult content". This only affects the upload at the image hosts.</p>
     <p><button type="submit">Bake</button></p>
   </form>

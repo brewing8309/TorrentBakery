@@ -71,6 +71,7 @@ class Config:
     cover_clips: int = 0  # 0 = automatic (4-12 depending on the runtime)
     cover_width: int = 480
     default_host: str = ""  # image host preselected in the web UI
+    last_used: dict[str, str] = field(default_factory=dict)  # what the bake form had at the last bake (tracker, upload, publish, cover_source, cover_format, sfw)
     web_media_roots: list[str] = field(default_factory=list)  # dirs the web UI may bake plain files from
     hosts: dict[str, dict[str, str]] = field(default_factory=dict)  # image host options, e.g. hamsterimg api_key
     # (stash path prefix, local path prefix): maps paths Stash reports to where the share is mounted here
@@ -94,6 +95,7 @@ def load(path: Path | None = None) -> Config:
         hosts={n: dict(o) for n, o in data.get("host", {}).items()},
         web_media_roots=list(data.get("web", {}).get("media_roots", [])),
         default_host=data.get("default_host", ""),
+        last_used={k: str(v) for k, v in data.get("last_used", {}).items()},
         cover_source=data.get("cover", {}).get("source", "own"),
         cover_format=data.get("cover", {}).get("format", "webp"),
         cover_clips=data.get("cover", {}).get("clips", 0),
@@ -139,6 +141,7 @@ def save(cfg: Config, path: Path | None = None) -> None:
     data: dict = {
         "template": cfg.template,
         "default_host": cfg.default_host,
+        "last_used": cfg.last_used,
         "cover": {"source": cfg.cover_source, "format": cfg.cover_format, "clips": cfg.cover_clips, "width": cfg.cover_width},
         "sheet": {"cols": cfg.sheet_cols, "rows": cfg.sheet_rows, "thumb_width": cfg.sheet_thumb_width},
         "stash": {"url": cfg.stash.url, "api_key": cfg.stash.api_key},

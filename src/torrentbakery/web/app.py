@@ -61,7 +61,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     @app.get("/")
     def index(request: Request):
         c = cfg()
-        return templates.TemplateResponse(request, "index.html", {"default_host": c.default_host, "cover_source": c.cover_source, "cover_format": c.cover_format, "trackers": list(c.trackers), "publishable": [n for n, t in c.trackers.items() if t.site], "hosts": HOST_NAMES, "stash": bool(c.stash.url), "roots": c.web_media_roots, "jobs": jobs.recent(), "total_jobs": len(jobs.jobs)})
+        return templates.TemplateResponse(request, "index.html", {"default_host": c.default_host, "cover_source": c.cover_source, "cover_format": c.cover_format, "last": c.last_used, "trackers": list(c.trackers), "publishable": [n for n, t in c.trackers.items() if t.site], "hosts": HOST_NAMES, "stash": bool(c.stash.url), "roots": c.web_media_roots, "jobs": jobs.recent(), "total_jobs": len(jobs.jobs)})
 
     @app.get("/history")
     def history(request: Request):
@@ -154,6 +154,11 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
             source = f"stash:{source}"
         if cover_source not in ("", "own", "stash") or cover_format not in ("", "webp", "gif"):
             raise HTTPException(400, "invalid cover option")
+        c = cfg()  # the form comes back the way it was left: remember the choices (not the per-scene source and stash-box link)
+        used = {"tracker": tracker, "upload": upload, "publish": publish, "cover_source": cover_source, "cover_format": cover_format, "sfw": "1" if sfw else ""}
+        if used != c.last_used:
+            c.last_used = used
+            config_mod.save(c, config_path)
         job = jobs.submit(source, label=label.strip()[:200], tracker=tracker or None, upload=upload or None, nsfw=not sfw, stashbox=stashbox.strip() or None,
                           cover_source=cover_source or None, cover_format=cover_format or None,
                           publish={"yes": True, "no": False}.get(publish))  # "" = follow the profile's auto_publish

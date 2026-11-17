@@ -195,3 +195,23 @@ def test_job_page_offers_copyable_tags(tmp_path, cfg_path):
     assert '<textarea id="tags" rows="2" readonly>face.fuck asian big.tits</textarea>' in page
     assert '<input type="text" id="folder-name" readonly value="My Folder">' in page and 'value="/media/x/My Folder"' in page
     assert '<input type="text" id="release-title" readonly value="T">' in page and "copyText('release-title'" in page
+
+
+def test_bake_form_remembers_last_choices(tmp_path, cfg_path):
+    import re
+
+    from torrentbakery.config import Tracker
+    from torrentbakery.web.jobs import JobManager
+    config_mod.save(Config(trackers={"a": Tracker(["http://x/announce"]), "b": Tracker(["http://y/announce"], site="empornium", base_url="http://y")}, default_host="pixhost.cc"), cfg_path)
+    c = TestClient(create_app(manager=JobManager(tmp_path / "out", cfg_path, lambda cfg, source, out, **kw: out), config_path=cfg_path))
+    page = c.get("/").text
+    assert '<option selected>pixhost.cc</option>' in page and "<option selected>a</option>" not in page  # first visit: the default host, no tracker
+    jid = c.post("/jobs", data={"source": "1", "tracker": "b", "upload": "imgbox", "publish": "no", "cover_source": "stash", "cover_format": "gif", "sfw": "1"}, follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
+    wait_done(c, jid)
+    page = c.get("/").text
+    assert "<option selected>b</option>" in page and "<option selected>imgbox</option>" in page and '<option value="no" selected>' in page
+    assert '<option value="stash" selected>' in page and '<option value="gif" selected>' in page and re.search(r'name="sfw" value="1" checked', page)
+    c.post("/jobs", data={"source": "2", "tracker": "", "upload": ""}, follow_redirects=False)  # choosing "none" is remembered as well
+    page = c.get("/").text
+    assert not re.search(r"<option selected>(a|b)</option>", page) and "<option selected>imgbox</option>" not in page and "<option selected>pixhost.cc</option>" not in page
+    assert config_mod.load(cfg_path).last_used["upload"] == "" and config_mod.load(cfg_path).trackers["b"].site == "empornium"
