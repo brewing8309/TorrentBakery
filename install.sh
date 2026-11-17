@@ -9,21 +9,23 @@ UNIT=/etc/systemd/system/torrentbakery.service
 SRC=$(cd "$(dirname "$0")" && pwd)
 
 [ "$(id -u)" = 0 ] || { echo "Bitte als root ausführen." >&2; exit 1; }
-command -v python3 >/dev/null || { echo "python3 fehlt: apt install python3" >&2; exit 1; }
-python3 -c 'import sys; sys.exit(sys.version_info < (3, 11))' || { echo "Python 3.11 oder neuer nötig." >&2; exit 1; }
 VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$SRC/src/torrentbakery/__init__.py")
 echo "TorrentBakery $VERSION"
 
-# system packages: ffmpeg/ffprobe for frames and probing, mediainfo for the post, venv for the Python libraries
+# system packages: python3 + venv for the Python libraries, ffmpeg/ffprobe for frames and probing, mediainfo for the post
 MISSING=""
+command -v python3 >/dev/null || MISSING="$MISSING python3"
 python3 -c 'import venv, ensurepip' 2>/dev/null || MISSING="$MISSING python3-venv"
 command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null || MISSING="$MISSING ffmpeg"
 command -v mediainfo >/dev/null || MISSING="$MISSING mediainfo"
 if [ -n "$MISSING" ]; then
     command -v apt-get >/dev/null || { echo "Bitte installieren:$MISSING" >&2; exit 1; }
     echo "Installiere$MISSING …"
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $MISSING >/dev/null
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq >/dev/null
+    apt-get install -y -qq $MISSING >/dev/null
 fi
+python3 -c 'import sys; sys.exit(sys.version_info < (3, 11))' || { echo "Python 3.11 oder neuer nötig." >&2; exit 1; }
 
 id torrentbakery >/dev/null 2>&1 || useradd --system --home-dir "$DATA" --shell /usr/sbin/nologin torrentbakery
 mkdir -p "$DATA/out" "$APP"
