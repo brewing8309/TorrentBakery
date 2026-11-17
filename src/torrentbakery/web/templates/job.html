@@ -20,42 +20,42 @@
     </script>
   {% elif job.status == "error" %}
     <p class="err">{{ job.error }}</p>
-    <p><a class="btn ghost" href="/">Zurück</a></p>
+    <p><a class="btn ghost" href="/">Back</a></p>
   {% else %}
-    <p class="ok">Fertig.</p>
+    <p class="ok">Done.</p>
     <p>
-      <a class="btn" href="/jobs/{{ job.id }}/zip">Alles als ZIP herunterladen</a>
+      <a class="btn" href="/jobs/{{ job.id }}/zip">Download everything as ZIP</a>
       {% for f in files if f.endswith(".torrent") %}<a class="btn ghost" href="/jobs/{{ job.id }}/files/{{ f | urlencode }}">{{ f }}</a>{% endfor %}
     </p>
   </section>
   <section>
-    <h2>Forenpost (BBCode)</h2>
-    {% if not uploads %}<p class="note">Kein Bildhoster gewählt: Im Post stehen statt Bild-Links nur die Dateinamen <code>cover.jpg</code> und <code>contactsheet.jpg</code>. Beim nächsten Mal oben auf der Startseite einen Hoster wählen, oder die Bilder unten herunterladen und selbst hochladen.</p>{% endif %}
+    <h2>Forum post (BBCode)</h2>
+    {% if not uploads %}<p class="note">No image host was chosen: the post contains only the file names (<code>{{ cover_file }}</code> and <code>contactsheet.jpg</code>) instead of image links. Pick a host on the start page next time, or download the images below and upload them yourself.</p>{% endif %}
     <textarea id="post" rows="18" readonly>{{ post }}</textarea>
-    <p><button type="button" onclick="copyPost()">Post kopieren</button> <span id="copied" class="ok"></span></p>
+    <p><button type="button" onclick="copyPost()">Copy post</button> <span id="copied" class="ok"></span></p>
   </section>
   <section>
-    <h2>Bilder</h2>
+    <h2>Images</h2>
     <div class="row">
-      {% for role, f, name in (("cover", "cover.jpg", "Titelbild"), ("sheet", "contactsheet.jpg", "Screenshot-Übersicht")) if f in files %}
+      {% for role, f, name in (("cover", cover_file, "Animated cover"), ("sheet", "contactsheet.jpg", "Screenshot sheet")) if f in files %}
       {% set up = uploads.get(role) %}
       <div>
         {% if up %}
-          <a href="{{ up.page_url or up.direct_url }}" target="_blank" rel="noopener"><img class="preview" src="{{ up.thumb_url or up.direct_url }}" alt="{{ name }}"></a>
-          <p><b>{{ name }}</b> bei {{ host }}: <a href="{{ up.page_url or up.direct_url }}" target="_blank" rel="noopener">Seite</a> · <a href="{{ up.direct_url }}" target="_blank" rel="noopener">Bild-Link</a><br>
-          <span class="mute">Datei zum Selbsthochladen: <a href="/jobs/{{ job.id }}/files/{{ f }}" download>{{ f }}</a></span></p>
+          <a href="{{ up.page_url or up.direct_url }}" target="_blank" rel="noopener"><img class="preview" src="{{ (up.direct_url if role == "cover" else (up.thumb_url or up.direct_url)) }}" alt="{{ name }}"></a>
+          <p><b>{{ name }}</b> at {{ host }}: <a href="{{ up.page_url or up.direct_url }}" target="_blank" rel="noopener">page</a> · <a href="{{ up.direct_url }}" target="_blank" rel="noopener">image link</a><br>
+          <span class="mute">File to upload yourself: <a href="/jobs/{{ job.id }}/files/{{ f }}" download>{{ f }}</a></span></p>
         {% else %}
           <img class="preview" src="/jobs/{{ job.id }}/files/{{ f }}" alt="{{ name }}">
-          <p><b>{{ name }}</b> (nicht hochgeladen): <a href="/jobs/{{ job.id }}/files/{{ f }}" download>{{ f }} herunterladen</a></p>
+          <p><b>{{ name }}</b> (not uploaded): <a href="/jobs/{{ job.id }}/files/{{ f }}" download>download {{ f }}</a></p>
         {% endif %}
       </div>
       {% endfor %}
     </div>
-    <p class="mute">Alle Dateien: {% for f in files %}<a href="/jobs/{{ job.id }}/files/{{ f | urlencode }}">{{ f }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>
+    <p class="mute">All files: {% for f in files %}<a href="/jobs/{{ job.id }}/files/{{ f | urlencode }}">{{ f }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>
     <script>
       function copyPost() {
         const t = document.getElementById("post"); t.select();
-        const done = () => document.getElementById("copied").textContent = "Kopiert";
+        const done = () => document.getElementById("copied").textContent = "Copied";
         if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t.value).then(done);
         else { document.execCommand("copy"); done(); }  // plain-http LAN pages have no clipboard API
       }

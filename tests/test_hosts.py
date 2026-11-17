@@ -65,6 +65,7 @@ def test_imagebam(img):
 def test_bake_with_uploader(video, tmp_path):
     class Fake:
         name = "fake"
+        formats = ("jpg", "gif", "webp")
         def upload(self, path, nsfw=True):
             from torrentbakery.hosts import Uploaded
             return Uploaded(f"https://host.example/{path.name}", f"https://host.example/view/{path.stem}")
@@ -72,7 +73,7 @@ def test_bake_with_uploader(video, tmp_path):
     post = (out / "post.bbcode").read_text()
     # images are inline from the host and click through to the host's viewer page, never to a local file
     assert "[url=https://host.example/view/contactsheet][img]https://host.example/contactsheet.jpg[/img][/url]" in post
-    assert "[url=https://host.example/view/cover][img]https://host.example/cover.jpg[/img][/url]" in post
+    assert "[url=https://host.example/view/cover][img]https://host.example/cover.webp[/img][/url]" in post
     import json
     assert json.loads((out / "release.json").read_text())["uploads"]["cover"]["page_url"].endswith("/view/cover")
 
@@ -80,3 +81,15 @@ def test_bake_with_uploader(video, tmp_path):
 def test_unknown_host():
     with pytest.raises(KeyError):
         get_uploader("nope", Config())
+
+
+def test_host_without_webp_gets_a_gif(video, tmp_path):
+    class NoWebp:
+        name = "nowebp"
+        formats = ("jpg", "png", "gif")
+        def upload(self, path, nsfw=True):
+            from torrentbakery.hosts import Uploaded
+            return Uploaded(f"https://host.example/{path.name}")
+    out = bake(video, tmp_path, Config(), Release(title="T"), uploader=NoWebp())
+    assert (out / "cover.gif").exists() and not (out / "cover.webp").exists()
+    assert "https://host.example/cover.gif" in (out / "post.bbcode").read_text()

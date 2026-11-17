@@ -13,6 +13,8 @@ DOMAINS = ("pixhost.to", "pixhost.cc", "pixho.st")
 class Pixhost:
     """Pixhost API v2 (https://pixhost.to/api/index.html): no key; use the API host matching the link domain you want."""
 
+    formats = ("jpg", "png", "gif", "webp")  # per the API docs: JPEG, PNG, GIF, WebP, AVIF
+
     def __init__(self, domain: str = "pixhost.to", transport: httpx.BaseTransport | None = None, **_):
         if domain not in DOMAINS:
             raise ValueError(f"pixhost domain must be one of {', '.join(DOMAINS)}")

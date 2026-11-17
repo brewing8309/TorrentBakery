@@ -1,130 +1,153 @@
 {% extends "base.html" %}
-{% block title %}Einstellungen · TorrentBakery{% endblock %}
+{% block title %}Settings · TorrentBakery{% endblock %}
 {% block body %}
 <section>
-  <h1>Einstellungen</h1>
-  <p class="lead">Hier legst du fest, woher TorrentBakery seine Daten holt und wohin die Torrents gehen. Für den Normalfall (Szene aus Stash backen) brauchst du nur die ersten beiden Punkte.</p>
+  <h1>Settings</h1>
+  <p class="lead">Here you decide where TorrentBakery gets its data and where the torrents go. For the usual case (baking a scene from Stash) you only need the first two items.</p>
   <ul class="steps">
-    <li>{{ "✅" if c.stash.url else "⬜" }} <a href="#stash">Stash verbinden</a> <span class="badge req">nötig für Stash-Szenen</span></li>
-    <li>{{ "✅" if c.trackers else "⬜" }} <a href="#tracker">Tracker-Profil anlegen</a> <span class="badge req">nötig für Torrents</span></li>
-    <li>{{ "✅" if c.web_media_roots else "⬜" }} <a href="#roots">Medienordner freigeben</a> <span class="badge">nur für einzelne Dateien</span></li>
-    <li>{{ "✅" if hamster_key else "⬜" }} <a href="#hosts">Bildhoster</a> <span class="badge">optional</span></li>
+    <li>{{ "✅" if c.stash.url else "⬜" }} <a href="#stash">Connect Stash</a> <span class="badge req">needed for Stash scenes</span></li>
+    <li>{{ "✅" if c.trackers else "⬜" }} <a href="#tracker">Create a tracker profile</a> <span class="badge req">needed for torrents</span></li>
+    <li>✅ <a href="#cover">Animated cover</a> <span class="badge">defaults usually fine</span></li>
+    <li>{{ "✅" if c.web_media_roots else "⬜" }} <a href="#roots">Permit media folders</a> <span class="badge">only for single files</span></li>
+    <li>{{ "✅" if c.default_host or hamster_key else "⬜" }} <a href="#hosts">Image hosts</a> <span class="badge">optional</span></li>
     <li>{{ "✅" if c.stashboxes else "⬜" }} <a href="#stashbox">Stash-box (StashDB)</a> <span class="badge">optional</span></li>
   </ul>
-  <p class="help">Jede Änderung wird sofort gespeichert und gilt für den nächsten Bake. Gespeicherte API-Keys werden nie wieder angezeigt.</p>
+  <p class="help">Every change is saved immediately and applies to the next bake. Saved API keys are never shown again.</p>
 </section>
 
 <section id="stash">
-  <h1>1. Stash <span class="badge req">nötig für Stash-Szenen</span></h1>
-  <p class="lead">Die Verbindung zu deiner Stash-Instanz. Darüber findet TorrentBakery deine Szenen (Suche auf der Startseite) und liest Titel, Studio, Darsteller, Tags und den Dateipfad aus. Ist die Szene in Stash mit StashDB verknüpft, kommen die Metadaten und das Titelbild von dort.</p>
+  <h1>1. Stash <span class="badge req">needed for Stash scenes</span></h1>
+  <p class="lead">The connection to your Stash instance. It lets TorrentBakery find your scenes (the search on the start page) and read title, studio, performers, tags and the file path. If the scene is linked to StashDB in Stash, the metadata comes from there; the tags always come from Stash.</p>
   <form id="stash-form" method="post" action="/settings/stash">
     <div class="row">
       <div>
-        <label for="stash-url">Adresse von Stash</label>
+        <label for="stash-url">Stash address</label>
         <input type="text" id="stash-url" name="url" value="{{ c.stash.url }}" placeholder="http://stash-lxc:9999">
-        <p class="help">So, wie du Stash im Browser aufrufst: mit <code>http://</code> und Port, ohne <code>/graphql</code> am Ende.</p>
+        <p class="help">The way you open Stash in the browser: with <code>http://</code> and port, without <code>/graphql</code> at the end.</p>
       </div>
       <div>
-        <label for="stash-key">API-Key {% if c.stash.api_key %}<span class="ok">(gespeichert)</span>{% endif %}</label>
-        <input type="password" id="stash-key" name="api_key" autocomplete="off" placeholder="{{ 'leer lassen = gespeicherten behalten' if c.stash.api_key else 'nur nötig, wenn Stash ein Login hat' }}">
-        <p class="help">In Stash unter <em>Einstellungen → Sicherheit → API-Key</em>. Hat Stash kein Passwort, bleibt das Feld leer.</p>
+        <label for="stash-key">API key {% if c.stash.api_key %}<span class="ok">(saved)</span>{% endif %}</label>
+        <input type="password" id="stash-key" name="api_key" autocomplete="off" placeholder="{{ 'leave blank to keep the saved one' if c.stash.api_key else 'only needed if Stash has a login' }}">
+        <p class="help">In Stash under <em>Settings → Security → API Key</em>. If Stash has no password, leave this empty.</p>
       </div>
     </div>
-    <p><button>Speichern</button> <button type="button" class="ghost" id="stash-test">Verbindung testen</button> <span id="stash-result"></span></p>
-    <p class="help">„Verbindung testen“ prüft die eingetragenen Werte, auch ohne vorher zu speichern.</p>
+    <p><button>Save</button> <button type="button" class="ghost" id="stash-test">Test connection</button> <span id="stash-result"></span></p>
+    <p class="help">"Test connection" checks the values in the form, even before saving.</p>
   </form>
 
   <details>
-    <summary>Pfad-Zuordnung (Stash-Pfad → Pfad in diesem Container), nur bei abweichenden Pfaden</summary>
-    <p class="help">Stash meldet den Speicherort jeder Datei. Sieht dieser Container dieselbe Freigabe unter einem <em>anderen</em> Pfad, übersetzt diese Tabelle den Anfang des Pfads. Erkennbar daran, dass das Backen mit „… existiert hier nicht“ abbricht. Liegen die Dateien bei beiden unter demselben Pfad (z. B. <code>/media/BF-stshpp</code>), lass die Tabelle leer.</p>
-    <table>{% for a, b in c.path_map %}<tr><td><code>{{ a }}</code> → <code>{{ b }}</code></td><td class="act"><form class="inline" method="post" action="/settings/map/{{ loop.index0 }}/delete"><button class="ghost">Entfernen</button></form></td></tr>{% endfor %}</table>
+    <summary>Path mapping (Stash path → path in this container), only for differing paths</summary>
+    <p class="help">Stash reports where each file lives. If this container sees the same share under a <em>different</em> path, this table translates the beginning of the path. You notice it when baking stops with "… does not exist here". If both see the files under the same path (e.g. <code>/media/BF-stshpp</code>), leave the table empty.</p>
+    <table>{% for a, b in c.path_map %}<tr><td><code>{{ a }}</code> → <code>{{ b }}</code></td><td class="act"><form class="inline" method="post" action="/settings/map/{{ loop.index0 }}/delete"><button class="ghost">Remove</button></form></td></tr>{% endfor %}</table>
     <form method="post" action="/settings/map" class="row">
-      <div><label>Pfad, wie Stash ihn sieht</label><input type="text" name="stash_path" placeholder="/data/media" required></div>
-      <div><label>Pfad in diesem Container</label><input type="text" name="local_path" placeholder="/mnt/nas" required></div>
-      <div style="flex:0 0 auto;align-self:end"><button>Hinzufügen</button></div>
+      <div><label>Path as Stash sees it</label><input type="text" name="stash_path" placeholder="/data/media" required></div>
+      <div><label>Path in this container</label><input type="text" name="local_path" placeholder="/mnt/nas" required></div>
+      <div style="flex:0 0 auto;align-self:end"><button>Add</button></div>
     </form>
   </details>
 </section>
 
 <section id="tracker">
-  <h1>2. Tracker-Profile <span class="badge req">nötig für Torrents</span></h1>
-  <p class="lead">Ein Profil bündelt, was dein Tracker (oder Forum) für den Torrent verlangt. Beim Backen wählst du ein Profil aus; ohne Profil entsteht ein Torrent ohne Announce-URL, den kein Tracker annimmt. Du kannst beliebig viele Profile anlegen, z. B. eines pro Tracker.</p>
+  <h1>2. Tracker profiles <span class="badge req">needed for torrents</span></h1>
+  <p class="lead">A profile bundles what your tracker (or forum) requires for the torrent. You pick a profile when baking; without one the torrent has no announce URL, which no tracker accepts. You can create as many as you like, e.g. one per tracker.</p>
   <table>{% for name, t in c.trackers.items() %}
-    <tr><td><b>{{ name }}</b><br><span class="mute">{{ t.announce | map("urlhost") | join(", ") }} · Source „{{ t.source or "–" }}“ · {{ "privat" if t.private else "öffentlich" }}</span></td>
-        <td class="act"><form class="inline" method="post" action="/settings/tracker/{{ name | urlencode }}/delete"><button class="ghost">Entfernen</button></form></td></tr>
-  {% else %}<tr><td class="mute">Noch kein Profil angelegt.</td></tr>{% endfor %}</table>
-  <h2>Profil hinzufügen oder ersetzen</h2>
+    <tr><td><b>{{ name }}</b><br><span class="mute">{{ t.announce | map("urlhost") | join(", ") }} · source "{{ t.source or "–" }}" · {{ "private" if t.private else "public" }}</span></td>
+        <td class="act"><form class="inline" method="post" action="/settings/tracker/{{ name | urlencode }}/delete"><button class="ghost">Remove</button></form></td></tr>
+  {% else %}<tr><td class="mute">No profile yet.</td></tr>{% endfor %}</table>
+  <h2>Add or replace a profile</h2>
   <form method="post" action="/settings/tracker">
     <div class="row">
-      <div><label for="t-name">Name</label><input type="text" id="t-name" name="name" required placeholder="MeinTracker">
-        <p class="help">Frei wählbar, erscheint auf der Startseite im Auswahlfeld. Gleicher Name = Profil wird ersetzt.</p></div>
-      <div><label for="t-source">Source-Tag <span class="badge">optional</span></label><input type="text" id="t-source" name="source" placeholder="ABC">
-        <p class="help">Manche private Tracker verlangen im Torrent ein „source“-Feld (steht in deren Upload-Regeln). Sonst leer lassen.</p></div>
+      <div><label for="t-name">Name</label><input type="text" id="t-name" name="name" required placeholder="MyTracker">
+        <p class="help">Free to choose; it appears in the dropdown on the start page. The same name replaces the profile.</p></div>
+      <div><label for="t-source">Source tag <span class="badge">optional</span></label><input type="text" id="t-source" name="source" placeholder="ABC">
+        <p class="help">Some private trackers require a "source" field in the torrent (see their upload rules). Otherwise leave empty.</p></div>
     </div>
-    <label for="t-announce">Announce-URL</label>
+    <label for="t-announce">Announce URL</label>
     <textarea id="t-announce" name="announce" rows="2" required placeholder="https://tracker.example/abc123passkey/announce"></textarea>
-    <p class="help">Die persönliche Announce-URL von der Upload-Seite deines Trackers, meist mit deinem Passkey. Mehrere URLs: eine pro Zeile. Die Seite zeigt später nur den Servernamen, nie den Passkey.</p>
-    <label><input type="checkbox" name="private" value="1" checked> Privater Torrent</label>
-    <p class="help">Schaltet DHT und Peer-Austausch aus. Für private Tracker an lassen, nur für öffentliche Tracker abschalten.</p>
-    <p><button>Profil speichern</button></p>
+    <p class="help">Your personal announce URL from your tracker's upload page, usually containing your passkey. Several URLs: one per line. This page later shows only the server name, never the passkey.</p>
+    <label><input type="checkbox" name="private" value="1" checked> Private torrent</label>
+    <p class="help">Turns off DHT and peer exchange. Keep it on for private trackers, switch it off only for public ones.</p>
+    <p><button>Save profile</button></p>
+  </form>
+</section>
+
+<section id="cover">
+  <h1>3. Animated cover <span class="badge">optional</span></h1>
+  <p class="lead">The cover of the post is a short animation (WebP or GIF) made of <b>1.5-second clips</b> spread evenly over the whole video (intro and credits skipped). Set the defaults here; on the start page you can change them for each bake.</p>
+  <form method="post" action="/settings/cover">
+    <div class="row">
+      <div><label for="cs">Source</label>
+        <select id="cs" name="source"><option value="own"{% if c.cover_source == "own" %} selected{% endif %}>build my own</option><option value="stash"{% if c.cover_source == "stash" %} selected{% endif %}>use Stash's preview (if it has one)</option></select>
+        <p class="help">Stash's preview is the animated preview Stash generates itself (in Stash, the still strip used for scrubbing is called "sprites", the animation "preview"). Its clips and length are decided by Stash, not by TorrentBakery.</p></div>
+      <div><label for="cf">Format</label>
+        <select id="cf" name="format"><option value="webp"{% if c.cover_format == "webp" %} selected{% endif %}>WebP (small)</option><option value="gif"{% if c.cover_format == "gif" %} selected{% endif %}>GIF</option></select>
+        <p class="help">Hosts without WebP support (imgbox, imagebam) automatically get a GIF.</p></div>
+    </div>
+    <div class="row">
+      <div><label for="cc">Number of clips</label><input type="text" id="cc" name="clips" value="{{ c.cover_clips }}" inputmode="numeric">
+        <p class="help"><code>0</code> = automatic: about one clip per 2.5 minutes of video, at least 4, at most 12.</p></div>
+      <div><label for="cw">Width in pixels</label><input type="text" id="cw" name="width" value="{{ c.cover_width }}" inputmode="numeric">
+        <p class="help">Default 480. Image hosts accept roughly 10 MB at most; if the file is larger, TorrentBakery reduces width, frame rate and quality automatically until it fits.</p></div>
+    </div>
+    <p><button>Save</button></p>
   </form>
 </section>
 
 <section id="roots">
-  <h1>3. Medienordner <span class="badge">nur für einzelne Dateien</span></h1>
-  <p class="lead">Auf der Startseite kannst du statt einer Stash-Szene auch einen Dateipfad wie <code>/media/BF-stshpp/Film/film.mkv</code> eingeben. Aus Sicherheitsgründen erlaubt die Oberfläche das nur in den Ordnern, die hier stehen. Szenen aus Stash brauchen diese Einstellung nicht.</p>
+  <h1>4. Media folders <span class="badge">only for single files</span></h1>
+  <p class="lead">On the start page you can enter a file path such as <code>/media/BF-stshpp/Film/film.mkv</code> instead of a Stash scene. For safety the interface only allows that inside the folders listed here. Stash scenes do not need this setting.</p>
   <form method="post" action="/settings/roots">
-    <label for="roots-t">Erlaubte Ordner</label>
+    <label for="roots-t">Permitted folders</label>
     <textarea id="roots-t" name="roots" rows="3" placeholder="/media/BF-stshpp">{{ c.web_media_roots | join("\n") }}</textarea>
-    <p class="help">Ein Ordner pro Zeile, Unterordner sind eingeschlossen. Der Ordner muss in diesem Container eingehängt und lesbar sein.</p>
-    <p><button>Speichern</button></p>
+    <p class="help">One folder per line, subfolders included. The folder must be mounted and readable in this container.</p>
+    <p><button>Save</button></p>
   </form>
 </section>
 
 <section id="hosts">
-  <h1>4. Bildhoster <span class="badge">optional</span></h1>
-  <p class="lead">Ohne Hoster entstehen Titelbild und Screenshot-Übersicht nur als Dateien zum Herunterladen; im Forenpost stehen dann Dateinamen, und du lädst die Bilder selbst hoch. Mit Hoster lädt TorrentBakery die Bilder beim Backen hoch und setzt die Links in den Post. Den Hoster wählst du auf der Startseite pro Bake.</p>
+  <h1>5. Image hosts <span class="badge">optional</span></h1>
+  <p class="lead">Without a host, the cover and the screenshot sheet are only files to download; the post then contains file names and you upload the images yourself. With a host, TorrentBakery uploads the images while baking and puts the links into the post. You choose the host on the start page for each bake.</p>
   <table>
-    <tr><td><b>pixhost.to, pixhost.cc, pixho.st, imgbox, imagebam</b></td><td class="mute">Funktionieren ohne Konto und ohne Einstellungen.</td></tr>
-    <tr><td><b>hamsterimg</b></td><td>{% if hamster_key %}<span class="ok">API-Key gespeichert</span> <form class="inline" method="post" action="/settings/hamsterimg/delete"><button class="ghost">Entfernen</button></form>{% else %}<span class="err">API-Key fehlt</span>, ohne Key nicht nutzbar{% endif %}</td></tr>
+    <tr><td><b>pixhost.to, pixhost.cc, pixho.st, imgbox, imagebam</b></td><td class="mute">Work without an account and without settings.</td></tr>
+    <tr><td><b>hamsterimg</b></td><td>{% if hamster_key %}<span class="ok">API key saved</span> <form class="inline" method="post" action="/settings/hamsterimg/delete"><button class="ghost">Remove</button></form>{% else %}<span class="err">API key missing</span>, cannot be used without one{% endif %}</td></tr>
   </table>
   <form method="post" action="/settings/default-host">
-    <label for="dh">Standard-Bildhoster</label>
-    <select id="dh" name="host"><option value="">keiner (Bilder nur als Dateien)</option>{% for h in hosts %}<option{% if h == c.default_host %} selected{% endif %}>{{ h }}</option>{% endfor %}</select>
-    <p class="help">Wird auf der Startseite vorausgewählt, damit der Post immer Hoster-Links statt Dateinamen enthält. Pro Bake änderbar.</p>
-    <p><button>Speichern</button></p>
+    <label for="dh">Default image host</label>
+    <select id="dh" name="host"><option value="">none (images as files only)</option>{% for h in hosts %}<option{% if h == c.default_host %} selected{% endif %}>{{ h }}</option>{% endfor %}</select>
+    <p class="help">Preselected on the start page, so the post always contains host links instead of file names. Changeable per bake.</p>
+    <p><button>Save</button></p>
   </form>
   <form method="post" action="/settings/hamsterimg">
-    <label for="ham">hamsterimg API-Key</label>
-    <input type="password" id="ham" name="api_key" autocomplete="off" placeholder="{{ 'leer lassen = gespeicherten behalten' if hamster_key else 'API-Key einfügen' }}">
-    <p class="help">Im hamsterimg-Konto unter dem Punkt für die API. Nur nötig, wenn du hamsterimg als Hoster verwenden willst.</p>
-    <p><button>Speichern</button></p>
+    <label for="ham">hamsterimg API key</label>
+    <input type="password" id="ham" name="api_key" autocomplete="off" placeholder="{{ 'leave blank to keep the saved one' if hamster_key else 'paste the API key' }}">
+    <p class="help">In your hamsterimg account under the API section. Only needed if you want to use hamsterimg as a host.</p>
+    <p><button>Save</button></p>
   </form>
 </section>
 
 <section id="stashbox">
-  <h1>5. Stash-box (z. B. StashDB) <span class="badge">optional</span></h1>
-  <p class="lead">Nur für den Fall, dass du eine <em>normale Datei</em> backst und ihre Metadaten trotzdem von StashDB willst (Feld „Stash-box-URL“ auf der Startseite). Szenen aus Stash holen die Metadaten über den Key, den Stash selbst schon kennt, dafür brauchst du hier nichts.</p>
-  <table>{% for name, b in c.stashboxes.items() %}<tr><td><b>{{ name }}</b> <span class="mute">{{ b.endpoint }}</span>{% if b.api_key %} <span class="ok">· Key gespeichert</span>{% else %} <span class="err">· Key fehlt</span>{% endif %}</td><td class="act"><form class="inline" method="post" action="/settings/stashbox/{{ name | urlencode }}/delete"><button class="ghost">Entfernen</button></form></td></tr>
-  {% else %}<tr><td class="mute">Keine Stash-box hinterlegt.</td></tr>{% endfor %}</table>
+  <h1>6. Stash-box (e.g. StashDB) <span class="badge">optional</span></h1>
+  <p class="lead">Only for baking a <em>plain file</em> while still getting its metadata from StashDB (the "Stash-box scene address" field on the start page). Stash scenes get their metadata through the key Stash already knows, so you need nothing here for them.</p>
+  <table>{% for name, b in c.stashboxes.items() %}<tr><td><b>{{ name }}</b> <span class="mute">{{ b.endpoint }}</span>{% if b.api_key %} <span class="ok">· key saved</span>{% else %} <span class="err">· key missing</span>{% endif %}</td><td class="act"><form class="inline" method="post" action="/settings/stashbox/{{ name | urlencode }}/delete"><button class="ghost">Remove</button></form></td></tr>
+  {% else %}<tr><td class="mute">No stash-box configured.</td></tr>{% endfor %}</table>
   <form method="post" action="/settings/stashbox">
     <div class="row">
-      <div><label>Name</label><input type="text" name="name" placeholder="stashdb" required><p class="help">Frei wählbar.</p></div>
-      <div><label>Endpoint</label><input type="text" name="endpoint" placeholder="https://stashdb.org/graphql" required><p class="help">Adresse mit <code>/graphql</code> am Ende. Für StashDB genau das Beispiel.</p></div>
-      <div><label>API-Key</label><input type="password" name="api_key" placeholder="API-Key" autocomplete="off"><p class="help">In StashDB unter deinem Benutzerprofil.</p></div>
+      <div><label>Name</label><input type="text" name="name" placeholder="stashdb" required><p class="help">Free to choose.</p></div>
+      <div><label>Endpoint</label><input type="text" name="endpoint" placeholder="https://stashdb.org/graphql" required><p class="help">Address ending in <code>/graphql</code>. For StashDB exactly the example.</p></div>
+      <div><label>API key</label><input type="password" name="api_key" placeholder="API key" autocomplete="off"><p class="help">In StashDB under your user profile.</p></div>
     </div>
-    <p><button>Speichern</button></p>
+    <p><button>Save</button></p>
   </form>
 </section>
 
 <script>
 const form = document.getElementById("stash-form"), out = document.getElementById("stash-result");
 document.getElementById("stash-test").addEventListener("click", async () => {
-  out.className = "mute"; out.textContent = "Teste …";
+  out.className = "mute"; out.textContent = "Testing …";
   try {
     const r = await (await fetch("/settings/stash/test", { method: "POST", body: new URLSearchParams(new FormData(form)) })).json();
     out.className = r.ok ? "ok" : "err"; out.textContent = (r.ok ? "✅ " : "❌ ") + r.message;
-  } catch (e) { out.className = "err"; out.textContent = "❌ Test fehlgeschlagen."; }
+  } catch (e) { out.className = "err"; out.textContent = "❌ Test failed."; }
 });
 </script>
 {% endblock %}

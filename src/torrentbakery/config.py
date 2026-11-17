@@ -38,6 +38,10 @@ class Config:
     trackers: dict[str, Tracker] = field(default_factory=dict)
     stash: StashCfg = field(default_factory=StashCfg)
     stashboxes: dict[str, StashBoxCfg] = field(default_factory=dict)
+    cover_source: str = "own"  # own | stash: where the animated cover comes from (stash = Stash's own preview if the scene has one)
+    cover_format: str = "webp"  # webp | gif
+    cover_clips: int = 0  # 0 = automatic (4-12 depending on the runtime)
+    cover_width: int = 480
     default_host: str = ""  # image host preselected in the web UI
     web_media_roots: list[str] = field(default_factory=list)  # dirs the web UI may bake plain files from
     hosts: dict[str, dict[str, str]] = field(default_factory=dict)  # image host options, e.g. hamsterimg api_key
@@ -62,6 +66,10 @@ def load(path: Path | None = None) -> Config:
         hosts={n: dict(o) for n, o in data.get("host", {}).items()},
         web_media_roots=list(data.get("web", {}).get("media_roots", [])),
         default_host=data.get("default_host", ""),
+        cover_source=data.get("cover", {}).get("source", "own"),
+        cover_format=data.get("cover", {}).get("format", "webp"),
+        cover_clips=data.get("cover", {}).get("clips", 0),
+        cover_width=data.get("cover", {}).get("width", 480),
     )
     for name, t in data.get("tracker", {}).items():
         announce = t.get("announce", [])
@@ -81,6 +89,7 @@ def save(cfg: Config, path: Path | None = None) -> None:
     data: dict = {
         "template": cfg.template,
         "default_host": cfg.default_host,
+        "cover": {"source": cfg.cover_source, "format": cfg.cover_format, "clips": cfg.cover_clips, "width": cfg.cover_width},
         "sheet": {"cols": cfg.sheet_cols, "rows": cfg.sheet_rows, "thumb_width": cfg.sheet_thumb_width},
         "stash": {"url": cfg.stash.url, "api_key": cfg.stash.api_key},
         "tracker": {n: {"announce": t.announce, "source": t.source, "private": t.private} for n, t in cfg.trackers.items()},

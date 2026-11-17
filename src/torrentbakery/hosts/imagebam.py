@@ -14,6 +14,7 @@ class Imagebam:
     """imagebam's web uploader: CSRF token → /upload/session → /upload (file) → /upload/complete page with the links."""
 
     name = "imagebam"
+    formats = ("jpg", "png", "gif")  # WebP not confirmed, so animations go up as GIF
 
     def __init__(self, transport: httpx.BaseTransport | None = None, **_):
         self.transport = transport

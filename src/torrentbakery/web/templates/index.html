@@ -1,41 +1,50 @@
 {% extends "base.html" %}
 {% block body %}
 <section>
-  <h1>Release backen</h1>
-  <p class="lead">Aus einer Szene oder Datei entstehen: Torrent, Titelbild, Screenshot-Übersicht (5×7), MediaInfo und ein fertiger Forenpost.</p>
+  <h1>Bake a release</h1>
+  <p class="lead">A scene or file becomes: torrent, animated cover, screenshot sheet (5×7), MediaInfo and a ready-made forum post.</p>
   <form method="post" action="/jobs">
-    <label for="source">Quelle</label>
+    <label for="source">Source</label>
     <input type="text" id="source" required autocomplete="off"
-           placeholder="{% if stash %}Titel suchen, Szenen-Nummer oder stash:1234{% endif %}{% if roots %}{% if stash %}, {% endif %}oder Dateipfad{% endif %}">
-    <p class="help">{% if stash %}Tippe ab 3 Buchstaben einen Titel, dann erscheinen Treffer aus Stash zum Anklicken. Die Nummer einer Szene steht in Stash in der Adresszeile (<code>…/scenes/1234</code>).{% endif %}
-      {% if roots %} Ein Dateipfad muss in einem freigegebenen <a href="/settings#roots">Medienordner</a> liegen.{% endif %}</p>
+           placeholder="{% if stash %}Search a title, scene number or stash:1234{% endif %}{% if roots %}{% if stash %}, {% endif %}or a file path{% endif %}">
     <input type="hidden" name="source" id="source-value">
     <input type="hidden" name="label" id="label-value">
+    <p class="help">{% if stash %}Type 3+ letters of a title to get matching Stash scenes to click. A scene's number is in Stash's address bar (<code>…/scenes/1234</code>).{% endif %}
+      {% if roots %} A file path must lie inside a permitted <a href="/settings#roots">media folder</a>.{% endif %}</p>
     <div id="results"></div>
-    {% if not stash and not roots %}<p class="note">Es gibt noch keine Quelle: Verbinde zuerst Stash oder gib einen Medienordner frei, in den <a href="/settings">Einstellungen</a>.</p>{% endif %}
+    {% if not stash and not roots %}<p class="note">There is no source yet: connect Stash or permit a media folder in <a href="/settings">Settings</a>.</p>{% endif %}
     <div class="row">
-      <div><label for="tracker">Tracker-Profil</label>
-        <select id="tracker" name="tracker"><option value="">keins (Torrent ohne Announce-URL)</option>{% for t in trackers %}<option>{{ t }}</option>{% endfor %}</select>
-        <p class="help">Bestimmt Announce-URL, Source-Tag und privat/öffentlich.{% if not trackers %} <a href="/settings#tracker">Profil anlegen</a>{% endif %}</p></div>
-      <div><label for="upload">Bildhoster</label>
-        <select id="upload" name="upload"><option value="">keiner (Bilder nur als Dateien)</option>{% for h in hosts %}<option{% if h == default_host %} selected{% endif %}>{{ h }}</option>{% endfor %}</select>
-        <p class="help">Lädt Titelbild und Screenshot-Übersicht hoch und setzt die Hoster-Links in den Post. Ohne Hoster stehen im Post nur Dateinamen, und du lädst die Bilder selbst hoch. Einen Standard-Hoster stellst du in den <a href="/settings#hosts">Einstellungen</a> ein.</p></div>
+      <div><label for="tracker">Tracker profile</label>
+        <select id="tracker" name="tracker"><option value="">none (torrent without announce URL)</option>{% for t in trackers %}<option>{{ t }}</option>{% endfor %}</select>
+        <p class="help">Sets announce URL, source tag and private/public.{% if not trackers %} <a href="/settings#tracker">Create a profile</a>{% endif %}</p></div>
+      <div><label for="upload">Image host</label>
+        <select id="upload" name="upload"><option value="">none (images as files only)</option>{% for h in hosts %}<option{% if h == default_host %} selected{% endif %}>{{ h }}</option>{% endfor %}</select>
+        <p class="help">Uploads the cover and the screenshot sheet and puts the host links into the post. Without a host the post only contains file names and you upload the images yourself. Set a default host in <a href="/settings#hosts">Settings</a>.</p></div>
     </div>
-    <label for="stashbox">Stash-box-Adresse der Szene <span class="badge">optional</span></label>
+    <div class="row">
+      <div><label for="cover_source">Animated cover: source</label>
+        <select id="cover_source" name="cover_source"><option value="own"{% if cover_source == "own" %} selected{% endif %}>build my own</option><option value="stash"{% if cover_source == "stash" %} selected{% endif %}>use Stash's preview</option></select>
+        <p class="help">Build my own: 1.5-second clips spread evenly over the whole video (30 minutes gives 12 clips, 18 seconds). Stash's preview: the animated preview Stash generated itself; only for Stash scenes, falls back to "build my own" if Stash has none.</p></div>
+      <div><label for="cover_format">Animated cover: format</label>
+        <select id="cover_format" name="cover_format"><option value="webp"{% if cover_format == "webp" %} selected{% endif %}>WebP (small)</option><option value="gif"{% if cover_format == "gif" %} selected{% endif %}>GIF (plays everywhere)</option></select>
+        <p class="help">WebP is much smaller at the same quality. Hosts that do not take WebP (imgbox, imagebam) automatically get a GIF.</p></div>
+    </div>
+    <label for="stashbox">Stash-box scene address <span class="badge">optional</span></label>
     <input type="text" id="stashbox" name="stashbox" placeholder="https://stashdb.org/scenes/…">
-    <p class="help">Nur für einzelne Dateien: holt Titel, Darsteller und Titelbild von dieser StashDB-Seite. Bei Stash-Szenen nicht nötig. Der Key dafür steht in den <a href="/settings#stashbox">Einstellungen</a>.</p>
-    <label><input type="checkbox" name="sfw" value="1"> Bilder als jugendfrei markieren</label>
-    <p class="help">Standard ist „Erwachseneninhalt“. Das betrifft nur den Upload bei den Bildhostern.</p>
-    <p><button type="submit">Backen</button></p>
+    <p class="help">Plain files only: fetches title, performers and links from this StashDB page. Not needed for Stash scenes. The key for it is in <a href="/settings#stashbox">Settings</a>.</p>
+    <label><input type="checkbox" name="sfw" value="1"> Mark images as family safe</label>
+    <p class="help">The default is "adult content". This only affects the upload at the image hosts.</p>
+    <p><button type="submit">Bake</button></p>
   </form>
 </section>
 {% if jobs %}
 <section>
-  <h2>Letzte Aufträge</h2>
+  <h2>Recent jobs</h2>
   <table>{% for j in jobs %}
-    <tr><td><a href="/jobs/{{ j.id }}">{{ j.label or j.source.rsplit("/", 1)[-1] }}</a></td>
-        <td class="{{ 'ok' if j.status == 'done' else 'err' if j.status == 'error' else 'mute' }}">{{ {'queued':'wartet','running':'läuft','done':'fertig','error':'Fehler'}[j.status] }}</td></tr>
+    <tr><td><a href="/jobs/{{ j.id }}">{{ j.label or j.title or j.source.rsplit("/", 1)[-1] }}</a></td>
+        <td class="{{ 'ok' if j.status == 'done' else 'err' if j.status == 'error' else 'mute' }}">{{ j.status }}</td></tr>
   {% endfor %}</table>
+  {% if total_jobs > jobs|length %}<p class="help"><a href="/history">Full history ({{ total_jobs }})</a></p>{% else %}<p class="help"><a href="/history">History</a></p>{% endif %}
 </section>
 {% endif %}
 <script>
@@ -67,7 +76,7 @@ src.addEventListener("input", () => {
         };
         box.append(b);
       }
-    } catch (e) { box.textContent = "Suche fehlgeschlagen. Ist Stash in den Einstellungen verbunden?"; }
+    } catch (e) { box.textContent = "Search failed. Is Stash connected in Settings?"; }
   }, 350);
 });
 </script>

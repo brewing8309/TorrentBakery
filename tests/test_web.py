@@ -34,7 +34,7 @@ def test_settings_roundtrip_and_key_hidden(tmp_path, cfg_path):
     assert cfg.path_map == [("/data", "/mnt")] and cfg.web_media_roots == ["/mnt/a", "/mnt/b"]
     page = c.get("/settings").text
     assert "PASSKEY" not in page and "t.example" in page  # announce passkeys are never rendered
-    assert "SECRETKEY" not in page and "main" in page and "gespeichert" in page
+    assert "SECRETKEY" not in page and "main" in page and "saved" in page
     c.post("/settings/stash", data={"url": "http://stash:9999", "api_key": ""})  # blank keeps the key
     assert config_mod.load(cfg_path).stash.api_key == "SECRETKEY"
     c.post("/settings/tracker/main/delete")
@@ -64,7 +64,7 @@ def test_bake_job_end_to_end(tmp_path, cfg_path, video):
     job_id = r.headers["location"].rsplit("/", 1)[-1]
     assert wait_done(c, job_id)["status"] == "done"
     page = c.get(f"/jobs/{job_id}").text
-    assert "Alles als ZIP herunterladen" in page and "[spoiler=MediaInfo]" in page and "contactsheet.jpg" in page
+    assert "Download everything as ZIP" in page and "[spoiler=MediaInfo]" in page and "contactsheet.jpg" in page and "cover.webp" in page
     assert c.get(f"/jobs/{job_id}/files/post.bbcode").status_code == 200
     assert c.get(f"/jobs/{job_id}/files/..%2Fconfig.toml").status_code == 404
     assert c.get(f"/jobs/{job_id}/files/nope.txt").status_code == 404
@@ -108,8 +108,8 @@ def test_stash_connection_test(tmp_path, cfg_path):
     c = TestClient(create_app(tmp_path / "out", cfg_path, transport=httpx.MockTransport(h)))
     ok = c.post("/settings/stash/test", data={"url": "http://stash.example", "api_key": ""}).json()
     assert ok["ok"] and "v0.31.1" in ok["message"] and "StashDB" in ok["message"] and seen[-1] == "saved"  # blank key falls back to the saved one
-    assert "falsch" in c.post("/settings/stash/test", data={"url": "http://stash.example", "api_key": "bad"}).json()["message"]
-    assert "nicht erreichbar" in c.post("/settings/stash/test", data={"url": "http://down.example", "api_key": "x"}).json()["message"]
+    assert "wrong" in c.post("/settings/stash/test", data={"url": "http://stash.example", "api_key": "bad"}).json()["message"]
+    assert "not reachable" in c.post("/settings/stash/test", data={"url": "http://down.example", "api_key": "x"}).json()["message"]
     empty = TestClient(create_app(tmp_path / "out2", tmp_path / "none.toml"))
     assert not empty.post("/settings/stash/test", data={"url": "", "api_key": ""}).json()["ok"]
 
@@ -147,3 +147,31 @@ def test_default_host_preselected(tmp_path, cfg_path):
     assert config_mod.load(cfg_path).default_host == "pixhost.cc"
     assert "<option selected>pixhost.cc</option>" in c.get("/").text
     assert c.post("/settings/default-host", data={"host": "nope"}).status_code == 400
+
+
+def test_history_survives_restart(tmp_path, cfg_path):
+    from torrentbakery.web.jobs import JobManager
+
+    def runner(cfg, source, out, **kw):
+        if source == "stash:bad":
+            raise ValueError("boom")
+        d = out / "Rel"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "post.bbcode").write_text("post")
+        (d / "release.json").write_text('{"release": {"title": "Baked Title"}}')
+        return d
+
+    out = tmp_path / "out"
+    c = TestClient(create_app(manager=JobManager(out, cfg_path, runner)))
+    ok = c.post("/jobs", data={"source": "stash:1", "tracker": "t"}, follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
+    bad = c.post("/jobs", data={"source": "stash:bad"}, follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
+    wait_done(c, ok), wait_done(c, bad)
+
+    # a fresh manager on the same output folder = the service restarted
+    c2 = TestClient(create_app(manager=JobManager(out, cfg_path, runner)))
+    page = c2.get("/history").text
+    assert "Baked Title" in page and "stash:bad".split(":")[1] in page and "boom" in page
+    assert "Baked Title" in c2.get(f"/jobs/{ok}").text and "boom" in c2.get(f"/jobs/{bad}").text
+    assert page.index("bad") < page.index("Baked Title")  # newest first
+    (out / "history.jsonl").write_text((out / "history.jsonl").read_text() + "not json\n")
+    assert TestClient(create_app(manager=JobManager(out, cfg_path, runner))).get("/history").status_code == 200  # damaged line is skipped

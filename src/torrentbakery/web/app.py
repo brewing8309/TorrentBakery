@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -28,6 +29,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     app = FastAPI(title="TorrentBakery")
     templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
     # announce URLs carry the tracker passkey: the pages only ever show the host
+    templates.env.filters["datetime"] = lambda ts: time.strftime("%Y-%m-%d %H:%M", time.localtime(ts)) if ts else ""
     templates.env.filters["urlhost"] = lambda u: urlparse(u).netloc or u
     jobs = manager or JobManager(out_root, config_path)
     cfg = lambda: config_mod.load(config_path)  # noqa: E731 - re-read per request so settings edits apply at once
@@ -49,7 +51,11 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     @app.get("/")
     def index(request: Request):
         c = cfg()
-        return templates.TemplateResponse(request, "index.html", {"default_host": c.default_host, "trackers": list(c.trackers), "hosts": HOST_NAMES, "stash": bool(c.stash.url), "roots": c.web_media_roots, "jobs": jobs.recent()})
+        return templates.TemplateResponse(request, "index.html", {"default_host": c.default_host, "cover_source": c.cover_source, "cover_format": c.cover_format, "trackers": list(c.trackers), "hosts": HOST_NAMES, "stash": bool(c.stash.url), "roots": c.web_media_roots, "jobs": jobs.recent(), "total_jobs": len(jobs.jobs)})
+
+    @app.get("/history")
+    def history(request: Request):
+        return templates.TemplateResponse(request, "history.html", {"jobs": jobs.all()})
 
     @app.get("/search")
     def search(q: str):
@@ -76,13 +82,17 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         return Response(r.content, media_type=r.headers.get("content-type", "image/jpeg"), headers={"Cache-Control": "max-age=3600"})
 
     @app.post("/jobs")
-    def create_job(source: str = Form(...), label: str = Form(""), tracker: str = Form(""), upload: str = Form(""), sfw: str = Form(""), stashbox: str = Form("")):
+    def create_job(source: str = Form(...), label: str = Form(""), tracker: str = Form(""), upload: str = Form(""), sfw: str = Form(""), stashbox: str = Form(""),
+                   cover_source: str = Form(""), cover_format: str = Form("")):
         source = source.strip()
         if not source:
             raise HTTPException(400, "source required")
         if source.isdigit():
             source = f"stash:{source}"
-        job = jobs.submit(source, label=label.strip()[:200], tracker=tracker or None, upload=upload or None, nsfw=not sfw, stashbox=stashbox.strip() or None)
+        if cover_source not in ("", "own", "stash") or cover_format not in ("", "webp", "gif"):
+            raise HTTPException(400, "invalid cover option")
+        job = jobs.submit(source, label=label.strip()[:200], tracker=tracker or None, upload=upload or None, nsfw=not sfw, stashbox=stashbox.strip() or None,
+                          cover_source=cover_source or None, cover_format=cover_format or None)
         return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
     @app.get("/jobs/{job_id}")
@@ -93,8 +103,8 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
             post = (job.out_dir / "post.bbcode").read_text()
             if (job.out_dir / "release.json").exists():
                 meta = json.loads((job.out_dir / "release.json").read_text())
-        title = job.label or meta.get("release", {}).get("title") or job.source.rsplit("/", 1)[-1]
-        return templates.TemplateResponse(request, "job.html", {"job": job, "title": title, "files": job_files(job), "post": post, "uploads": meta.get("uploads", {}), "host": meta.get("image_host", "")})
+        title = job.label or job.title or meta.get("release", {}).get("title") or job.source.rsplit("/", 1)[-1]
+        return templates.TemplateResponse(request, "job.html", {"job": job, "title": title, "files": job_files(job), "post": post, "uploads": meta.get("uploads", {}), "host": meta.get("image_host", ""), "cover_file": meta.get("cover_file", "cover.jpg")})
 
     @app.get("/jobs/{job_id}/state")
     def job_state(job_id: str):
@@ -151,20 +161,20 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         url = url.strip().rstrip("/") or c.stash.url
         key = api_key.strip() or (c.stash.api_key if url == c.stash.url else "")  # blank key = the saved one
         if not url:
-            return {"ok": False, "message": "Bitte zuerst eine Stash-URL eintragen."}
+            return {"ok": False, "message": "Enter a Stash URL first."}
         try:
             d = gql(url + "/graphql", "query { version { version } configuration { general { stashBoxes { name } } } }", {}, key, transport)
         except httpx.HTTPStatusError as e:
             code = e.response.status_code
-            hint = "API-Key fehlt oder ist falsch." if code in (401, 403) else f"Antwort: HTTP {code}."
-            return {"ok": False, "message": f"Stash hat die Anfrage abgelehnt. {hint}"}
+            hint = "The API key is missing or wrong." if code in (401, 403) else f"Response: HTTP {code}."
+            return {"ok": False, "message": f"Stash rejected the request. {hint}"}
         except httpx.HTTPError:
-            return {"ok": False, "message": f"{url} ist nicht erreichbar. Stimmen Adresse und Port? Läuft Stash?"}
+            return {"ok": False, "message": f"{url} is not reachable. Check address and port, and that Stash is running."}
         except Exception as e:
-            return {"ok": False, "message": f"Unerwartete Antwort: {e}"}
+            return {"ok": False, "message": f"Unexpected response: {e}"}
         boxes = [b["name"] for b in d["configuration"]["general"]["stashBoxes"]]
-        extra = f" Verknüpfte Stash-boxen: {', '.join(boxes)}." if boxes else " In Stash ist keine Stash-box hinterlegt."
-        return {"ok": True, "message": f"Verbunden mit Stash {d['version']['version'] or '(Entwicklungsversion)'}.{extra}"}
+        extra = f" Linked stash-boxes: {', '.join(boxes)}." if boxes else " No stash-box is configured in Stash."
+        return {"ok": True, "message": f"Connected to Stash {d['version']['version'] or '(development build)'}.{extra}"}
 
     @app.post("/settings/map")
     def map_add(stash_path: str = Form(...), local_path: str = Form(...)):
@@ -210,6 +220,14 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         if host and host not in HOST_NAMES:
             raise HTTPException(400, "unknown host")
         c.default_host = host
+        return save(c)
+
+    @app.post("/settings/cover")
+    def cover_set(source: str = Form("own"), format: str = Form("webp"), clips: int = Form(0), width: int = Form(480)):
+        c = cfg()
+        if source not in ("own", "stash") or format not in ("webp", "gif") or not 0 <= clips <= 30 or not 160 <= width <= 1280:
+            raise HTTPException(400, "invalid cover setting")
+        c.cover_source, c.cover_format, c.cover_clips, c.cover_width = source, format, clips, width
         return save(c)
 
     @app.post("/settings/roots")

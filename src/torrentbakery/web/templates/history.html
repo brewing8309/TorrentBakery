@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}History · TorrentBakery{% endblock %}
+{% block body %}
+<section>
+  <h1>History</h1>
+  <p class="lead">Every bake, newest first. It is kept across restarts; the baked files stay in the output folder.</p>
+  <table>
+    <tr><th>When</th><th>Release</th><th>Source</th><th>Tracker · Host</th><th>Status</th></tr>
+    {% for j in jobs %}
+    <tr>
+      <td class="mute" style="white-space:nowrap">{{ j.created | datetime }}</td>
+      <td><a href="/jobs/{{ j.id }}">{{ j.label or j.title or j.source.rsplit("/", 1)[-1] }}</a></td>
+      <td class="mute">{{ j.source.rsplit("/", 1)[-1] }}</td>
+      <td class="mute">{{ j.options.get("tracker") or "–" }} · {{ j.options.get("upload") or "–" }}</td>
+      <td class="{{ 'ok' if j.status == 'done' else 'err' if j.status == 'error' else 'mute' }}">{{ j.status }}{% if j.status == "error" %}<br><span class="help">{{ j.error[:140] }}</span>{% endif %}</td>
+    </tr>
+    {% else %}<tr><td colspan="5" class="mute">Nothing baked yet.</td></tr>{% endfor %}
+  </table>
+</section>
+{% endblock %}

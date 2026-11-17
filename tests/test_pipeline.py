@@ -45,7 +45,7 @@ def test_bake(video, tmp_path):
 
     assert (tmp_path / f"{out.name}.zip").exists()
     names = zipfile.ZipFile(tmp_path / f"{out.name}.zip").namelist()
-    assert {"post.bbcode", "cover.jpg", "contactsheet.jpg", "release.json"} <= set(names)
+    assert {"post.bbcode", "cover.webp", "contactsheet.jpg", "release.json"} <= set(names)
 
 
 def test_config_load(tmp_path):

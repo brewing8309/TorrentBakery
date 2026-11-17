@@ -14,5 +14,6 @@ class Uploaded:
 
 class Uploader(Protocol):
     name: str
+    formats: tuple[str, ...]  # image types the host accepts
 
     def upload(self, path: Path, nsfw: bool = True) -> Uploaded: ...

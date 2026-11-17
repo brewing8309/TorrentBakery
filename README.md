@@ -28,8 +28,10 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/tb bake movie.mkv -o out [-t trackerprofile] [--cover image.jpg]
 ```
 
-Output in `out/<name>/` (+ `out/<name>.zip`): `<name>.torrent`, `contactsheet.jpg`, `cover.jpg`, `mediainfo.txt`, `post.bbcode`, `release.json`.
+Output in `out/<name>/` (+ `out/<name>.zip`): `<name>.torrent`, `contactsheet.jpg`, `cover.webp` (or `.gif`), `mediainfo.txt`, `post.bbcode`, `release.json`.
 Without an image host the post references the images by file name; upload them yourself and replace the names.
+
+**Animated cover:** the cover is a WebP (or GIF) built from 1.5-second clips spread evenly over the video, 5–95 % of the runtime (about one clip per 2.5 minutes, 4–12 clips; 30 min → 12 clips = 18 s). `--cover-source stash` uses the animated preview Stash generated itself (WebP, Stash scenes only, falls back to a self-built cover); `--cover-format gif` forces GIF, and hosts without WebP support (imgbox, imagebam) get a GIF automatically. If the file exceeds ~9 MB it is shrunk (width, frame rate, quality) until it fits. `--cover FILE` uses your own image/GIF/WebP instead.
 
 ## Stash / stash-box
 ```
@@ -46,7 +48,7 @@ For `stash:<id>`, a stash-box link on the scene is used if Stash holds its key: 
 .venv/bin/pip install -e '.[web]'
 .venv/bin/tb serve --host 0.0.0.0 --port 8080 --out /srv/torrentbakery/out
 ```
-Pages: **Bake** (search Stash or enter a scene ID, pick tracker profile and image host, live progress, post preview with copy button, downloads for the ZIP, torrent and each image) and **Settings** (tracker profiles, Stash URL/key and path mappings, stash-box keys, image-host options, media roots). The UI has no login: keep it on a trusted network. API keys are never shown again after saving. Plain files can only be baked from the folders listed as media roots; Stash scenes need none.
+The interface is in English. Pages: **Bake** (search Stash or enter a scene ID, pick tracker profile and image host, live progress, post preview with copy button, downloads for the ZIP, torrent and each image) **History** (every bake, newest first, kept across restarts in `<out>/history.jsonl`, each entry reopens its result page) and **Settings** (tracker profiles, animated-cover defaults, Stash URL/key and path mappings, stash-box keys, image-host options, media roots). The UI has no login: keep it on a trusted network. API keys are never shown again after saving. Plain files can only be baked from the folders listed as media roots; Stash scenes need none.
 
 ## Image hosts
 ```
@@ -68,6 +70,11 @@ template = "default.bbcode.j2"
 cols = 5
 rows = 7
 thumb_width = 320
+[cover]
+source = "own"   # own | stash
+format = "webp"  # webp | gif
+clips = 0        # 0 = automatic
+width = 480
 [tracker.main]
 announce = "https://tracker.example/announce"
 source = "ABC"

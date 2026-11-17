@@ -14,6 +14,7 @@ class Imgbox:
     """imgbox has no public API: this replays what its upload page does (CSRF token → upload token → upload/process)."""
 
     name = "imgbox"
+    formats = ("jpg", "png", "gif")  # WebP not confirmed, so animations go up as GIF
 
     def __init__(self, transport: httpx.BaseTransport | None = None, **_):
         self.transport = transport

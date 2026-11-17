@@ -11,6 +11,7 @@ class Hamsterimg:
     """hamsterimg.net runs Chevereto 4; its upload API needs an API key from the account dashboard."""
 
     name = "hamsterimg"
+    formats = ("jpg", "png", "gif", "webp")  # Chevereto 4 default
 
     def __init__(self, api_key: str = "", base_url: str = "https://hamsterimg.net", transport: httpx.BaseTransport | None = None, **_):
         if not api_key:

@@ -29,6 +29,8 @@ def jpeg() -> bytes:
 
 def handler(video_path):
     def h(req: httpx.Request) -> httpx.Response:
+        if req.url.path == "/scene/7/webp":
+            return httpx.Response(200, content=b"RIFF\x00\x00\x00\x00WEBPVP8 ")
         if req.url.host == "img.example":
             return httpx.Response(200, content=jpeg())
         body = json.loads(req.content)
@@ -39,7 +41,7 @@ def handler(video_path):
         assert req.headers["ApiKey"] == "stashkey"
         return httpx.Response(200, json={"data": {
             "findScene": {"title": "Stash Title", "details": "", "date": "", "urls": [], "studio": None, "performers": [], "tags": [{"name": "stash-tag"}],
-                          "files": [{"path": "/stash/clip.mp4"}], "paths": {"screenshot": "http://stash.example/shot.jpg"},
+                          "files": [{"path": "/stash/clip.mp4"}], "paths": {"webp": "http://stash.example/scene/7/webp"},
                           "stash_ids": [{"endpoint": BOX, "stash_id": "abc"}]},
             "configuration": {"general": {"stashBoxes": [{"endpoint": BOX, "api_key": "boxkey", "name": "box"}]}}}})
     return h
@@ -58,10 +60,11 @@ def test_stash_resolve_prefers_linked_stashbox(tmp_path):
     clip.parent.mkdir()
     clip.write_bytes(b"x")
     cfg = Config(stash=StashCfg("http://stash.example", "stashkey"), path_map=[("/stash", str(clip.parent))])
-    r = stash.resolve(cfg, "7", tmp_path, httpx.MockTransport(handler(clip)))
+    r = stash.resolve(cfg, "7", tmp_path, httpx.MockTransport(handler(clip)), want_preview=True)
     assert r.release.title == "Box Title" and r.release.source_ids["stash"] == "7"
     assert r.release.tags == ["stash-tag"]  # Stash's own tags win over the stash-box's ["t1"]
-    assert r.path == clip and r.cover.exists()
+    assert r.path == clip and r.cover.name == "preview.webp"  # Stash's own animated preview
+    assert stash.resolve(cfg, "7", tmp_path, httpx.MockTransport(handler(clip))).cover is None  # not asked for, not fetched
 
 
 def test_map_path():

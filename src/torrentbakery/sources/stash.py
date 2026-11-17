@@ -8,7 +8,7 @@ from ..config import Config, map_path
 from ..models import Release
 from . import stashbox
 from .base import Resolved
-from .gql import download, gql
+from .gql import download_raw, gql
 
 SCENE_QUERY = """
 query Scene($id: ID!) {
@@ -18,7 +18,7 @@ query Scene($id: ID!) {
     performers { name }
     tags { name }
     files { path }
-    paths { screenshot }
+    paths { webp }
     stash_ids { endpoint stash_id }
   }
   configuration { general { stashBoxes { endpoint api_key name } } }
@@ -26,9 +26,9 @@ query Scene($id: ID!) {
 """
 
 
-def resolve(cfg: Config, scene_id: str, workdir: Path, transport: httpx.BaseTransport | None = None) -> Resolved:
-    """Stash scene → metadata + local file. If the scene is linked to a stash-box Stash knows
-    the key of, the stash-box record replaces Stash's own metadata and supplies the cover."""
+def resolve(cfg: Config, scene_id: str, workdir: Path, transport: httpx.BaseTransport | None = None, want_preview: bool = False) -> Resolved:
+    """Stash scene → metadata + local file (+ Stash's animated WebP preview if asked for and generated). If the scene is
+    linked to a stash-box Stash knows the key of, the stash-box record replaces Stash's own metadata."""
     if not cfg.stash.url:
         raise RuntimeError("Stash is not configured: tb stash set <url> --api-key <key>")
     endpoint = cfg.stash.url.rstrip("/") + "/graphql"
@@ -61,17 +61,19 @@ def resolve(cfg: Config, scene_id: str, workdir: Path, transport: httpx.BaseTran
     if stash_tags:
         release.tags = stash_tags
 
-    cover = None
-    dest = workdir / "cover-src.jpg"
-    try:
-        if release.cover_url:
-            cover = download(release.cover_url, dest, transport=transport)
-    except (httpx.HTTPError, OSError):
-        pass  # fall back to Stash's own screenshot
-    if cover is None and scene["paths"]["screenshot"]:
-        cover = download(scene["paths"]["screenshot"], dest, cfg.stash.api_key, transport)
+    preview = None
+    if want_preview and scene["paths"]["webp"]:
+        dest = workdir / "preview.webp"
+        try:
+            download_raw(scene["paths"]["webp"], dest, cfg.stash.api_key, transport)
+            head = dest.read_bytes()[:12]
+            if not (head[:4] == b"RIFF" and head[8:12] == b"WEBP"):
+                dest = None  # not a WebP (e.g. an error page): build our own
+        except httpx.HTTPError:
+            dest = None  # Stash has not generated the animated preview for this scene
+        preview = dest
 
     path = map_path(cfg, scene["files"][0]["path"])
     if not path.is_file():
         raise FileNotFoundError(f"{path} does not exist here; add a path mapping (Stash path: {scene['files'][0]['path']})")
-    return Resolved(release, path, cover)
+    return Resolved(release, path, preview)

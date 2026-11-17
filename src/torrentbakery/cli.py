@@ -33,14 +33,16 @@ def bake_cmd(
     source: str = typer.Argument(..., help="Video file, or stash:<scene-id>"),
     out: Path = typer.Option(Path("out"), "--out", "-o", envvar="TB_OUT", help="Output root directory"),
     tracker: str = typer.Option(None, "--tracker", "-t", help="Tracker profile (see `tb tracker list`)"),
-    cover: Path = typer.Option(None, "--cover", exists=True, dir_okay=False, help="Use this image as main image"),
+    cover: Path = typer.Option(None, "--cover", exists=True, dir_okay=False, help="Use this image/GIF/WebP as the cover instead of an animation"),
+    cover_source: str = typer.Option(None, "--cover-source", help="own = build the animation, stash = use Stash's own preview if the scene has one"),
+    cover_format: str = typer.Option(None, "--cover-format", help="webp or gif (webp falls back to gif for hosts that need it)"),
     upload: str = typer.Option(None, "--upload", "-u", help=f"Upload images to a host ({', '.join(HOST_NAMES)})"),
     sfw: bool = typer.Option(False, "--sfw", help="Mark uploads as family safe (default: adult content)"),
     stashbox: str = typer.Option(None, "--stashbox", help="Scene URL on a stash-box, e.g. https://stashdb.org/scenes/<id> (for plain files)"),
 ) -> None:
     cfg = config_mod.load()
     try:
-        result = bake_source(cfg, source, out, tracker=tracker, cover=cover, upload=upload, nsfw=not sfw, stashbox=stashbox)
+        result = bake_source(cfg, source, out, tracker=tracker, cover=cover, upload=upload, nsfw=not sfw, stashbox=stashbox, cover_source=cover_source, cover_format=cover_format)
     except (ValueError, KeyError) as e:
         raise typer.BadParameter(str(e.args[0] if e.args else e))
     typer.echo(f"Baked into {result} (+ {result}.zip)")
