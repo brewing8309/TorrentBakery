@@ -66,6 +66,7 @@ def test_bake_job_end_to_end(tmp_path, cfg_path, video):
     page = c.get(f"/jobs/{job_id}").text
     assert "Download everything as ZIP" in page and "[spoiler=MediaInfo]" in page and "contactsheet.jpg" in page and "cover.webp" in page
     assert c.get(f"/jobs/{job_id}/files/post.bbcode").status_code == 200
+    assert c.get(f"/jobs/{job_id}/files/tags.txt").status_code == 200
     assert c.get(f"/jobs/{job_id}/files/..%2Fconfig.toml").status_code == 404
     assert c.get(f"/jobs/{job_id}/files/nope.txt").status_code == 404
     assert c.get(f"/jobs/{job_id}/zip").headers["content-type"] == "application/zip"
@@ -175,3 +176,19 @@ def test_history_survives_restart(tmp_path, cfg_path):
     assert page.index("bad") < page.index("Baked Title")  # newest first
     (out / "history.jsonl").write_text((out / "history.jsonl").read_text() + "not json\n")
     assert TestClient(create_app(manager=JobManager(out, cfg_path, runner))).get("/history").status_code == 200  # damaged line is skipped
+
+
+def test_job_page_offers_copyable_tags(tmp_path, cfg_path):
+    from torrentbakery.web.jobs import JobManager
+
+    def runner(cfg, source, out, **kw):
+        d = out / "Rel"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "post.bbcode").write_text("post")
+        (d / "release.json").write_text('{"release": {"title": "T", "tags": ["Face Fuck", "Asian", "Big  Tits"]}}')
+        return d
+
+    c = TestClient(create_app(manager=JobManager(tmp_path / "out", cfg_path, runner)))
+    jid = c.post("/jobs", data={"source": "stash:1"}, follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
+    wait_done(c, jid)
+    assert '<textarea id="tags" rows="2" readonly>Face.Fuck Asian Big.Tits</textarea>' in c.get(f"/jobs/{jid}").text

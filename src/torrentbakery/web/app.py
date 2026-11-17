@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 from .. import config as config_mod
 from ..config import StashBoxCfg, Tracker
 from ..hosts import HOST_NAMES
+from ..render.post import format_tags
 from ..sources.gql import gql
 from .jobs import JobManager
 
@@ -104,7 +105,8 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
             if (job.out_dir / "release.json").exists():
                 meta = json.loads((job.out_dir / "release.json").read_text())
         title = job.label or job.title or meta.get("release", {}).get("title") or job.source.rsplit("/", 1)[-1]
-        return templates.TemplateResponse(request, "job.html", {"job": job, "title": title, "files": job_files(job), "post": post, "uploads": meta.get("uploads", {}), "host": meta.get("image_host", ""), "cover_file": meta.get("cover_file", "cover.jpg")})
+        return templates.TemplateResponse(request, "job.html", {"job": job, "title": title, "files": job_files(job), "post": post, "uploads": meta.get("uploads", {}), "host": meta.get("image_host", ""), "cover_file": meta.get("cover_file", "cover.jpg"),
+                       "tags": format_tags(meta.get("release", {}).get("tags", []))})
 
     @app.get("/jobs/{job_id}/state")
     def job_state(job_id: str):

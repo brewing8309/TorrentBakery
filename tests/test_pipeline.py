@@ -26,7 +26,7 @@ def test_timestamps_inside_runtime():
 
 def test_bake(video, tmp_path):
     cfg = Config(trackers={"t": Tracker(announce=["https://tracker.example/announce"], source="TB")})
-    release = Release(title="Test Scene", studio="Studio X", performers=["A", "B"], tags=["x", "y"], date="2026-01-02", description="Hello")
+    release = Release(title="Test Scene", studio="Studio X", performers=["A", "B"], tags=["x", "Face Fuck", "y", "  big   boobs ", "X"], date="2026-01-02", description="Hello")
     out = bake(video, tmp_path, cfg, release=release, tracker="t")
 
     sheet = Image.open(out / "contactsheet.jpg")
@@ -43,9 +43,10 @@ def test_bake(video, tmp_path):
     assert "{{" not in post and "[list]" not in post and "[*]" not in post  # the target forum does not render lists
     assert ", und" not in post  # undefined audio language is left out
 
+    assert (out / "tags.txt").read_text() == "x Face.Fuck y big.boobs\n"  # spaces inside a tag become dots, duplicates drop out
     assert (tmp_path / f"{out.name}.zip").exists()
     names = zipfile.ZipFile(tmp_path / f"{out.name}.zip").namelist()
-    assert {"post.bbcode", "cover.webp", "contactsheet.jpg", "release.json"} <= set(names)
+    assert {"post.bbcode", "cover.webp", "contactsheet.jpg", "release.json", "tags.txt"} <= set(names)
 
 
 def test_config_load(tmp_path):

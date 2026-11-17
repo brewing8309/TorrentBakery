@@ -13,7 +13,7 @@ from .media.animcover import make_animated_cover
 from .media.probe import probe
 from .media.torrent import make_torrent
 from .models import Release
-from .render.post import render_post
+from .render.post import format_tags, render_post
 
 
 def slug(name: str) -> str:
@@ -58,6 +58,7 @@ def bake(source: Path, out_root: Path, cfg: Config, release: Release | None = No
     step("Writing post")
     post = render_post(release, info, images, cfg.template, links=links)
     (out / "post.bbcode").write_text(post)
+    (out / "tags.txt").write_text(format_tags(release.tags) + "\n")
     (out / "release.json").write_text(json.dumps({"release": asdict(release), "media": asdict(info), "image_host": uploader.name if uploader else "", "cover_file": cover_file.name, "uploads": {r: asdict(u) for r, u in uploads.items()}}, indent=2, ensure_ascii=False))
     shutil.make_archive(str(out_root / out.name), "zip", out)
     return out
