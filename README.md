@@ -4,7 +4,7 @@ Bakes a release package from a video file: `.torrent`, 5×7 screenshot sheet, ma
 Planned: Stash / stash-box metadata, image-host upload (pixhost, hamsterimg, imagebam, imgbox), web UI, later TMDB/IMDb for regular movies.
 
 ## Status
-Phases 1–3 (local file → package, Stash/stash-box metadata, image-host upload) are implemented and covered by mocked tests. Verified live: the stash-box query against StashDB. Verified live with a generated test image: pixhost.to/.cc/pixho.st, imgbox, imagebam. Not yet verified live: Stash itself and hamsterimg (needs an API key). Next: Phase 4 web UI.
+Phases 1–3 (local file → package, Stash/stash-box metadata, image-host upload) are implemented and covered by mocked tests. Verified live: the stash-box query against StashDB. Verified live with a generated test image: pixhost.to/.cc/pixho.st, imgbox, imagebam. Not yet verified live: Stash itself and hamsterimg (needs an API key). Phase 4 web UI is in (`tb serve`); it has only been exercised with a local test video.
 
 ## Usage
 Needs `ffmpeg`, `ffprobe` and `mediainfo` on the PATH.
@@ -26,6 +26,13 @@ tb stash box-add stashdb https://stashdb.org/graphql --api-key KEY
 tb bake file.mp4 --stashbox https://stashdb.org/scenes/<id>   # plain file + stash-box metadata
 ```
 For `stash:<id>`, a stash-box link on the scene is used if Stash holds its key: title, performers, tags, description, links and the cover (largest landscape image) then come from the stash-box, otherwise from Stash (cover: Stash screenshot).
+
+## Web UI
+```
+.venv/bin/pip install -e '.[web]'
+.venv/bin/tb serve --host 0.0.0.0 --port 8080 --out /srv/torrentbakery/out
+```
+Pages: **Bake** (search Stash or enter a scene ID, pick tracker profile and image host, live progress, post preview with copy button, downloads for the ZIP, torrent and each image) and **Settings** (tracker profiles, Stash URL/key and path mappings, stash-box keys, image-host options, media roots). The UI has no login: keep it on a trusted network. API keys are never shown again after saving. Plain files can only be baked from the folders listed as media roots; Stash scenes need none.
 
 ## Image hosts
 ```

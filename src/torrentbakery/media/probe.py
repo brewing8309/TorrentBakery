@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from fractions import Fraction
 from pathlib import Path
@@ -33,6 +34,8 @@ def probe(path: Path) -> MediaInfo:
     ]
     try:
         full_text = _run(["mediainfo", str(path)])
+        # mediainfo prints the full path; a forum post must not leak the host's directory layout
+        full_text = re.sub(r"(?m)^(Complete name\s*:).*$", lambda m: f"{m.group(1)} {path.name}", full_text)
     except (OSError, subprocess.CalledProcessError):
         full_text = ""
     return MediaInfo(

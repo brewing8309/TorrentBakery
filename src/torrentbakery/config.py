@@ -38,6 +38,7 @@ class Config:
     trackers: dict[str, Tracker] = field(default_factory=dict)
     stash: StashCfg = field(default_factory=StashCfg)
     stashboxes: dict[str, StashBoxCfg] = field(default_factory=dict)
+    web_media_roots: list[str] = field(default_factory=list)  # dirs the web UI may bake plain files from
     hosts: dict[str, dict[str, str]] = field(default_factory=dict)  # image host options, e.g. hamsterimg api_key
     # (stash path prefix, local path prefix): maps paths Stash reports to where the share is mounted here
     path_map: list[tuple[str, str]] = field(default_factory=list)
@@ -58,6 +59,7 @@ def load(path: Path | None = None) -> Config:
         stash=StashCfg(stash.get("url", ""), stash.get("api_key", "")),
         path_map=[(m["from"], m["to"]) for m in data.get("path_map", [])],
         hosts={n: dict(o) for n, o in data.get("host", {}).items()},
+        web_media_roots=list(data.get("web", {}).get("media_roots", [])),
     )
     for name, t in data.get("tracker", {}).items():
         announce = t.get("announce", [])
@@ -81,6 +83,7 @@ def save(cfg: Config, path: Path | None = None) -> None:
         "tracker": {n: {"announce": t.announce, "source": t.source, "private": t.private} for n, t in cfg.trackers.items()},
         "stashbox": {n: {"endpoint": b.endpoint, "api_key": b.api_key} for n, b in cfg.stashboxes.items()},
         "host": cfg.hosts,
+        "web": {"media_roots": cfg.web_media_roots},
         "path_map": [{"from": a, "to": b} for a, b in cfg.path_map],
     }
     path.parent.mkdir(parents=True, exist_ok=True)

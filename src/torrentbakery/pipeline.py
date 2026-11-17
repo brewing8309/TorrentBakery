@@ -20,27 +20,33 @@ def slug(name: str) -> str:
     return re.sub(r"[^\w.\-]+", "_", name).strip("_") or "release"
 
 
-def bake(source: Path, out_root: Path, cfg: Config, release: Release | None = None, tracker: str | None = None, cover: Path | None = None, uploader: Uploader | None = None, nsfw: bool = True) -> Path:
+def bake(source: Path, out_root: Path, cfg: Config, release: Release | None = None, tracker: str | None = None, cover: Path | None = None, uploader: Uploader | None = None, nsfw: bool = True, progress=None) -> Path:
     """Bake one video file into out_root/<slug>/ (+ .zip). Returns the output dir."""
     source = source.resolve()
     if not source.is_file():
         raise FileNotFoundError(source)
+    step = progress or (lambda stage, frac=0.0: None)
+    step("Reading media info")
     info = probe(source)
     release = release or Release(title=source.stem)
     out = out_root / slug(source.stem)
     out.mkdir(parents=True, exist_ok=True)
 
+    step("Screenshot sheet")
     make_contact_sheet(source, info, out / "contactsheet.jpg", cfg.sheet_cols, cfg.sheet_rows, cfg.sheet_thumb_width)
     if cover:
         shutil.copyfile(cover, out / "cover.jpg")
     else:
         extract_frame(source, info.duration * 0.3, out / "cover.jpg")
-    make_torrent(source, out / f"{source.stem}.torrent", cfg.trackers[tracker] if tracker else None)
+    step("Hashing torrent")
+    make_torrent(source, out / f"{source.stem}.torrent", cfg.trackers[tracker] if tracker else None, lambda f: step("Hashing torrent", f))
     (out / "mediainfo.txt").write_text(info.full_text)
     # Without an image host the post references the local files by name.
     images = {"cover": "cover.jpg", "sheet": "contactsheet.jpg"}
     if uploader:
+        step(f"Uploading images to {uploader.name}")
         images = {role: uploader.upload(out / f"{file}", nsfw).direct_url for role, file in (("cover", "cover.jpg"), ("sheet", "contactsheet.jpg"))}
+    step("Writing post")
     post = render_post(release, info, images, cfg.template)
     (out / "post.bbcode").write_text(post)
     (out / "release.json").write_text(json.dumps({"release": asdict(release), "media": asdict(info)}, indent=2, ensure_ascii=False))

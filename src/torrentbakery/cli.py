@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
-from urllib.parse import urlparse
 
 import typer
 
 from . import config as config_mod
 from .config import StashBoxCfg, Tracker
-from .hosts import HOST_NAMES, get_uploader
-from .pipeline import bake
-from .sources import stash as stash_source
-from .sources import stashbox as stashbox_source
+from .hosts import HOST_NAMES
+from .service import bake_source
 
 app = typer.Typer(help="TorrentBakery – torrent, screenshot sheet and forum post from a video file or Stash scene.", no_args_is_help=True)
 tracker_app = typer.Typer(help="Manage saved tracker profiles.", no_args_is_help=True)
@@ -36,36 +32,11 @@ def bake_cmd(
     stashbox: str = typer.Option(None, "--stashbox", help="Scene URL on a stash-box, e.g. https://stashdb.org/scenes/<id> (for plain files)"),
 ) -> None:
     cfg = config_mod.load()
-    if tracker and tracker not in cfg.trackers:
-        raise typer.BadParameter(f"unknown tracker profile {tracker!r}; known: {', '.join(cfg.trackers) or 'none'}")
-    with tempfile.TemporaryDirectory() as tmp:
-        release, path, auto_cover = None, None, None
-        if source.startswith("stash:"):
-            r = stash_source.resolve(cfg, source[6:], Path(tmp))
-            release, path, auto_cover = r.release, r.path, r.cover
-        else:
-            path = Path(source)
-            if not path.is_file():
-                raise typer.BadParameter(f"{source} is not a file (use stash:<id> for Stash scenes)")
-            if stashbox:
-                release, auto_cover = _from_stashbox_url(cfg, stashbox, Path(tmp))
-        uploader = get_uploader(upload, cfg) if upload else None
-        result = bake(path, out, cfg, release=release, tracker=tracker, cover=cover or auto_cover, uploader=uploader, nsfw=not sfw)
+    try:
+        result = bake_source(cfg, source, out, tracker=tracker, cover=cover, upload=upload, nsfw=not sfw, stashbox=stashbox)
+    except (ValueError, KeyError) as e:
+        raise typer.BadParameter(str(e.args[0] if e.args else e))
     typer.echo(f"Baked into {result} (+ {result}.zip)")
-
-
-def _from_stashbox_url(cfg, url: str, tmp: Path):
-    from .sources.gql import download
-
-    u = urlparse(url)
-    scene_id = u.path.rstrip("/").rsplit("/", 1)[-1]
-    endpoint = f"{u.scheme}://{u.netloc}/graphql"
-    box = next((b for b in cfg.stashboxes.values() if b.endpoint == endpoint), None)
-    if box is None:
-        raise typer.BadParameter(f"no key for {endpoint}; add one: tb stash box-add <name> {endpoint} --api-key <key>")
-    release = stashbox_source.fetch(endpoint, box.api_key, scene_id)
-    cover = download(release.cover_url, tmp / "cover-src.jpg") if release.cover_url else None
-    return release, cover
 
 
 @tracker_app.command("add")
@@ -150,3 +121,17 @@ def host_set(name: str, option: list[str] = typer.Option(..., "--option", "-o", 
         cfg.hosts.setdefault(name, {})[k] = v
     config_mod.save(cfg)
     typer.echo(f"Saved options for {name}")
+
+
+@app.command("serve")
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind address (the UI has no login: keep it on a trusted network)"),
+    port: int = typer.Option(8080, "--port"),
+    out: Path = typer.Option(Path("out"), "--out", "-o", help="Output root directory"),
+) -> None:
+    """Start the web UI."""
+    import uvicorn
+
+    from .web.app import create_app
+
+    uvicorn.run(create_app(out_root=out), host=host, port=port)

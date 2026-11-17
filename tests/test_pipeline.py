@@ -16,6 +16,7 @@ def test_probe(video):
     assert 59 < info.duration < 61
     assert info.video_codec == "h264" and info.audio[0].codec == "aac"
     assert "General" in info.full_text
+    assert str(video.parent) not in info.full_text  # no host paths in the post
 
 
 def test_timestamps_inside_runtime():

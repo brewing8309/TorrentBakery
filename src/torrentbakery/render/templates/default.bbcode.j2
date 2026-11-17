@@ -25,7 +25,7 @@
 [*]Video: {{ info.video_codec }}, {{ info.width }}x{{ info.height }}, {{ "%g" | format(info.fps) }} fps{% if info.video_bitrate %}, {{ info.video_bitrate // 1000 }} kb/s{% endif %}
 
 {% for a in info.audio %}
-[*]Audio: {{ a.codec }}, {{ a.channels }} ch{% if a.language %}, {{ a.language }}{% endif %}
+[*]Audio: {{ a.codec }}, {{ a.channels }} ch{% if a.language and a.language != "und" %}, {{ a.language }}{% endif %}
 
 {% endfor %}
 [/list]

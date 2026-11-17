@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block body %}
+<section>
+  <h1>Tracker profiles</h1>
+  <table>{% for name, t in c.trackers.items() %}
+    <tr><td><b>{{ name }}</b><br><span class="mute">{{ t.announce | join(", ") }} · source {{ t.source or "-" }} · {{ "private" if t.private else "public" }}</span></td>
+        <td><form class="inline" method="post" action="/settings/tracker/{{ name | urlencode }}/delete"><button class="ghost">Remove</button></form></td></tr>
+  {% else %}<tr><td class="mute">No profiles yet.</td></tr>{% endfor %}</table>
+  <form method="post" action="/settings/tracker">
+    <div class="row"><div><label>Name</label><input type="text" name="name" required></div><div><label>Source tag</label><input type="text" name="source"></div></div>
+    <label>Announce URL(s), one per line</label><textarea name="announce" rows="2" required></textarea>
+    <label><input type="checkbox" name="private" value="1" checked> Private torrent</label>
+    <p><button>Save profile</button> <span class="mute">Same name replaces a profile.</span></p>
+  </form>
+</section>
+<section>
+  <h1>Stash</h1>
+  <form method="post" action="/settings/stash">
+    <div class="row"><div><label>URL</label><input type="text" name="url" value="{{ c.stash.url }}" placeholder="http://stash:9999"></div>
+    <div><label>API key {% if c.stash.api_key %}(saved, leave blank to keep){% endif %}</label><input type="password" name="api_key" autocomplete="off"></div></div>
+    <p><button>Save</button></p>
+  </form>
+  <h2>Path mappings</h2>
+  <p class="mute">Only needed when Stash sees a share under a different path than this host.</p>
+  <table>{% for a, b in c.path_map %}<tr><td>{{ a }} → {{ b }}</td><td><form class="inline" method="post" action="/settings/map/{{ loop.index0 }}/delete"><button class="ghost">Remove</button></form></td></tr>{% endfor %}</table>
+  <form method="post" action="/settings/map" class="row"><div><input type="text" name="stash_path" placeholder="/data/media" required></div><div><input type="text" name="local_path" placeholder="/mnt/nas" required></div><div style="flex:0 0 auto"><button>Add</button></div></form>
+</section>
+<section>
+  <h1>Stash-box endpoints</h1>
+  <p class="mute">For “Stash-box scene URL” on plain files. Scenes linked in Stash use the key Stash already holds.</p>
+  <table>{% for name, b in c.stashboxes.items() %}<tr><td><b>{{ name }}</b> <span class="mute">{{ b.endpoint }}</span></td><td><form class="inline" method="post" action="/settings/stashbox/{{ name | urlencode }}/delete"><button class="ghost">Remove</button></form></td></tr>{% endfor %}</table>
+  <form method="post" action="/settings/stashbox"><div class="row"><div><input type="text" name="name" placeholder="stashdb" required></div><div><input type="text" name="endpoint" placeholder="https://stashdb.org/graphql" required></div><div><input type="password" name="api_key" placeholder="API key" autocomplete="off"></div><div style="flex:0 0 auto"><button>Save</button></div></div></form>
+</section>
+<section>
+  <h1>Image hosts</h1>
+  <p class="mute">Options as key=value lines (hamsterimg needs <code>api_key=…</code>). Existing values are not shown; saving replaces them, empty removes them.</p>
+  <table>{% for h in hosts %}<tr><td>{{ h }}</td><td class="mute">{{ (c.hosts[h].keys() | list | join(", ")) if h in c.hosts else "" }}</td></tr>{% endfor %}</table>
+  <form method="post" action="/settings/host"><div class="row"><div><select name="name">{% for h in hosts %}<option>{{ h }}</option>{% endfor %}</select></div><div><textarea name="options" rows="2" placeholder="api_key=…"></textarea></div><div style="flex:0 0 auto"><button>Save</button></div></div></form>
+</section>
+<section>
+  <h1>Media roots</h1>
+  <p class="mute">The web UI only bakes plain files below these folders, one per line (Stash scenes need none).</p>
+  <form method="post" action="/settings/roots"><textarea name="roots" rows="3">{{ c.web_media_roots | join("\n") }}</textarea><p><button>Save</button></p></form>
+</section>
+{% endblock %}

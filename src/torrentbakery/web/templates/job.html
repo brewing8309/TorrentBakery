@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block body %}
+<section>
+  <h1>{{ job.source.rsplit("/", 1)[-1] }}</h1>
+  {% if job.status in ("queued", "running") %}
+    <p id="stage" class="mute">{{ job.stage or job.status }}</p>
+    <div class="bar"><div id="bar"></div></div>
+    <script>
+      const bar = document.getElementById("bar"), stage = document.getElementById("stage");
+      async function poll() {
+        try {
+          const s = await (await fetch("/jobs/{{ job.id }}/state")).json();
+          if (s.status === "done" || s.status === "error") return location.reload();
+          stage.textContent = s.stage || s.status;
+          bar.style.width = Math.round(s.fraction * 100) + "%";
+        } catch (e) {}
+        setTimeout(poll, 1000);
+      }
+      poll();
+    </script>
+  {% elif job.status == "error" %}
+    <p class="err">{{ job.error }}</p>
+    <p><a class="btn ghost" href="/">Back</a></p>
+  {% else %}
+    <p class="ok">Done.</p>
+    <p>
+      <a class="btn" href="/jobs/{{ job.id }}/zip">Download ZIP</a>
+      {% for f in files if f.endswith(".torrent") %}<a class="btn ghost" href="/jobs/{{ job.id }}/files/{{ f | urlencode }}">{{ f }}</a>{% endfor %}
+    </p>
+  </section>
+  <section>
+    <h2>Forum post (BBCode)</h2>
+    <textarea id="post" rows="18" readonly>{{ post }}</textarea>
+    <p><button type="button" onclick="copyPost()">Copy post</button> <span id="copied" class="ok"></span></p>
+  </section>
+  <section>
+    <h2>Images</h2>
+    <div class="row">
+      {% for f in ("cover.jpg", "contactsheet.jpg") if f in files %}
+      <div><img class="preview" src="/jobs/{{ job.id }}/files/{{ f }}" alt="{{ f }}"><p><a href="/jobs/{{ job.id }}/files/{{ f }}" download>{{ f }}</a></p></div>
+      {% endfor %}
+    </div>
+    <p class="mute">Files: {% for f in files %}<a href="/jobs/{{ job.id }}/files/{{ f | urlencode }}">{{ f }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>
+    <script>
+      function copyPost() {
+        const t = document.getElementById("post"); t.select();
+        const done = () => document.getElementById("copied").textContent = "Copied";
+        if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t.value).then(done);
+        else { document.execCommand("copy"); done(); }  // plain-http LAN pages have no clipboard API
+      }
+    </script>
+  {% endif %}
+</section>
+{% endblock %}

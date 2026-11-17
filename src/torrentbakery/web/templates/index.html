@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block body %}
+<section>
+  <h1>Bake a release</h1>
+  <form method="post" action="/jobs">
+    <label for="source">Source</label>
+    <input type="text" id="source" name="source" required autocomplete="off"
+           placeholder="{% if stash %}Search Stash, or enter a scene ID / stash:ID{% endif %}{% if roots %}{% if stash %} / {% endif %}or a file path under a media root{% endif %}">
+    <div id="results"></div>
+    {% if not stash and not roots %}<p class="mute">Nothing to bake from yet: set up Stash or a media root in <a href="/settings">Settings</a>.</p>{% endif %}
+    <div class="row">
+      <div><label for="tracker">Tracker profile</label>
+        <select id="tracker" name="tracker"><option value="">none (no announce URL)</option>{% for t in trackers %}<option>{{ t }}</option>{% endfor %}</select></div>
+      <div><label for="upload">Image host</label>
+        <select id="upload" name="upload"><option value="">none (export files only)</option>{% for h in hosts %}<option>{{ h }}</option>{% endfor %}</select></div>
+    </div>
+    <label for="stashbox">Stash-box scene URL (optional, for plain files)</label>
+    <input type="text" id="stashbox" name="stashbox" placeholder="https://stashdb.org/scenes/…">
+    <label><input type="checkbox" name="sfw" value="1"> Mark uploads as family safe</label>
+    <p><button type="submit">Bake</button></p>
+  </form>
+</section>
+{% if jobs %}
+<section>
+  <h2>Recent jobs</h2>
+  <table>{% for j in jobs %}
+    <tr><td><a href="/jobs/{{ j.id }}">{{ j.source.rsplit("/", 1)[-1] }}</a></td>
+        <td class="{{ 'ok' if j.status == 'done' else 'err' if j.status == 'error' else 'mute' }}">{{ j.status }}</td></tr>
+  {% endfor %}</table>
+</section>
+{% endif %}
+<script>
+const src = document.getElementById("source"), box = document.getElementById("results");
+let timer;
+src.addEventListener("input", () => {
+  clearTimeout(timer);
+  const q = src.value.trim();
+  if (q.length < 3 || /^(stash:)?\d+$/.test(q) || q.startsWith("/")) { box.innerHTML = ""; return; }
+  timer = setTimeout(async () => {
+    try {
+      const rows = await (await fetch("/search?q=" + encodeURIComponent(q))).json();
+      box.innerHTML = "";
+      for (const r of rows) {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "ghost"; b.style.cssText = "display:flex;gap:10px;align-items:center;width:100%;margin-top:6px;text-align:left";
+        const img = document.createElement("img");
+        img.src = "/stash-thumb/" + r.id; img.width = 80; img.loading = "lazy";
+        const t = document.createElement("span");
+        t.textContent = [r.title, r.studio, r.date].filter(Boolean).join(" · ") + "  (#" + r.id + ")";
+        b.append(img, t);
+        b.onclick = () => { src.value = "stash:" + r.id; box.innerHTML = ""; };
+        box.append(b);
+      }
+    } catch (e) { box.textContent = "Search failed"; }
+  }, 350);
+});
+</script>
+{% endblock %}
