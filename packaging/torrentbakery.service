@@ -1,0 +1,25 @@
+[Unit]
+Description=TorrentBakery web UI
+Documentation=https://github.com/brewing8309/TorrentBakery
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=torrentbakery
+Group=torrentbakery
+WorkingDirectory=/var/lib/torrentbakery
+Environment=TB_HOST=0.0.0.0 TB_PORT=8080 TB_OUT=/var/lib/torrentbakery/out TB_CONFIG=/var/lib/torrentbakery/config.toml PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+EnvironmentFile=-/etc/default/torrentbakery
+ExecStart=/opt/torrentbakery/venv/bin/tb serve
+UMask=0077
+Restart=on-failure
+RestartSec=5
+# everything except the data directory is read-only; media shares are only read
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/torrentbakery
+
+[Install]
+WantedBy=multi-user.target

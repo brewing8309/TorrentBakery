@@ -4,6 +4,7 @@ from pathlib import Path
 
 import typer
 
+from . import __version__
 from . import config as config_mod
 from .config import StashBoxCfg, Tracker
 from .hosts import HOST_NAMES
@@ -16,6 +17,12 @@ app.add_typer(tracker_app, name="tracker")
 app.add_typer(stash_app, name="stash")
 
 
+@app.command("version")
+def version_cmd() -> None:
+    """Print the version."""
+    typer.echo(__version__)
+
+
 @app.callback()
 def main() -> None:
     """TorrentBakery."""
@@ -24,7 +31,7 @@ def main() -> None:
 @app.command("bake")
 def bake_cmd(
     source: str = typer.Argument(..., help="Video file, or stash:<scene-id>"),
-    out: Path = typer.Option(Path("out"), "--out", "-o", help="Output root directory"),
+    out: Path = typer.Option(Path("out"), "--out", "-o", envvar="TB_OUT", help="Output root directory"),
     tracker: str = typer.Option(None, "--tracker", "-t", help="Tracker profile (see `tb tracker list`)"),
     cover: Path = typer.Option(None, "--cover", exists=True, dir_okay=False, help="Use this image as main image"),
     upload: str = typer.Option(None, "--upload", "-u", help=f"Upload images to a host ({', '.join(HOST_NAMES)})"),
@@ -125,9 +132,9 @@ def host_set(name: str, option: list[str] = typer.Option(..., "--option", "-o", 
 
 @app.command("serve")
 def serve(
-    host: str = typer.Option("127.0.0.1", "--host", help="Bind address (the UI has no login: keep it on a trusted network)"),
-    port: int = typer.Option(8080, "--port"),
-    out: Path = typer.Option(Path("out"), "--out", "-o", help="Output root directory"),
+    host: str = typer.Option("127.0.0.1", "--host", envvar="TB_HOST", help="Bind address (the UI has no login: keep it on a trusted network)"),
+    port: int = typer.Option(8080, "--port", envvar="TB_PORT"),
+    out: Path = typer.Option(Path("out"), "--out", "-o", envvar="TB_OUT", help="Output root directory"),
 ) -> None:
     """Start the web UI."""
     import uvicorn

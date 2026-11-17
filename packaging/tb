@@ -1,0 +1,7 @@
+#!/bin/sh
+# CLI wrapper: same settings and user as the service, so config.toml stays readable for both.
+[ -r /etc/default/torrentbakery ] && { set -a; . /etc/default/torrentbakery; set +a; }
+if [ "$(id -u)" = 0 ]; then
+    exec runuser -u torrentbakery -- /opt/torrentbakery/venv/bin/tb "$@"
+fi
+exec /opt/torrentbakery/venv/bin/tb "$@"

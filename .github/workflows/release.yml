@@ -1,0 +1,28 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg mediainfo
+      - run: pip install -e '.[dev]'
+      - run: pytest -q
+      - name: Tag must match the version in the code
+        run: test "v$(tb version)" = "$GITHUB_REF_NAME"
+      - run: ./scripts/build.sh
+      - name: Release notes from CHANGELOG.md
+        run: awk -v v="${GITHUB_REF_NAME#v}" '$0 ~ "^## " {on = index($0, v) > 0} on' CHANGELOG.md > notes.md
+      - name: Publish (tags with a hyphen become pre-releases)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "$GITHUB_REF_NAME" in *-*) PRE=--prerelease ;; *) PRE= ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz --title "TorrentBakery ${GITHUB_REF_NAME#v}" --notes-file notes.md $PRE

@@ -1,0 +1,33 @@
+import subprocess
+import tarfile
+from pathlib import Path
+
+from torrentbakery import __version__
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def test_build_tarball(tmp_path):
+    out = subprocess.run([str(ROOT / "scripts/build.sh")], cwd=ROOT, check=True, capture_output=True, text=True).stdout.strip()
+    tar = ROOT / out
+    assert tar.name == f"torrentbakery-{__version__}.tar.gz"
+    names = set(tarfile.open(tar).getnames())
+    top = f"torrentbakery-{__version__}"
+    for f in ("install.sh", "uninstall.sh", "pyproject.toml", "CHANGELOG.md", "packaging/torrentbakery.service", "packaging/tb",
+              "src/torrentbakery/cli.py", "src/torrentbakery/web/templates/base.html", "src/torrentbakery/render/templates/default.bbcode.j2"):
+        assert f"{top}/{f}" in names, f
+    assert not any("__pycache__" in n or "egg-info" in n or ".venv" in n or "tests/" in n for n in names)
+
+
+def test_version_command_and_env_defaults(tmp_path):
+    from typer.testing import CliRunner
+
+    from torrentbakery.cli import app
+
+    assert CliRunner().invoke(app, ["version"]).stdout.strip() == __version__
+    assert any(f"[env var: TB_PORT]" in line for line in CliRunner().invoke(app, ["serve", "--help"], terminal_width=200).stdout.splitlines())
+
+
+def test_scripts_are_valid_shell():
+    for s in ("install.sh", "uninstall.sh", "scripts/build.sh", "deploy.sh", "packaging/tb"):
+        subprocess.run(["sh", "-n", str(ROOT / s)], check=True)

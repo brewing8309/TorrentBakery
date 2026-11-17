@@ -13,4 +13,5 @@ jobs:
           python-version: "3.12"
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg mediainfo
       - run: pip install -e '.[dev]'
+      - run: sh -n install.sh && sh -n uninstall.sh && sh -n scripts/build.sh && sh -n packaging/tb
       - run: pytest -q

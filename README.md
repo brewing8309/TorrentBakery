@@ -6,7 +6,21 @@ Planned: Stash / stash-box metadata, image-host upload (pixhost, hamsterimg, ima
 ## Status
 Phases 1–3 (local file → package, Stash/stash-box metadata, image-host upload) are implemented and covered by mocked tests. Verified live: the stash-box query against StashDB. Verified live with a generated test image: pixhost.to/.cc/pixho.st, imgbox, imagebam. Not yet verified live: Stash itself and hamsterimg (needs an API key). Phase 4 web UI is in (`tb serve`); it has only been exercised with a local test video.
 
-## Usage
+## Installation (Debian/Ubuntu host or LXC)
+Release tarball, installed like Homelab Dashboard: `install.sh` sets up a venv in `/opt/torrentbakery`, a systemd service `torrentbakery` (user `torrentbakery`) and the `tb` command. It installs `ffmpeg`, `mediainfo` and `python3-venv` via apt if missing and needs Python ≥ 3.11 and access to pypi.org.
+```
+gh release download v0.1.0 -R brewing8309/TorrentBakery     # the repo is private, so plain curl needs a token
+tar xzf torrentbakery-0.1.0.tar.gz
+cd torrentbakery-0.1.0 && ./install.sh                       # another port: PORT=9000 ./install.sh
+```
+Then open `http://<host>:8080/` and set up trackers, Stash and media roots under **Settings**. The UI has no login; it listens on all interfaces by default (`TB_HOST=127.0.0.1` in `/etc/default/torrentbakery` restricts it).
+- **Mounted shares** must be readable by the user `torrentbakery`; add them as media roots (or let Stash scenes map via path mappings).
+- **Data:** `/var/lib/torrentbakery` (`config.toml` with the API keys, `out/` with the baked releases). Another output folder needs a systemd drop-in with `ReadWritePaths=`.
+- **CLI:** `tb …` runs as the service user with the same settings, e.g. `tb bake stash:1234 -t main`.
+- **Update:** unpack the new version, `./install.sh`; settings and output stay. **Remove:** `/opt/torrentbakery/uninstall.sh` (`--purge` also deletes settings and releases).
+- **Build the tarball yourself:** `scripts/build.sh` → `dist/torrentbakery-<version>.tar.gz`; `./deploy.sh <vmid>` pushes it into a Proxmox container. A tag `v<version>` triggers the release workflow.
+
+## Usage (from a checkout)
 Needs `ffmpeg`, `ffprobe` and `mediainfo` on the PATH.
 
 ```
