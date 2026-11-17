@@ -4,7 +4,7 @@ Bakes a release package from a video file: `.torrent`, 5×7 screenshot sheet, ma
 Planned: Stash / stash-box metadata, image-host upload (pixhost, hamsterimg, imagebam, imgbox), web UI, later TMDB/IMDb for regular movies.
 
 ## Status
-Phases 1–3 (local file → package, Stash/stash-box metadata, image-host upload) are implemented and covered by mocked tests. Verified live: the stash-box query against StashDB. Not yet verified live: Stash itself and the image-host uploads (pixhost is built from its OpenAPI spec; imgbox, imagebam and hamsterimg replay the hosts' web/API flows). Next: Phase 4 web UI.
+Phases 1–3 (local file → package, Stash/stash-box metadata, image-host upload) are implemented and covered by mocked tests. Verified live: the stash-box query against StashDB. Verified live with a generated test image: pixhost.to/.cc/pixho.st, imgbox, imagebam. Not yet verified live: Stash itself and hamsterimg (needs an API key). Next: Phase 4 web UI.
 
 ## Usage
 Needs `ffmpeg`, `ffprobe` and `mediainfo` on the PATH.

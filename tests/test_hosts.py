@@ -54,11 +54,12 @@ def test_imagebam(img):
         if p == "/upload/session":
             return httpx.Response(200, json={"data": "tok", "session": "sess"})
         if p == "/upload":
-            return httpx.Response(200, json={})
+            assert b'name="files[0]"' in req.content
+            return httpx.Response(200, json={"success": "https://imagebam.com/upload/complete?session=sess"})
         assert p == "/upload/complete" and req.url.params["session"] == "sess"
-        return httpx.Response(200, text='<a href="https://www.imagebam.com/view/ME1"><img src="https://thumbs4.imagebam.com/t.jpg"></a> https://images4.imagebam.com/f.jpg')
+        return httpx.Response(200, text='<input value="[URL=https://imagebam.com/view/ME1][IMG]https://thumbs4.imagebam.com/9b/46/00/ME1_t.jpg[/IMG][/URL]">')
     u = get_uploader("imagebam", Config(), httpx.MockTransport(h)).upload(img)
-    assert u.direct_url == "https://images4.imagebam.com/f.jpg" and u.page_url.endswith("/view/ME1")
+    assert u.direct_url == "https://images4.imagebam.com/9b/46/00/ME1.jpg" and u.page_url.endswith("/view/ME1")
 
 
 def test_bake_with_uploader(video, tmp_path):

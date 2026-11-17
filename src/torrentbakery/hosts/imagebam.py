@@ -32,12 +32,14 @@ class Imagebam:
             if s.get("error"):
                 raise RuntimeError("imagebam: session refused")
             with open(path, "rb") as f:
-                up = c.post(BASE + "/upload", headers=hdr, data={"_token": csrf, "data": s["data"]}, files={"file": (path.name, f)})
+                # the form field is `files[0]` (Dropzone uploadMultiple); `file`/`file[0]` give HTTP 500
+                up = c.post(BASE + "/upload", headers=hdr, data={"_token": csrf, "data": s["data"]}, files={"files[0]": (path.name, f)})
             up.raise_for_status()
-            done = c.get(BASE + "/upload/complete", params={"session": s["session"]}).text
-        direct = re.search(r'https://images\d*\.imagebam\.com/[^"\'\s<>]+', done)
-        if not direct:
+            done = c.get(up.json()["success"]).text
+        page = re.search(r'https://(?:www\.)?imagebam\.com/view/\w+', done)
+        thumb = re.search(r'https://thumbs(\d*)\.imagebam\.com/([^"\'\s<>\[]+?)_t(\.\w+)', done)
+        if not (page and thumb):
             raise RuntimeError("imagebam: no image link on the result page")
-        page = re.search(r'https://www\.imagebam\.com/view/\w+', done)
-        thumb = re.search(r'https://thumbs\d*\.imagebam\.com/[^"\'\s<>]+', done)
-        return Uploaded(direct.group(0), page.group(0) if page else "", thumb.group(0) if thumb else "")
+        # The viewer page sits behind an ad interstitial; the direct file lives next to the thumbnail (verified live).
+        direct = f"https://images{thumb.group(1)}.imagebam.com/{thumb.group(2)}{thumb.group(3)}"
+        return Uploaded(direct, page.group(0), thumb.group(0))
