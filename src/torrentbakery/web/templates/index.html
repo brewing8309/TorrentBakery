@@ -1,31 +1,38 @@
 {% extends "base.html" %}
 {% block body %}
 <section>
-  <h1>Bake a release</h1>
+  <h1>Release backen</h1>
+  <p class="lead">Aus einer Szene oder Datei entstehen: Torrent, Titelbild, Screenshot-Übersicht (5×7), MediaInfo und ein fertiger Forenpost.</p>
   <form method="post" action="/jobs">
-    <label for="source">Source</label>
+    <label for="source">Quelle</label>
     <input type="text" id="source" name="source" required autocomplete="off"
-           placeholder="{% if stash %}Search Stash, or enter a scene ID / stash:ID{% endif %}{% if roots %}{% if stash %} / {% endif %}or a file path under a media root{% endif %}">
+           placeholder="{% if stash %}Titel suchen, Szenen-Nummer oder stash:1234{% endif %}{% if roots %}{% if stash %}, {% endif %}oder Dateipfad{% endif %}">
+    <p class="help">{% if stash %}Tippe ab 3 Buchstaben einen Titel, dann erscheinen Treffer aus Stash zum Anklicken. Die Nummer einer Szene steht in Stash in der Adresszeile (<code>…/scenes/1234</code>).{% endif %}
+      {% if roots %} Ein Dateipfad muss in einem freigegebenen <a href="/settings#roots">Medienordner</a> liegen.{% endif %}</p>
     <div id="results"></div>
-    {% if not stash and not roots %}<p class="mute">Nothing to bake from yet: set up Stash or a media root in <a href="/settings">Settings</a>.</p>{% endif %}
+    {% if not stash and not roots %}<p class="note">Es gibt noch keine Quelle: Verbinde zuerst Stash oder gib einen Medienordner frei, in den <a href="/settings">Einstellungen</a>.</p>{% endif %}
     <div class="row">
-      <div><label for="tracker">Tracker profile</label>
-        <select id="tracker" name="tracker"><option value="">none (no announce URL)</option>{% for t in trackers %}<option>{{ t }}</option>{% endfor %}</select></div>
-      <div><label for="upload">Image host</label>
-        <select id="upload" name="upload"><option value="">none (export files only)</option>{% for h in hosts %}<option>{{ h }}</option>{% endfor %}</select></div>
+      <div><label for="tracker">Tracker-Profil</label>
+        <select id="tracker" name="tracker"><option value="">keins (Torrent ohne Announce-URL)</option>{% for t in trackers %}<option>{{ t }}</option>{% endfor %}</select>
+        <p class="help">Bestimmt Announce-URL, Source-Tag und privat/öffentlich.{% if not trackers %} <a href="/settings#tracker">Profil anlegen</a>{% endif %}</p></div>
+      <div><label for="upload">Bildhoster</label>
+        <select id="upload" name="upload"><option value="">keiner (Bilder nur als Dateien)</option>{% for h in hosts %}<option>{{ h }}</option>{% endfor %}</select>
+        <p class="help">Lädt Titelbild und Screenshot-Übersicht hoch und setzt die Links in den Post. Ohne Hoster lädst du die Bilder selbst hoch.</p></div>
     </div>
-    <label for="stashbox">Stash-box scene URL (optional, for plain files)</label>
+    <label for="stashbox">Stash-box-Adresse der Szene <span class="badge">optional</span></label>
     <input type="text" id="stashbox" name="stashbox" placeholder="https://stashdb.org/scenes/…">
-    <label><input type="checkbox" name="sfw" value="1"> Mark uploads as family safe</label>
-    <p><button type="submit">Bake</button></p>
+    <p class="help">Nur für einzelne Dateien: holt Titel, Darsteller und Titelbild von dieser StashDB-Seite. Bei Stash-Szenen nicht nötig. Der Key dafür steht in den <a href="/settings#stashbox">Einstellungen</a>.</p>
+    <label><input type="checkbox" name="sfw" value="1"> Bilder als jugendfrei markieren</label>
+    <p class="help">Standard ist „Erwachseneninhalt“. Das betrifft nur den Upload bei den Bildhostern.</p>
+    <p><button type="submit">Backen</button></p>
   </form>
 </section>
 {% if jobs %}
 <section>
-  <h2>Recent jobs</h2>
+  <h2>Letzte Aufträge</h2>
   <table>{% for j in jobs %}
     <tr><td><a href="/jobs/{{ j.id }}">{{ j.source.rsplit("/", 1)[-1] }}</a></td>
-        <td class="{{ 'ok' if j.status == 'done' else 'err' if j.status == 'error' else 'mute' }}">{{ j.status }}</td></tr>
+        <td class="{{ 'ok' if j.status == 'done' else 'err' if j.status == 'error' else 'mute' }}">{{ {'queued':'wartet','running':'läuft','done':'fertig','error':'Fehler'}[j.status] }}</td></tr>
   {% endfor %}</table>
 </section>
 {% endif %}
@@ -51,7 +58,7 @@ src.addEventListener("input", () => {
         b.onclick = () => { src.value = "stash:" + r.id; box.innerHTML = ""; };
         box.append(b);
       }
-    } catch (e) { box.textContent = "Search failed"; }
+    } catch (e) { box.textContent = "Suche fehlgeschlagen. Ist Stash in den Einstellungen verbunden?"; }
   }, 350);
 });
 </script>

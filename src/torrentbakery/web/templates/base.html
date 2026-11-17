@@ -1,34 +1,43 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}TorrentBakery{% endblock %}</title>
 <style>
-:root { color-scheme: light dark; --bg:#f6f4f1; --card:#fff; --fg:#1d1b19; --mute:#6b655e; --line:#ddd6cd; --accent:#b4531f; --accent-fg:#fff; --ok:#2e7d32; --err:#c62828; }
-@media (prefers-color-scheme: dark) { :root { --bg:#161412; --card:#211e1b; --fg:#ece7e1; --mute:#a39b92; --line:#38332e; --accent:#e0824c; --accent-fg:#1a1006; --ok:#66bb6a; --err:#ef5350; } }
+:root { color-scheme: light dark; --bg:#f6f4f1; --card:#fff; --fg:#1d1b19; --mute:#6b655e; --line:#ddd6cd; --accent:#b4531f; --accent-fg:#fff; --ok:#2e7d32; --err:#c62828; --warn:#8a5a00; }
+@media (prefers-color-scheme: dark) { :root { --bg:#161412; --card:#211e1b; --fg:#ece7e1; --mute:#a39b92; --line:#38332e; --accent:#e0824c; --accent-fg:#1a1006; --ok:#66bb6a; --err:#ef5350; --warn:#e6b450; } }
 * { box-sizing: border-box; }
 body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, sans-serif; }
 header { display:flex; gap:1.2rem; align-items:baseline; padding:.8rem 16px; border-bottom:1px solid var(--line); background:var(--card); }
 header a { color:var(--fg); text-decoration:none; } header .brand { font-weight:700; color:var(--accent); font-size:1.1rem; }
 main { max-width:960px; margin:0 auto; padding:16px; }
 section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
-h1,h2 { margin:.2rem 0 .8rem; } h2 { font-size:1.05rem; }
-label { display:block; margin:.6rem 0 .2rem; color:var(--mute); font-size:.85rem; }
+a { color:var(--accent); }
+h1,h2 { margin:.2rem 0 .5rem; } h1 { font-size:1.35rem; } h2 { font-size:1.05rem; }
+label { display:block; margin:.7rem 0 .2rem; font-weight:600; font-size:.9rem; }
+.help { margin:.2rem 0 0; color:var(--mute); font-size:.85rem; }
+.lead { color:var(--mute); margin:.1rem 0 .8rem; }
 input[type=text], input[type=password], select, textarea { width:100%; padding:.5rem; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); font:inherit; }
 textarea { font-family: ui-monospace, monospace; font-size:.85rem; }
 button, .btn { display:inline-block; padding:.5rem .9rem; border:0; border-radius:6px; background:var(--accent); color:var(--accent-fg); font:inherit; cursor:pointer; text-decoration:none; }
 button.ghost, .btn.ghost { background:transparent; color:var(--fg); border:1px solid var(--line); }
-.row { display:flex; gap:12px; flex-wrap:wrap; } .row > * { flex:1 1 200px; }
+.row { display:flex; gap:12px; flex-wrap:wrap; } .row > * { flex:1 1 220px; }
 .mute { color:var(--mute); } .ok { color:var(--ok); } .err { color:var(--err); }
-table { width:100%; border-collapse:collapse; } td,th { text-align:left; padding:.35rem .4rem; border-bottom:1px solid var(--line); vertical-align:top; }
+.badge { display:inline-block; font-size:.72rem; font-weight:600; padding:.1rem .5rem; border-radius:99px; border:1px solid var(--line); color:var(--mute); vertical-align:middle; margin-left:.4rem; }
+.badge.req { color:var(--accent); border-color:var(--accent); }
+table { width:100%; border-collapse:collapse; } td,th { text-align:left; padding:.4rem .4rem; border-bottom:1px solid var(--line); vertical-align:top; }
+td.act { text-align:right; white-space:nowrap; }
 img.preview { max-width:100%; border-radius:6px; border:1px solid var(--line); }
 .bar { height:8px; background:var(--line); border-radius:4px; overflow:hidden; } .bar > div { height:100%; background:var(--accent); width:0; transition:width .3s; }
 form.inline { display:inline; }
+ul.steps { list-style:none; padding:0; margin:.4rem 0 0; } ul.steps li { padding:.25rem 0; }
+.note { border-left:3px solid var(--warn); padding:.3rem .7rem; margin:.7rem 0; color:var(--mute); font-size:.88rem; }
+details summary { cursor:pointer; color:var(--mute); font-size:.88rem; margin-top:.6rem; }
 </style>
 </head>
 <body>
-<header><a class="brand" href="/">TorrentBakery</a><a href="/">Bake</a><a href="/settings">Settings</a></header>
+<header><a class="brand" href="/">TorrentBakery</a><a href="/">Backen</a><a href="/settings">Einstellungen</a></header>
 <main>{% block body %}{% endblock %}</main>
 </body>
 </html>

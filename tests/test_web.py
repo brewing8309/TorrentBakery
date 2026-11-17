@@ -25,15 +25,16 @@ def wait_done(client, job_id):
 
 def test_settings_roundtrip_and_key_hidden(tmp_path, cfg_path):
     c = TestClient(create_app(tmp_path / "out", cfg_path))
-    assert c.post("/settings/tracker", data={"name": "main", "announce": "https://t/a\nhttps://t/b", "source": "S", "private": "1"}, follow_redirects=False).status_code == 303
+    assert c.post("/settings/tracker", data={"name": "main", "announce": "https://t.example/PASSKEY/a\nhttps://t.example/PASSKEY/b", "source": "S", "private": "1"}, follow_redirects=False).status_code == 303
     c.post("/settings/stash", data={"url": "http://stash:9999/", "api_key": "SECRETKEY"})
     c.post("/settings/map", data={"stash_path": "/data", "local_path": "/mnt"})
     c.post("/settings/roots", data={"roots": "/mnt/a\n/mnt/b"})
     cfg = config_mod.load(cfg_path)
-    assert cfg.trackers["main"].announce == ["https://t/a", "https://t/b"] and cfg.stash.url == "http://stash:9999"
+    assert cfg.trackers["main"].announce == ["https://t.example/PASSKEY/a", "https://t.example/PASSKEY/b"] and cfg.stash.url == "http://stash:9999"
     assert cfg.path_map == [("/data", "/mnt")] and cfg.web_media_roots == ["/mnt/a", "/mnt/b"]
     page = c.get("/settings").text
-    assert "SECRETKEY" not in page and "main" in page and "saved" in page
+    assert "PASSKEY" not in page and "t.example" in page  # announce passkeys are never rendered
+    assert "SECRETKEY" not in page and "main" in page and "gespeichert" in page
     c.post("/settings/stash", data={"url": "http://stash:9999", "api_key": ""})  # blank keeps the key
     assert config_mod.load(cfg_path).stash.api_key == "SECRETKEY"
     c.post("/settings/tracker/main/delete")
@@ -63,7 +64,7 @@ def test_bake_job_end_to_end(tmp_path, cfg_path, video):
     job_id = r.headers["location"].rsplit("/", 1)[-1]
     assert wait_done(c, job_id)["status"] == "done"
     page = c.get(f"/jobs/{job_id}").text
-    assert "Download ZIP" in page and "[spoiler=MediaInfo]" in page and "contactsheet.jpg" in page
+    assert "Alles als ZIP herunterladen" in page and "[spoiler=MediaInfo]" in page and "contactsheet.jpg" in page
     assert c.get(f"/jobs/{job_id}/files/post.bbcode").status_code == 200
     assert c.get(f"/jobs/{job_id}/files/..%2Fconfig.toml").status_code == 404
     assert c.get(f"/jobs/{job_id}/files/nope.txt").status_code == 404
@@ -90,3 +91,35 @@ def test_numeric_source_means_stash_scene(tmp_path, cfg_path):
     jid = c.post("/jobs", data={"source": "1234"}, follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
     wait_done(c, jid)
     assert calls == ["stash:1234"]
+
+
+def test_stash_connection_test(tmp_path, cfg_path):
+    config_mod.save(Config(stash=StashCfg("http://stash.example", "saved")), cfg_path)
+    seen = []
+
+    def h(req):
+        seen.append(req.headers.get("ApiKey"))
+        if req.url.host == "down.example":
+            raise httpx.ConnectError("refused")
+        if req.headers.get("ApiKey") == "bad":
+            return httpx.Response(401)
+        return httpx.Response(200, json={"data": {"version": {"version": "v0.31.1"}, "configuration": {"general": {"stashBoxes": [{"name": "StashDB"}]}}}})
+
+    c = TestClient(create_app(tmp_path / "out", cfg_path, transport=httpx.MockTransport(h)))
+    ok = c.post("/settings/stash/test", data={"url": "http://stash.example", "api_key": ""}).json()
+    assert ok["ok"] and "v0.31.1" in ok["message"] and "StashDB" in ok["message"] and seen[-1] == "saved"  # blank key falls back to the saved one
+    assert "falsch" in c.post("/settings/stash/test", data={"url": "http://stash.example", "api_key": "bad"}).json()["message"]
+    assert "nicht erreichbar" in c.post("/settings/stash/test", data={"url": "http://down.example", "api_key": "x"}).json()["message"]
+    empty = TestClient(create_app(tmp_path / "out2", tmp_path / "none.toml"))
+    assert not empty.post("/settings/stash/test", data={"url": "", "api_key": ""}).json()["ok"]
+
+
+def test_hamsterimg_key_via_settings(tmp_path, cfg_path):
+    c = TestClient(create_app(tmp_path / "out", cfg_path))
+    c.post("/settings/hamsterimg", data={"api_key": "HAMSTERKEY"})
+    assert config_mod.load(cfg_path).hosts["hamsterimg"]["api_key"] == "HAMSTERKEY"
+    assert "HAMSTERKEY" not in c.get("/settings").text
+    c.post("/settings/hamsterimg", data={"api_key": ""})
+    assert config_mod.load(cfg_path).hosts["hamsterimg"]["api_key"] == "HAMSTERKEY"
+    c.post("/settings/hamsterimg/delete")
+    assert "hamsterimg" not in config_mod.load(cfg_path).hosts

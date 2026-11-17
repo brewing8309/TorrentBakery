@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import FastAPI, Form, HTTPException, Request
@@ -25,6 +26,8 @@ query Search($q: String!) {
 def create_app(out_root: Path = Path("out"), config_path: Path | None = None, manager: JobManager | None = None, transport: httpx.BaseTransport | None = None) -> FastAPI:
     app = FastAPI(title="TorrentBakery")
     templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+    # announce URLs carry the tracker passkey: the pages only ever show the host
+    templates.env.filters["urlhost"] = lambda u: urlparse(u).netloc or u
     jobs = manager or JobManager(out_root, config_path)
     cfg = lambda: config_mod.load(config_path)  # noqa: E731 - re-read per request so settings edits apply at once
 
@@ -113,7 +116,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     @app.get("/settings")
     def settings(request: Request):
         c = cfg()
-        return templates.TemplateResponse(request, "settings.html", {"c": c, "hosts": HOST_NAMES})
+        return templates.TemplateResponse(request, "settings.html", {"c": c, "hosts": HOST_NAMES, "hamster_key": bool(c.hosts.get("hamsterimg", {}).get("api_key"))})
 
     @app.post("/settings/tracker")
     def tracker_add(name: str = Form(...), announce: str = Form(...), source: str = Form(""), private: str = Form("")):
@@ -137,6 +140,27 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         if api_key.strip():  # the key is never shown again, so blank means keep
             c.stash.api_key = api_key.strip()
         return save(c)
+
+    @app.post("/settings/stash/test")
+    def stash_test(url: str = Form(""), api_key: str = Form("")):
+        c = cfg()
+        url = url.strip().rstrip("/") or c.stash.url
+        key = api_key.strip() or (c.stash.api_key if url == c.stash.url else "")  # blank key = the saved one
+        if not url:
+            return {"ok": False, "message": "Bitte zuerst eine Stash-URL eintragen."}
+        try:
+            d = gql(url + "/graphql", "query { version { version } configuration { general { stashBoxes { name } } } }", {}, key, transport)
+        except httpx.HTTPStatusError as e:
+            code = e.response.status_code
+            hint = "API-Key fehlt oder ist falsch." if code in (401, 403) else f"Antwort: HTTP {code}."
+            return {"ok": False, "message": f"Stash hat die Anfrage abgelehnt. {hint}"}
+        except httpx.HTTPError:
+            return {"ok": False, "message": f"{url} ist nicht erreichbar. Stimmen Adresse und Port? Läuft Stash?"}
+        except Exception as e:
+            return {"ok": False, "message": f"Unerwartete Antwort: {e}"}
+        boxes = [b["name"] for b in d["configuration"]["general"]["stashBoxes"]]
+        extra = f" Verknüpfte Stash-boxen: {', '.join(boxes)}." if boxes else " In Stash ist keine Stash-box hinterlegt."
+        return {"ok": True, "message": f"Verbunden mit Stash {d['version']['version'] or '(Entwicklungsversion)'}.{extra}"}
 
     @app.post("/settings/map")
     def map_add(stash_path: str = Form(...), local_path: str = Form(...)):
@@ -163,20 +187,17 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         c.stashboxes.pop(name, None)
         return save(c)
 
-    @app.post("/settings/host")
-    def host_set(name: str = Form(...), options: str = Form("")):
+    @app.post("/settings/hamsterimg")
+    def hamsterimg_set(api_key: str = Form("")):
         c = cfg()
-        if name not in HOST_NAMES:
-            raise HTTPException(400, "unknown host")
-        opts = {}
-        for line in options.splitlines():
-            k, sep, v = line.partition("=")
-            if sep and k.strip():
-                opts[k.strip()] = v.strip()
-        if opts:
-            c.hosts[name] = opts
-        else:
-            c.hosts.pop(name, None)
+        if api_key.strip():  # never shown again, so blank means keep
+            c.hosts.setdefault("hamsterimg", {})["api_key"] = api_key.strip()
+        return save(c)
+
+    @app.post("/settings/hamsterimg/delete")
+    def hamsterimg_delete():
+        c = cfg()
+        c.hosts.pop("hamsterimg", None)
         return save(c)
 
     @app.post("/settings/roots")
