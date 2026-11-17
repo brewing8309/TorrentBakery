@@ -170,7 +170,7 @@
 <section id="qbit">
   <h1>7. qBittorrent <span class="badge">optional</span></h1>
   <p class="lead">After an upload, the torrent is added to qBittorrent, checked against the existing files and started, so you seed right away. qBittorrent must be able to reach the media files. Uses its Web UI (Options → Web UI).</p>
-  <form method="post" action="/settings/qbit">
+  <form method="post" action="/settings/qbit" id="qbit-form">
     <div class="row">
       <div><label>Web UI address</label><input type="text" name="url" value="{{ c.qbit.url }}" placeholder="http://10.10.1.5:8080"></div>
       <div><label>User name</label><input type="text" name="username" value="{{ c.qbit.username }}" autocomplete="off"></div>
@@ -184,7 +184,7 @@
     <textarea name="path_map" rows="2" placeholder="/media/BF-stshpp=/data/media">{% for a, b in c.qbit.path_map %}{{ a }}={{ b }}
 {% endfor %}</textarea>
     <p class="help">One line <code>folder here=same folder for qBittorrent</code>. Only needed when qBittorrent sees the share under a different path than this container.</p>
-    <p><button>Save</button> <button type="button" class="ghost" id="qbit-test">Test saved connection</button> <span id="qbit-result" class="mute"></span></p>
+    <p><button>Save</button> <button type="button" class="ghost" id="qbit-test">Test connection</button> <span id="qbit-result" class="mute"></span></p>
   </form>
 </section>
 
@@ -241,7 +241,7 @@ document.getElementById("qbit-test").addEventListener("click", async () => {
   const out = document.getElementById("qbit-result");
   out.className = "mute"; out.textContent = "Testing …";
   try {
-    const r = await (await fetch("/settings/qbit/test", { method: "POST" })).json();
+    const r = await (await fetch("/settings/qbit/test", { method: "POST", body: new URLSearchParams(new FormData(document.getElementById("qbit-form"))) })).json();
     out.className = r.ok ? "ok" : "err"; out.textContent = (r.ok ? "✅ " : "❌ ") + r.message;
   } catch (e) { out.className = "err"; out.textContent = "❌ Test failed."; }
 });

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import threading
 import time
 import uuid
@@ -84,15 +85,69 @@ class JobManager:
             except (ValueError, KeyError):
                 continue  # a damaged line must not take the whole history down
 
+    @staticmethod
+    def _record(job: Job) -> dict:
+        return {"id": job.id, "source": job.source, "label": job.label, "status": job.status, "error": job.error, "title": job.title,
+                "options": job.options, "out_dir": job.out_dir.name if job.out_dir else "", "created": job.created, "finished": job.finished}
+
     def _save(self, job: Job) -> None:
-        rec = {"id": job.id, "source": job.source, "label": job.label, "status": job.status, "error": job.error, "title": job.title,
-               "options": job.options, "out_dir": job.out_dir.name if job.out_dir else "", "created": job.created, "finished": job.finished}
         try:
             self.out_root.mkdir(parents=True, exist_ok=True)
             with self._lock, open(self.history_file, "a") as f:
-                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                f.write(json.dumps(self._record(job), ensure_ascii=False) + "\n")
         except OSError:
             pass  # history is a convenience; never fail a bake over it
+
+    # ---- deleting ----
+    @staticmethod
+    def _busy(job: Job) -> bool:
+        return job.status in ("queued", "running") or job.pub.get("status") in ("queued", "running")
+
+    def _remove_files(self, job: Job) -> None:
+        """Delete the job's output folder and ZIP, but only what really lies directly inside the output root
+        (a damaged history line must never point the deletion elsewhere; the root itself is never removed)."""
+        d = job.out_dir
+        root = self.out_root.resolve()
+        if not d or d.name in ("", ".", "..") or d.is_symlink() or d.parent.resolve() != root:
+            return
+        shutil.rmtree(d, ignore_errors=True)
+        (root / f"{d.name}.zip").unlink(missing_ok=True)
+
+    def _drop(self, targets: list[Job]) -> None:
+        for d in {j.out_dir for j in targets if j.out_dir}:
+            self._remove_files(next(j for j in targets if j.out_dir == d))
+        with self._lock:
+            for j in targets:
+                self.jobs.pop(j.id, None)
+            try:  # rewrite the history without them (it only ever holds finished jobs)
+                tmp = self.history_file.with_suffix(".tmp")
+                tmp.write_text("".join(json.dumps(self._record(j), ensure_ascii=False) + "\n" for j in sorted(self.jobs.values(), key=lambda j: j.created) if j.finished))
+                tmp.replace(self.history_file)
+            except OSError:
+                pass
+
+    def related(self, job: Job) -> list[Job]:
+        """The job plus every other entry that shares its output folder (a re-bake of the same release reuses it): they go together."""
+        return [j for j in self.jobs.values() if j is job or (job.out_dir and j.out_dir == job.out_dir)]
+
+    def delete(self, job_id: str) -> int:
+        """Remove a finished job with its files. Returns how many history entries went. Raises ValueError while it is still running."""
+        job = self.jobs.get(job_id)
+        if job is None:
+            return 0
+        targets = self.related(job)
+        if any(self._busy(j) for j in targets):
+            raise ValueError("this release is still being baked or published")
+        self._drop(targets)
+        return len(targets)
+
+    def clear(self) -> tuple[int, int]:
+        """Remove every finished job with its files. Returns (removed, still running and therefore kept)."""
+        busy = [j for j in self.jobs.values() if self._busy(j)]
+        keep_dirs = {j.out_dir for j in busy if j.out_dir}
+        targets = [j for j in self.jobs.values() if not self._busy(j) and j.out_dir not in keep_dirs]
+        self._drop(targets)
+        return len(targets), len(self.jobs)
 
     def _run(self, job: Job) -> None:
         def progress(stage: str, fraction: float = 0.0) -> None:

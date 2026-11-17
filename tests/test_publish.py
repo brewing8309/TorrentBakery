@@ -156,21 +156,23 @@ def test_prepare_rebuilds_torrent_for_tracker(baked):
 def test_publish_end_to_end_with_qbit(baked):
     posts, qbit = [], []
 
-    def q(r):
+    def q(r):  # a qBittorrent that wants a login: everything but the login answers 403 until it set the session cookie
         qbit.append((r.url.path, r.content))
-        return httpx.Response(200, text="Ok." if r.url.path.endswith("login") else "")
+        if r.url.path.endswith("login"):
+            return httpx.Response(200, text="Ok.", headers={"set-cookie": "SID=1; Path=/"})
+        return httpx.Response(200, text="") if r.headers.get("cookie") else httpx.Response(403)
     cfg = Config(trackers={"emp": tracker()}, qbit=QbitCfg("http://qb:8080", "u", "p", "tb", True, [(str(baked.parent.parent / "share"), "/data")]))
     out = publish(cfg, baked, "emp", transport=transport(posts), qbit_transport=httpx.MockTransport(q), tagmap=TagMap.load(baked / "none.toml"))
     assert out["torrent_id"] == "4711" and out["qbit"]["ok"]
     paths = [p for p, _ in qbit]
-    assert paths == ["/api/v2/auth/login", "/api/v2/torrents/add", "/api/v2/torrents/recheck", "/api/v2/torrents/start"]
-    assert b"/data" in qbit[1][1] and b'name="category"' in qbit[1][1]
+    assert paths == ["/api/v2/app/version", "/api/v2/auth/login", "/api/v2/torrents/add", "/api/v2/torrents/recheck", "/api/v2/torrents/start"]
+    assert b"/data" in qbit[2][1] and b'name="category"' in qbit[2][1]
     assert json.loads((baked / "publish.json").read_text())["emp"]["torrent_id"] == "4711"
 
 
 def test_publish_survives_qbit_failure(baked):
     cfg = Config(trackers={"emp": tracker()}, qbit=QbitCfg("http://qb:8080", "u", "p"))
-    out = publish(cfg, baked, "emp", transport=transport([]), qbit_transport=httpx.MockTransport(lambda r: httpx.Response(200, text="Fails.")),
+    out = publish(cfg, baked, "emp", transport=transport([]), qbit_transport=httpx.MockTransport(lambda r: httpx.Response(200, text="Fails.") if r.url.path.endswith("login") else httpx.Response(403)),
                   tagmap=TagMap.load(baked / "none.toml"))
     assert out["torrent_id"] == "4711" and not out["qbit"]["ok"] and "login failed" in out["qbit"]["message"]
 
@@ -253,3 +255,21 @@ def test_form_returned_without_message_gets_a_hint(tmp_path):
     page = httpx.Response(200, text=UPLOAD_PAGE)
     with pytest.raises(TrackerError, match="upload form again"):
         get_publisher("emp", Config(trackers={"emp": tracker()}), transport([], post_response=page)).publish(req(tmp_path))
+
+
+def test_qbit_without_login_when_the_address_is_whitelisted(tmp_path):
+    seen = []
+
+    def h(r):
+        seen.append(r.url.path)
+        if r.url.path.endswith("auth/login"):
+            return httpx.Response(204)
+        return httpx.Response(200, text="v5.3.0")
+    assert QBittorrent(QbitCfg("http://qb:50001"), httpx.MockTransport(h)).test() == "qBittorrent v5.3.0"
+    assert "/api/v2/auth/login" not in seen  # no credentials needed, none sent
+
+    def locked(r):
+        if r.url.path.endswith("app/version") and r.method == "GET" and not r.headers.get("cookie"):
+            return httpx.Response(403)
+        return httpx.Response(200, text="Ok.", headers={"set-cookie": "SID=1; Path=/"}) if r.url.path.endswith("login") else httpx.Response(200, text="v5")
+    assert QBittorrent(QbitCfg("http://qb", "u", "p"), httpx.MockTransport(locked)).test() == "qBittorrent v5"

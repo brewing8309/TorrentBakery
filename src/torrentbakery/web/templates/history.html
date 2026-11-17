@@ -3,9 +3,10 @@
 {% block body %}
 <section>
   <h1>History</h1>
-  <p class="lead">Every bake, newest first. It is kept across restarts; the baked files stay in the output folder.</p>
+  <p class="lead">Every bake, newest first. It is kept across restarts. Deleting an entry also deletes its files (torrent, images, post, ZIP) from the output folder for good.</p>
+  {% if jobs %}<form method="post" action="/history/clear" onsubmit="return confirm('Delete the ENTIRE history, including all baked files (torrents, images, ZIPs)? This cannot be undone.')"><p><button class="ghost">Delete entire history</button></p></form>{% endif %}
   <table>
-    <tr><th>When</th><th>Release</th><th>Source</th><th>Tracker · Host</th><th>Status</th><th>Published</th></tr>
+    <tr><th>When</th><th>Release</th><th>Source</th><th>Tracker · Host</th><th>Status</th><th>Published</th><th></th></tr>
     {% for j in jobs %}
     <tr>
       <td class="mute" style="white-space:nowrap">{{ j.created | datetime }}</td>
@@ -14,8 +15,10 @@
       <td class="mute">{{ j.options.get("tracker") or "–" }} · {{ j.options.get("upload") or "–" }}</td>
       <td class="{{ 'ok' if j.status == 'done' else 'err' if j.status == 'error' else 'mute' }}">{{ j.status }}{% if j.status == "error" %}<br><span class="help">{{ j.error[:140] }}</span>{% endif %}</td>
       <td class="mute">{% for tn, r in published.get(j.id, {}).items() %}<a href="{{ r.torrent_url }}" target="_blank" rel="noopener">{{ tn }}</a>{% if not loop.last %}, {% endif %}{% else %}–{% endfor %}</td>
+      <td class="act"><form class="inline" method="post" action="/jobs/{{ j.id }}/delete"
+          onsubmit="return confirm('Delete this entry and all its files?{% if shared[j.id] %} {{ shared[j.id] }} other entr{{ "y" if shared[j.id] == 1 else "ies" }} for the same release folder will be removed too.{% endif %}')"><button class="ghost">Delete</button></form></td>
     </tr>
-    {% else %}<tr><td colspan="6" class="mute">Nothing baked yet.</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="7" class="mute">Nothing baked yet.</td></tr>{% endfor %}
   </table>
 </section>
 {% endblock %}

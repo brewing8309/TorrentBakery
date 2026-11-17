@@ -33,6 +33,8 @@ class QBittorrent:
         base = self.cfg.url.rstrip("/") + "/api/v2/"
         c = httpx.Client(base_url=base, transport=self.transport, timeout=30, headers={"Referer": self.cfg.url})
         try:
+            if c.get("app/version").status_code == 200:
+                return c  # qBittorrent lets this address in without a login (Options > Web UI > "Bypass authentication for clients on...")
             r = c.post("auth/login", data={"username": self.cfg.username, "password": self.cfg.password})
         except httpx.HTTPError as e:
             c.close()
@@ -40,7 +42,7 @@ class QBittorrent:
         if r.status_code == 403:
             c.close()
             raise QbitError("qBittorrent banned this address after failed logins")
-        if r.status_code != 200 or r.text.strip() != "Ok.":
+        if r.status_code not in (200, 204) or (r.status_code == 200 and r.text.strip() != "Ok."):
             c.close()
             raise QbitError("qBittorrent login failed: wrong user name or password")
         return c

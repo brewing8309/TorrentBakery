@@ -73,7 +73,22 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
                     published[j.id] = json.loads(f.read_text())
                 except ValueError:
                     pass
-        return templates.TemplateResponse(request, "history.html", {"jobs": jobs.all(), "published": published})
+        shared = {j.id: len(jobs.related(j)) - 1 for j in jobs.all()}  # other entries that would go with it (same output folder)
+        return templates.TemplateResponse(request, "history.html", {"jobs": jobs.all(), "published": published, "shared": shared})
+
+    @app.post("/jobs/{job_id}/delete")
+    def job_delete(job_id: str):
+        job_or_404(job_id)
+        try:
+            jobs.delete(job_id)
+        except ValueError as e:
+            raise HTTPException(409, str(e))
+        return RedirectResponse("/history", status_code=303)
+
+    @app.post("/history/clear")
+    def history_clear():
+        jobs.clear()
+        return RedirectResponse("/history", status_code=303)
 
     @app.get("/browse")
     def browse(path: str = ""):
@@ -397,9 +412,14 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         return save(c)
 
     @app.post("/settings/qbit/test")
-    def qbit_test():
+    def qbit_test(url: str = Form(""), username: str = Form(""), password: str = Form("")):
+        """Tests what is in the form, saved or not; a blank password means the saved one."""
+        saved = cfg().qbit
+        tested = url.strip().rstrip("/") or saved.url
+        q = replace(saved, url=tested, username=username.strip() if url.strip() else saved.username,
+                    password=password or saved.password)
         try:
-            return {"ok": True, "message": "Connected: " + QBittorrent(cfg().qbit, transport).test()}
+            return {"ok": True, "message": "Connected: " + QBittorrent(q, transport).test() + ("" if tested == saved.url else " (not saved yet: use Save)")}
         except QbitError as e:
             return {"ok": False, "message": str(e)}
 

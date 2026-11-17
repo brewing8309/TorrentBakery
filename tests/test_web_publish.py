@@ -107,3 +107,12 @@ def test_edit_data_has_no_secrets(tmp_path):
     data = json.loads(page.split('id="tracker-data" type="application/json">')[1].split("</script>")[0])
     assert data["emp"]["site"] == "empornium" and data["emp"]["category"] == "2" and data["emp"]["base_url"] == "https://tr.example"
     assert "cookie" not in data["emp"] and "announce" not in data["emp"] and "SECRETCOOKIE" not in page and "PASSKEY123" not in page
+
+
+def test_qbit_test_uses_the_unsaved_form(tmp_path):
+    c, cfg_path, _ = setup(tmp_path)  # transport answers any GET with the tracker page; the qBit client only needs a 200 on app/version
+    r = c.post("/settings/qbit/test", data={"url": "http://10.10.1.101:50001", "username": "", "password": ""}).json()
+    assert r["ok"] and "not saved yet" in r["message"]
+    assert config_mod.load(cfg_path).qbit.url == "http://qb"  # testing does not save
+    blank = c.post("/settings/qbit/test", data={}).json()  # no form values: the saved connection
+    assert blank["ok"] and "not saved yet" not in blank["message"]
