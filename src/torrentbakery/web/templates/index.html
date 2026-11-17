@@ -5,10 +5,12 @@
   <p class="lead">Aus einer Szene oder Datei entstehen: Torrent, Titelbild, Screenshot-Übersicht (5×7), MediaInfo und ein fertiger Forenpost.</p>
   <form method="post" action="/jobs">
     <label for="source">Quelle</label>
-    <input type="text" id="source" name="source" required autocomplete="off"
+    <input type="text" id="source" required autocomplete="off"
            placeholder="{% if stash %}Titel suchen, Szenen-Nummer oder stash:1234{% endif %}{% if roots %}{% if stash %}, {% endif %}oder Dateipfad{% endif %}">
     <p class="help">{% if stash %}Tippe ab 3 Buchstaben einen Titel, dann erscheinen Treffer aus Stash zum Anklicken. Die Nummer einer Szene steht in Stash in der Adresszeile (<code>…/scenes/1234</code>).{% endif %}
       {% if roots %} Ein Dateipfad muss in einem freigegebenen <a href="/settings#roots">Medienordner</a> liegen.{% endif %}</p>
+    <input type="hidden" name="source" id="source-value">
+    <input type="hidden" name="label" id="label-value">
     <div id="results"></div>
     {% if not stash and not roots %}<p class="note">Es gibt noch keine Quelle: Verbinde zuerst Stash oder gib einen Medienordner frei, in den <a href="/settings">Einstellungen</a>.</p>{% endif %}
     <div class="row">
@@ -16,8 +18,8 @@
         <select id="tracker" name="tracker"><option value="">keins (Torrent ohne Announce-URL)</option>{% for t in trackers %}<option>{{ t }}</option>{% endfor %}</select>
         <p class="help">Bestimmt Announce-URL, Source-Tag und privat/öffentlich.{% if not trackers %} <a href="/settings#tracker">Profil anlegen</a>{% endif %}</p></div>
       <div><label for="upload">Bildhoster</label>
-        <select id="upload" name="upload"><option value="">keiner (Bilder nur als Dateien)</option>{% for h in hosts %}<option>{{ h }}</option>{% endfor %}</select>
-        <p class="help">Lädt Titelbild und Screenshot-Übersicht hoch und setzt die Links in den Post. Ohne Hoster lädst du die Bilder selbst hoch.</p></div>
+        <select id="upload" name="upload"><option value="">keiner (Bilder nur als Dateien)</option>{% for h in hosts %}<option{% if h == default_host %} selected{% endif %}>{{ h }}</option>{% endfor %}</select>
+        <p class="help">Lädt Titelbild und Screenshot-Übersicht hoch und setzt die Hoster-Links in den Post. Ohne Hoster stehen im Post nur Dateinamen, und du lädst die Bilder selbst hoch. Einen Standard-Hoster stellst du in den <a href="/settings#hosts">Einstellungen</a> ein.</p></div>
     </div>
     <label for="stashbox">Stash-box-Adresse der Szene <span class="badge">optional</span></label>
     <input type="text" id="stashbox" name="stashbox" placeholder="https://stashdb.org/scenes/…">
@@ -31,17 +33,21 @@
 <section>
   <h2>Letzte Aufträge</h2>
   <table>{% for j in jobs %}
-    <tr><td><a href="/jobs/{{ j.id }}">{{ j.source.rsplit("/", 1)[-1] }}</a></td>
+    <tr><td><a href="/jobs/{{ j.id }}">{{ j.label or j.source.rsplit("/", 1)[-1] }}</a></td>
         <td class="{{ 'ok' if j.status == 'done' else 'err' if j.status == 'error' else 'mute' }}">{{ {'queued':'wartet','running':'läuft','done':'fertig','error':'Fehler'}[j.status] }}</td></tr>
   {% endfor %}</table>
 </section>
 {% endif %}
 <script>
 const src = document.getElementById("source"), box = document.getElementById("results");
+const srcValue = document.getElementById("source-value"), labelValue = document.getElementById("label-value");
+// the box shows what the user typed or picked by name; the form submits the id (stash:1234) in a hidden field
+src.form.addEventListener("submit", () => { if (!labelValue.value) srcValue.value = src.value.trim(); });
 let timer;
 src.addEventListener("input", () => {
   clearTimeout(timer);
   const q = src.value.trim();
+  srcValue.value = q; labelValue.value = "";
   if (q.length < 3 || /^(stash:)?\d+$/.test(q) || q.startsWith("/")) { box.innerHTML = ""; return; }
   timer = setTimeout(async () => {
     try {
@@ -55,7 +61,10 @@ src.addEventListener("input", () => {
         const t = document.createElement("span");
         t.textContent = [r.title, r.studio, r.date].filter(Boolean).join(" · ") + "  (#" + r.id + ")";
         b.append(img, t);
-        b.onclick = () => { src.value = "stash:" + r.id; box.innerHTML = ""; };
+        b.onclick = () => {
+          src.value = [r.title, r.studio].filter(Boolean).join(" · ");
+          srcValue.value = "stash:" + r.id; labelValue.value = src.value; box.innerHTML = "";
+        };
         box.append(b);
       }
     } catch (e) { box.textContent = "Suche fehlgeschlagen. Ist Stash in den Einstellungen verbunden?"; }

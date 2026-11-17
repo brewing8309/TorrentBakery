@@ -1,5 +1,5 @@
 {% if images.cover %}
-[center][img]{{ images.cover }}[/img][/center]
+[center]{% if links.get("cover") %}[url={{ links.cover }}]{% endif %}[img]{{ images.cover }}[/img]{% if links.get("cover") %}[/url]{% endif %}[/center]
 
 {% endif %}
 [center][size=5][b]{{ release.title }}[/b][/size][/center]
@@ -18,20 +18,21 @@
 
 {% endif %}
 [b]File[/b]
-[list]
-[*]Name: {{ info.filename }}
-[*]Size: {{ info.size | filesize }}
-[*]Duration: {{ info.duration | duration }}
-[*]Video: {{ info.video_codec }}, {{ info.width }}x{{ info.height }}, {{ "%g" | format(info.fps) }} fps{% if info.video_bitrate %}, {{ info.video_bitrate // 1000 }} kb/s{% endif %}
+[b]Name:[/b] {{ info.filename }}
+[b]Size:[/b] {{ info.size | filesize }}
+[b]Duration:[/b] {{ info.duration | duration }}
+[b]Video:[/b] {{ info.video_codec | codec }}, {{ info.width }}x{{ info.height }}, {{ "%g" | format(info.fps) }} fps{% if info.video_bitrate %}, {{ info.video_bitrate // 1000 }} kb/s{% endif %}
 
 {% for a in info.audio %}
-[*]Audio: {{ a.codec }}, {{ a.channels }} ch{% if a.language and a.language != "und" %}, {{ a.language }}{% endif %}
+[b]Audio:[/b] {{ a.codec | codec }}, {{ a.channels }} ch{% if a.language | language %}, {{ a.language | language }}{% endif %}
 
 {% endfor %}
-[/list]
+{% if info.bitrate %}
+[b]Overall bit rate:[/b] {{ info.bitrate // 1000 }} kb/s
+{% endif %}
 
 {% if images.sheet %}
-[center][img]{{ images.sheet }}[/img][/center]
+[center]{% if links.get("sheet") %}[url={{ links.sheet }}]{% endif %}[img]{{ images.sheet }}[/img]{% if links.get("sheet") %}[/url]{% endif %}[/center]
 
 {% endif %}
 {% if info.full_text %}

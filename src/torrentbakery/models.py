@@ -23,6 +23,7 @@ class MediaInfo:
     video_bitrate: int  # bit/s, 0 if unknown
     audio: list[AudioTrack] = field(default_factory=list)
     full_text: str = ""  # raw `mediainfo` output
+    bitrate: int = 0  # overall container bit rate in bit/s (mkv streams often carry no per-stream rate)
 
 
 @dataclass

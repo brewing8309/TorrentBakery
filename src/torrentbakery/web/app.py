@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -42,13 +43,13 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         return job
 
     def job_files(job) -> list[str]:
-        return sorted(p.name for p in job.out_dir.iterdir() if p.is_file()) if job.out_dir else []
+        return sorted(p.name for p in job.out_dir.iterdir() if p.is_file()) if job.out_dir and job.out_dir.is_dir() else []
 
     # ---- bake ----
     @app.get("/")
     def index(request: Request):
         c = cfg()
-        return templates.TemplateResponse(request, "index.html", {"trackers": list(c.trackers), "hosts": HOST_NAMES, "stash": bool(c.stash.url), "roots": c.web_media_roots, "jobs": jobs.recent()})
+        return templates.TemplateResponse(request, "index.html", {"default_host": c.default_host, "trackers": list(c.trackers), "hosts": HOST_NAMES, "stash": bool(c.stash.url), "roots": c.web_media_roots, "jobs": jobs.recent()})
 
     @app.get("/search")
     def search(q: str):
@@ -75,22 +76,25 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         return Response(r.content, media_type=r.headers.get("content-type", "image/jpeg"), headers={"Cache-Control": "max-age=3600"})
 
     @app.post("/jobs")
-    def create_job(source: str = Form(...), tracker: str = Form(""), upload: str = Form(""), sfw: str = Form(""), stashbox: str = Form("")):
+    def create_job(source: str = Form(...), label: str = Form(""), tracker: str = Form(""), upload: str = Form(""), sfw: str = Form(""), stashbox: str = Form("")):
         source = source.strip()
         if not source:
             raise HTTPException(400, "source required")
         if source.isdigit():
             source = f"stash:{source}"
-        job = jobs.submit(source, tracker=tracker or None, upload=upload or None, nsfw=not sfw, stashbox=stashbox.strip() or None)
+        job = jobs.submit(source, label=label.strip()[:200], tracker=tracker or None, upload=upload or None, nsfw=not sfw, stashbox=stashbox.strip() or None)
         return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
     @app.get("/jobs/{job_id}")
     def job_page(request: Request, job_id: str):
         job = job_or_404(job_id)
-        post = ""
+        post, meta = "", {}
         if job.status == "done" and job.out_dir and (job.out_dir / "post.bbcode").exists():
             post = (job.out_dir / "post.bbcode").read_text()
-        return templates.TemplateResponse(request, "job.html", {"job": job, "files": job_files(job), "post": post})
+            if (job.out_dir / "release.json").exists():
+                meta = json.loads((job.out_dir / "release.json").read_text())
+        title = job.label or meta.get("release", {}).get("title") or job.source.rsplit("/", 1)[-1]
+        return templates.TemplateResponse(request, "job.html", {"job": job, "title": title, "files": job_files(job), "post": post, "uploads": meta.get("uploads", {}), "host": meta.get("image_host", "")})
 
     @app.get("/jobs/{job_id}/state")
     def job_state(job_id: str):
@@ -198,6 +202,14 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     def hamsterimg_delete():
         c = cfg()
         c.hosts.pop("hamsterimg", None)
+        return save(c)
+
+    @app.post("/settings/default-host")
+    def default_host_set(host: str = Form("")):
+        c = cfg()
+        if host and host not in HOST_NAMES:
+            raise HTTPException(400, "unknown host")
+        c.default_host = host
         return save(c)
 
     @app.post("/settings/roots")

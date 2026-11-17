@@ -15,6 +15,7 @@ from ..service import bake_source
 class Job:
     source: str
     options: dict
+    label: str = ""  # what the user picked (scene title), shown instead of "stash:123"
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:10])
     status: str = "queued"  # queued | running | done | error
     stage: str = ""
@@ -33,8 +34,8 @@ class JobManager:
         self._lock = threading.Lock()
         self._pool = ThreadPoolExecutor(max_workers=1)
 
-    def submit(self, source: str, **options) -> Job:
-        job = Job(source, options)
+    def submit(self, source: str, label: str = "", **options) -> Job:
+        job = Job(source, options, label)
         with self._lock:
             self.jobs[job.id] = job
         self._pool.submit(self._run, job)

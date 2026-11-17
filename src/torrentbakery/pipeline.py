@@ -42,13 +42,15 @@ def bake(source: Path, out_root: Path, cfg: Config, release: Release | None = No
     make_torrent(source, out / f"{source.stem}.torrent", cfg.trackers[tracker] if tracker else None, lambda f: step("Hashing torrent", f))
     (out / "mediainfo.txt").write_text(info.full_text)
     # Without an image host the post references the local files by name.
-    images = {"cover": "cover.jpg", "sheet": "contactsheet.jpg"}
+    images, links, uploads = {"cover": "cover.jpg", "sheet": "contactsheet.jpg"}, {}, {}
     if uploader:
         step(f"Uploading images to {uploader.name}")
-        images = {role: uploader.upload(out / f"{file}", nsfw).direct_url for role, file in (("cover", "cover.jpg"), ("sheet", "contactsheet.jpg"))}
+        uploads = {role: uploader.upload(out / file, nsfw) for role, file in (("cover", "cover.jpg"), ("sheet", "contactsheet.jpg"))}
+        images = {role: u.direct_url for role, u in uploads.items()}
+        links = {role: u.page_url for role, u in uploads.items() if u.page_url}
     step("Writing post")
-    post = render_post(release, info, images, cfg.template)
+    post = render_post(release, info, images, cfg.template, links=links)
     (out / "post.bbcode").write_text(post)
-    (out / "release.json").write_text(json.dumps({"release": asdict(release), "media": asdict(info)}, indent=2, ensure_ascii=False))
+    (out / "release.json").write_text(json.dumps({"release": asdict(release), "media": asdict(info), "image_host": uploader.name if uploader else "", "uploads": {r: asdict(u) for r, u in uploads.items()}}, indent=2, ensure_ascii=False))
     shutil.make_archive(str(out_root / out.name), "zip", out)
     return out

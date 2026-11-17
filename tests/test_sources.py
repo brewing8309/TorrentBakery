@@ -38,7 +38,7 @@ def handler(video_path):
             return httpx.Response(200, json={"data": {"findScene": SCENE}})
         assert req.headers["ApiKey"] == "stashkey"
         return httpx.Response(200, json={"data": {
-            "findScene": {"title": "Stash Title", "details": "", "date": "", "urls": [], "studio": None, "performers": [], "tags": [],
+            "findScene": {"title": "Stash Title", "details": "", "date": "", "urls": [], "studio": None, "performers": [], "tags": [{"name": "stash-tag"}],
                           "files": [{"path": "/stash/clip.mp4"}], "paths": {"screenshot": "http://stash.example/shot.jpg"},
                           "stash_ids": [{"endpoint": BOX, "stash_id": "abc"}]},
             "configuration": {"general": {"stashBoxes": [{"endpoint": BOX, "api_key": "boxkey", "name": "box"}]}}}})
@@ -60,6 +60,7 @@ def test_stash_resolve_prefers_linked_stashbox(tmp_path):
     cfg = Config(stash=StashCfg("http://stash.example", "stashkey"), path_map=[("/stash", str(clip.parent))])
     r = stash.resolve(cfg, "7", tmp_path, httpx.MockTransport(handler(clip)))
     assert r.release.title == "Box Title" and r.release.source_ids["stash"] == "7"
+    assert r.release.tags == ["stash-tag"]  # Stash's own tags win over the stash-box's ["t1"]
     assert r.path == clip and r.cover.exists()
 
 

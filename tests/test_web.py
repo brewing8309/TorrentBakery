@@ -123,3 +123,27 @@ def test_hamsterimg_key_via_settings(tmp_path, cfg_path):
     assert config_mod.load(cfg_path).hosts["hamsterimg"]["api_key"] == "HAMSTERKEY"
     c.post("/settings/hamsterimg/delete")
     assert "hamsterimg" not in config_mod.load(cfg_path).hosts
+
+
+def test_picked_scene_shows_its_name(tmp_path, cfg_path):
+    from torrentbakery.web.jobs import JobManager
+
+    def runner(cfg, source, out, **kw):
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "post.bbcode").write_text("post")
+        return out
+
+    c = TestClient(create_app(manager=JobManager(tmp_path / "out", cfg_path, runner)))
+    r = c.post("/jobs", data={"source": "stash:1356", "label": "Great Scene · Studio X"}, follow_redirects=False)
+    jid = r.headers["location"].rsplit("/", 1)[-1]
+    wait_done(c, jid)
+    assert "Great Scene · Studio X" in c.get(f"/jobs/{jid}").text and "Great Scene" in c.get("/").text
+    assert "stash:1356" not in c.get(f"/jobs/{jid}").text.split("<h1>")[1].split("</h1>")[0]
+
+
+def test_default_host_preselected(tmp_path, cfg_path):
+    c = TestClient(create_app(tmp_path / "out", cfg_path))
+    c.post("/settings/default-host", data={"host": "pixhost.cc"})
+    assert config_mod.load(cfg_path).default_host == "pixhost.cc"
+    assert "<option selected>pixhost.cc</option>" in c.get("/").text
+    assert c.post("/settings/default-host", data={"host": "nope"}).status_code == 400

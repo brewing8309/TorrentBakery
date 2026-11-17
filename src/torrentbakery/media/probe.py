@@ -50,6 +50,7 @@ def probe(path: Path) -> MediaInfo:
         video_bitrate=int(video.get("bit_rate") or 0),
         audio=audio,
         full_text=full_text,
+        bitrate=int(fmt.get("bit_rate") or 0),
     )
 
 
@@ -65,3 +66,19 @@ def fmt_size(n: int) -> str:
             return f"{size:.2f} {unit}" if unit != "B" else f"{int(size)} B"
         size /= 1024
     return f"{size:.2f} TiB"
+
+
+_CODECS = {"hevc": "HEVC", "h264": "H.264", "av1": "AV1", "vp9": "VP9", "mpeg4": "MPEG-4", "mpeg2video": "MPEG-2", "vc1": "VC-1",
+           "aac": "AAC", "ac3": "AC-3", "eac3": "E-AC-3", "dts": "DTS", "mp3": "MP3", "opus": "Opus", "vorbis": "Vorbis", "flac": "FLAC", "truehd": "TrueHD"}
+_LANGS = {"eng": "English", "deu": "German", "ger": "German", "fra": "French", "fre": "French", "ita": "Italian", "spa": "Spanish", "por": "Portuguese",
+          "rus": "Russian", "jpn": "Japanese", "kor": "Korean", "zho": "Chinese", "chi": "Chinese", "nld": "Dutch", "dut": "Dutch", "pol": "Polish",
+          "swe": "Swedish", "tur": "Turkish", "ces": "Czech", "cze": "Czech", "hun": "Hungarian", "ukr": "Ukrainian"}
+
+
+def fmt_codec(name: str) -> str:
+    return _CODECS.get(name, name.upper())
+
+
+def fmt_language(code: str) -> str:
+    """ISO 639-2 code to a readable name; unknown/undefined codes give an empty string."""
+    return "" if code in ("", "und", "unk") else _LANGS.get(code, code)

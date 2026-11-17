@@ -88,6 +88,12 @@
     <tr><td><b>pixhost.to, pixhost.cc, pixho.st, imgbox, imagebam</b></td><td class="mute">Funktionieren ohne Konto und ohne Einstellungen.</td></tr>
     <tr><td><b>hamsterimg</b></td><td>{% if hamster_key %}<span class="ok">API-Key gespeichert</span> <form class="inline" method="post" action="/settings/hamsterimg/delete"><button class="ghost">Entfernen</button></form>{% else %}<span class="err">API-Key fehlt</span>, ohne Key nicht nutzbar{% endif %}</td></tr>
   </table>
+  <form method="post" action="/settings/default-host">
+    <label for="dh">Standard-Bildhoster</label>
+    <select id="dh" name="host"><option value="">keiner (Bilder nur als Dateien)</option>{% for h in hosts %}<option{% if h == c.default_host %} selected{% endif %}>{{ h }}</option>{% endfor %}</select>
+    <p class="help">Wird auf der Startseite vorausgewählt, damit der Post immer Hoster-Links statt Dateinamen enthält. Pro Bake änderbar.</p>
+    <p><button>Speichern</button></p>
+  </form>
   <form method="post" action="/settings/hamsterimg">
     <label for="ham">hamsterimg API-Key</label>
     <input type="password" id="ham" name="api_key" autocomplete="off" placeholder="{{ 'leer lassen = gespeicherten behalten' if hamster_key else 'API-Key einfügen' }}">

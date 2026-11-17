@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block body %}
 <section>
-  <h1>{{ job.source.rsplit("/", 1)[-1] }}</h1>
+  <h1>{{ title }}</h1>
   {% if job.status in ("queued", "running") %}
     <p id="stage" class="mute">{{ job.stage or job.status }}</p>
     <div class="bar"><div id="bar"></div></div>
@@ -30,14 +30,25 @@
   </section>
   <section>
     <h2>Forenpost (BBCode)</h2>
+    {% if not uploads %}<p class="note">Kein Bildhoster gewählt: Im Post stehen statt Bild-Links nur die Dateinamen <code>cover.jpg</code> und <code>contactsheet.jpg</code>. Beim nächsten Mal oben auf der Startseite einen Hoster wählen, oder die Bilder unten herunterladen und selbst hochladen.</p>{% endif %}
     <textarea id="post" rows="18" readonly>{{ post }}</textarea>
     <p><button type="button" onclick="copyPost()">Post kopieren</button> <span id="copied" class="ok"></span></p>
   </section>
   <section>
     <h2>Bilder</h2>
     <div class="row">
-      {% for f in ("cover.jpg", "contactsheet.jpg") if f in files %}
-      <div><img class="preview" src="/jobs/{{ job.id }}/files/{{ f }}" alt="{{ f }}"><p><a href="/jobs/{{ job.id }}/files/{{ f }}" download>{{ f }}</a></p></div>
+      {% for role, f, name in (("cover", "cover.jpg", "Titelbild"), ("sheet", "contactsheet.jpg", "Screenshot-Übersicht")) if f in files %}
+      {% set up = uploads.get(role) %}
+      <div>
+        {% if up %}
+          <a href="{{ up.page_url or up.direct_url }}" target="_blank" rel="noopener"><img class="preview" src="{{ up.thumb_url or up.direct_url }}" alt="{{ name }}"></a>
+          <p><b>{{ name }}</b> bei {{ host }}: <a href="{{ up.page_url or up.direct_url }}" target="_blank" rel="noopener">Seite</a> · <a href="{{ up.direct_url }}" target="_blank" rel="noopener">Bild-Link</a><br>
+          <span class="mute">Datei zum Selbsthochladen: <a href="/jobs/{{ job.id }}/files/{{ f }}" download>{{ f }}</a></span></p>
+        {% else %}
+          <img class="preview" src="/jobs/{{ job.id }}/files/{{ f }}" alt="{{ name }}">
+          <p><b>{{ name }}</b> (nicht hochgeladen): <a href="/jobs/{{ job.id }}/files/{{ f }}" download>{{ f }} herunterladen</a></p>
+        {% endif %}
+      </div>
       {% endfor %}
     </div>
     <p class="mute">Alle Dateien: {% for f in files %}<a href="/jobs/{{ job.id }}/files/{{ f | urlencode }}">{{ f }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>

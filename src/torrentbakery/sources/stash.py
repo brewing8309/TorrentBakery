@@ -56,6 +56,10 @@ def resolve(cfg: Config, scene_id: str, workdir: Path, transport: httpx.BaseTran
             box.source_ids["stash"] = scene_id
             release = box
             break
+    # The tags are the ones the user curated in Stash; the stash-box's own tags only fill in when the scene has none.
+    stash_tags = [t["name"] for t in scene["tags"]]
+    if stash_tags:
+        release.tags = stash_tags
 
     cover = None
     dest = workdir / "cover-src.jpg"

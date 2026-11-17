@@ -38,9 +38,10 @@ def test_bake(video, tmp_path):
     assert list(torrent.trackers.flat) == ["https://tracker.example/announce"]
 
     post = (out / "post.bbcode").read_text()
-    for needle in ("Test Scene", "Studio X", "A, B", "640x360", "[spoiler=MediaInfo]"):
+    for needle in ("Test Scene", "Studio X", "A, B", "640x360", "[b]Video:[/b] H.264", "[b]Audio:[/b] AAC, 1 ch", "[b]Overall bit rate:[/b]", "[spoiler=MediaInfo]"):
         assert needle in post
-    assert "{{" not in post
+    assert "{{" not in post and "[list]" not in post and "[*]" not in post  # the target forum does not render lists
+    assert ", und" not in post  # undefined audio language is left out
 
     assert (tmp_path / f"{out.name}.zip").exists()
     names = zipfile.ZipFile(tmp_path / f"{out.name}.zip").namelist()

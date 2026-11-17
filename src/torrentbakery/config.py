@@ -38,6 +38,7 @@ class Config:
     trackers: dict[str, Tracker] = field(default_factory=dict)
     stash: StashCfg = field(default_factory=StashCfg)
     stashboxes: dict[str, StashBoxCfg] = field(default_factory=dict)
+    default_host: str = ""  # image host preselected in the web UI
     web_media_roots: list[str] = field(default_factory=list)  # dirs the web UI may bake plain files from
     hosts: dict[str, dict[str, str]] = field(default_factory=dict)  # image host options, e.g. hamsterimg api_key
     # (stash path prefix, local path prefix): maps paths Stash reports to where the share is mounted here
@@ -60,6 +61,7 @@ def load(path: Path | None = None) -> Config:
         path_map=[(m["from"], m["to"]) for m in data.get("path_map", [])],
         hosts={n: dict(o) for n, o in data.get("host", {}).items()},
         web_media_roots=list(data.get("web", {}).get("media_roots", [])),
+        default_host=data.get("default_host", ""),
     )
     for name, t in data.get("tracker", {}).items():
         announce = t.get("announce", [])
@@ -78,6 +80,7 @@ def save(cfg: Config, path: Path | None = None) -> None:
     path = path or CONFIG_PATH
     data: dict = {
         "template": cfg.template,
+        "default_host": cfg.default_host,
         "sheet": {"cols": cfg.sheet_cols, "rows": cfg.sheet_rows, "thumb_width": cfg.sheet_thumb_width},
         "stash": {"url": cfg.stash.url, "api_key": cfg.stash.api_key},
         "tracker": {n: {"announce": t.announce, "source": t.source, "private": t.private} for n, t in cfg.trackers.items()},

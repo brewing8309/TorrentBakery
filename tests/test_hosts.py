@@ -67,10 +67,14 @@ def test_bake_with_uploader(video, tmp_path):
         name = "fake"
         def upload(self, path, nsfw=True):
             from torrentbakery.hosts import Uploaded
-            return Uploaded(f"https://host.example/{path.name}")
+            return Uploaded(f"https://host.example/{path.name}", f"https://host.example/view/{path.stem}")
     out = bake(video, tmp_path, Config(), Release(title="T"), uploader=Fake())
     post = (out / "post.bbcode").read_text()
-    assert "[img]https://host.example/contactsheet.jpg[/img]" in post and "[img]https://host.example/cover.jpg[/img]" in post
+    # images are inline from the host and click through to the host's viewer page, never to a local file
+    assert "[url=https://host.example/view/contactsheet][img]https://host.example/contactsheet.jpg[/img][/url]" in post
+    assert "[url=https://host.example/view/cover][img]https://host.example/cover.jpg[/img][/url]" in post
+    import json
+    assert json.loads((out / "release.json").read_text())["uploads"]["cover"]["page_url"].endswith("/view/cover")
 
 
 def test_unknown_host():
