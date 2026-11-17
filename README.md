@@ -4,7 +4,7 @@ Bakes a release package from a video file: `.torrent`, 5×7 screenshot sheet, ma
 Planned: Stash / stash-box metadata, image-host upload (pixhost, hamsterimg, imagebam, imgbox), web UI, later TMDB/IMDb for regular movies.
 
 ## Status
-Phase 1 (local file → package) works. Roadmap in the project plan: Phase 2 Stash + stash-box, Phase 3 image hosts, Phase 4 web UI.
+Phase 1 (local file → package) and Phase 2 (Stash + stash-box metadata) are implemented and covered by mocked tests; not yet run against a live Stash. Next: Phase 3 image hosts, Phase 4 web UI.
 
 ## Usage
 Needs `ffmpeg`, `ffprobe` and `mediainfo` on the PATH.
@@ -16,6 +16,22 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 
 Output in `out/<name>/` (+ `out/<name>.zip`): `<name>.torrent`, `contactsheet.jpg`, `cover.jpg`, `mediainfo.txt`, `post.bbcode`, `release.json`.
 Without an image host the post references the images by file name; upload them yourself and replace the names.
+
+## Stash / stash-box
+```
+tb stash set http://stash:9999 --api-key KEY          # saved in the config
+tb stash map-add /data/media /mnt/nas                  # Stash path prefix -> local mount (only if they differ)
+tb bake stash:1234 -t main                             # scene 1234 from Stash
+tb stash box-add stashdb https://stashdb.org/graphql --api-key KEY
+tb bake file.mp4 --stashbox https://stashdb.org/scenes/<id>   # plain file + stash-box metadata
+```
+For `stash:<id>`, a stash-box link on the scene is used if Stash holds its key: title, performers, tags, description, links and the cover (largest landscape image) then come from the stash-box, otherwise from Stash (cover: Stash screenshot).
+
+## Tracker profiles
+```
+tb tracker add main -a https://tracker.example/announce -s ABC   # --public for non-private
+tb tracker list | tb tracker remove main
+```
 
 ## Config (`~/.config/torrentbakery/config.toml`, optional)
 ```toml
