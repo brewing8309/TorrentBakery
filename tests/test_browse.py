@@ -77,6 +77,7 @@ def test_bake_folder_makes_one_torrent_of_the_whole_folder(video, tmp_path):
     assert out.name == "My.Release.2019.1080p"  # dots in a folder name are not cut off like a file extension
     t = Torrent.read(next(out.glob("*.torrent")))
     assert t.name == "My.Release.2019.1080p" and sorted(f.name for f in t.files) == ["info.nfo", video.name]
+    assert __import__("json").loads((out / "release.json").read_text())["folder_name"] == "My.Release.2019.1080p"  # the selected folder itself
     assert (out / "contactsheet.jpg").exists() and "test clip.mp4" in (out / "post.bbcode").read_text()
 
 

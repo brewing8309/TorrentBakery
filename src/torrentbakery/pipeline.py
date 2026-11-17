@@ -62,6 +62,8 @@ def bake(source: Path, out_root: Path, cfg: Config, release: Release | None = No
     post = render_post(release, info, images, cfg.template, links=links)
     (out / "post.bbcode").write_text(post)
     (out / "tags.txt").write_text(format_tags(release.tags) + "\n")
-    (out / "release.json").write_text(json.dumps({"release": asdict(release), "media": asdict(info), "image_host": uploader.name if uploader else "", "cover_file": cover_file.name, "uploads": {r: asdict(u) for r, u in uploads.items()}}, indent=2, ensure_ascii=False))
+    (out / "release.json").write_text(json.dumps({"release": asdict(release), "media": asdict(info), "image_host": uploader.name if uploader else "",
+                                        # the folder a tracker upload is named after: the selected folder, or the file's parent folder
+                                        "folder_name": (torrent_path.name if torrent_path else source.parent.name), "folder_path": str(torrent_path.resolve() if torrent_path else source.parent), "cover_file": cover_file.name, "uploads": {r: asdict(u) for r, u in uploads.items()}}, indent=2, ensure_ascii=False))
     shutil.make_archive(str(out_root / out.name), "zip", out)
     return out

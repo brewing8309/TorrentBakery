@@ -44,6 +44,8 @@ def test_bake(video, tmp_path):
     assert "{{" not in post and "[list]" not in post and "[*]" not in post  # the target forum does not render lists
     assert ", und" not in post  # undefined audio language is left out
 
+    meta = __import__("json").loads((out / "release.json").read_text())
+    assert meta["folder_name"] == video.parent.name and meta["folder_path"] == str(video.parent)  # parent folder of the file
     assert (out / "tags.txt").read_text() == "x face.fuck y big.boobs\n"  # lowercase, spaces inside a tag become dots, duplicates drop out
     assert (tmp_path / f"{out.name}.zip").exists()
     names = zipfile.ZipFile(tmp_path / f"{out.name}.zip").namelist()

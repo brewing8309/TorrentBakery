@@ -185,7 +185,7 @@ def test_job_page_offers_copyable_tags(tmp_path, cfg_path):
         d = out / "Rel"
         d.mkdir(parents=True, exist_ok=True)
         (d / "post.bbcode").write_text("post")
-        (d / "release.json").write_text('{"release": {"title": "T", "tags": ["Face Fuck", "Asian", "Big  Tits"]}}')
+        (d / "release.json").write_text('{"release": {"title": "T", "tags": ["Face Fuck", "Asian", "Big  Tits"]}, "folder_name": "My Folder", "folder_path": "/media/x/My Folder"}')
         return d
 
     c = TestClient(create_app(manager=JobManager(tmp_path / "out", cfg_path, runner)))
@@ -193,4 +193,5 @@ def test_job_page_offers_copyable_tags(tmp_path, cfg_path):
     wait_done(c, jid)
     page = c.get(f"/jobs/{jid}").text
     assert '<textarea id="tags" rows="2" readonly>face.fuck asian big.tits</textarea>' in page
+    assert '<input type="text" id="folder-name" readonly value="My Folder">' in page and 'value="/media/x/My Folder"' in page
     assert '<input type="text" id="release-title" readonly value="T">' in page and "copyText('release-title'" in page

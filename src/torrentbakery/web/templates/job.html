@@ -33,6 +33,16 @@
     <input type="text" id="release-title" readonly value="{{ release_title }}">
     <p><button type="button" onclick="copyText('release-title', 'copied-title')">Copy title</button> <span id="copied-title" class="ok"></span></p>
   </section>
+  {% if folder_name %}
+  <section>
+    <h2>Folder</h2>
+    <p class="help">The folder you selected, or the parent folder of the file.</p>
+    <input type="text" id="folder-name" readonly value="{{ folder_name }}">
+    <p><button type="button" onclick="copyText('folder-name', 'copied-folder')">Copy folder name</button> <span id="copied-folder" class="ok"></span></p>
+    <input type="text" id="folder-path" readonly value="{{ folder_path }}">
+    <p><button type="button" class="ghost" onclick="copyText('folder-path', 'copied-folder')">Copy full path</button></p>
+  </section>
+  {% endif %}
   <section>
     <h2>Forum post (BBCode)</h2>
     {% if not uploads %}<p class="note">No image host was chosen: the post contains only the file names (<code>{{ cover_file }}</code> and <code>contactsheet.jpg</code>) instead of image links. Pick a host on the start page next time, or download the images below and upload them yourself.</p>{% endif %}
