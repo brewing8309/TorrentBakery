@@ -20,16 +20,19 @@ def slug(name: str) -> str:
     return re.sub(r"[^\w.\-]+", "_", name).strip("_") or "release"
 
 
-def bake(source: Path, out_root: Path, cfg: Config, release: Release | None = None, tracker: str | None = None, cover: Path | None = None, cover_format: str | None = None, uploader: Uploader | None = None, nsfw: bool = True, progress=None) -> Path:
-    """Bake one video file into out_root/<slug>/ (+ .zip). Returns the output dir."""
+def bake(source: Path, out_root: Path, cfg: Config, release: Release | None = None, tracker: str | None = None, cover: Path | None = None, cover_format: str | None = None, uploader: Uploader | None = None, nsfw: bool = True, progress=None, torrent_path: Path | None = None) -> Path:
+    """Bake one video file into out_root/<slug>/ (+ .zip). Returns the output dir.
+    `torrent_path` is the release folder when the torrent should contain more than the video (nfo, subtitles, …)."""
     source = source.resolve()
     if not source.is_file():
         raise FileNotFoundError(source)
     step = progress or (lambda stage, frac=0.0: None)
     step("Reading media info")
     info = probe(source)
-    release = release or Release(title=source.stem)
-    out = out_root / slug(source.stem)
+    target = torrent_path.resolve() if torrent_path else source
+    name = target.name if target.is_dir() else target.stem
+    release = release or Release(title=name)
+    out = out_root / slug(name)
     out.mkdir(parents=True, exist_ok=True)
 
     step("Screenshot sheet")
@@ -46,7 +49,7 @@ def bake(source: Path, out_root: Path, cfg: Config, release: Release | None = No
             fmt = "gif"  # the host would reject WebP
         cover_file = make_animated_cover(source, info.duration, out, fmt, cfg.cover_clips, width=cfg.cover_width)
     step("Hashing torrent")
-    make_torrent(source, out / f"{source.stem}.torrent", cfg.trackers[tracker] if tracker else None, lambda f: step("Hashing torrent", f))
+    make_torrent(target, out / f"{name}.torrent", cfg.trackers[tracker] if tracker else None, lambda f: step("Hashing torrent", f))
     (out / "mediainfo.txt").write_text(info.full_text)
     # Without an image host the post references the local files by name.
     images, links, uploads = {"cover": cover_file.name, "sheet": "contactsheet.jpg"}, {}, {}

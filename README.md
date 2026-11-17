@@ -48,7 +48,7 @@ For `stash:<id>`, a stash-box link on the scene is used if Stash holds its key: 
 .venv/bin/pip install -e '.[web]'
 .venv/bin/tb serve --host 0.0.0.0 --port 8080 --out /srv/torrentbakery/out
 ```
-The interface is in English. Pages: **Bake** (search Stash or enter a scene ID, pick tracker profile and image host, live progress, post preview with copy button, downloads for the ZIP, torrent and each image) **History** (every bake, newest first, kept across restarts in `<out>/history.jsonl`, each entry reopens its result page) and **Settings** (tracker profiles, animated-cover defaults, Stash URL/key and path mappings, stash-box keys, image-host options, media roots). The UI has no login: keep it on a trusted network. API keys are never shown again after saving. Plain files can only be baked from the folders listed as media roots; Stash scenes need none.
+The interface is in English. Pages: **Bake** (search Stash, enter a scene ID or pick a file/folder with the **Browse…** pop-up, pick tracker profile and image host, live progress, post preview with copy button, downloads for the ZIP, torrent and each image) **History** (every bake, newest first, kept across restarts in `<out>/history.jsonl`, each entry reopens its result page) and **Settings** (tracker profiles, animated-cover defaults, Stash URL/key and path mappings, stash-box keys, image-host options, media roots). The UI has no login: keep it on a trusted network. API keys are never shown again after saving. Plain files and folders can only be baked from (and browsed inside) the folders listed as media roots; Stash scenes need none. A folder becomes one torrent of the whole folder; its largest video provides the screenshots and the cover.
 
 ## Image hosts
 ```

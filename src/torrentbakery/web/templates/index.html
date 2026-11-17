@@ -2,15 +2,18 @@
 {% block body %}
 <section>
   <h1>Bake a release</h1>
-  <p class="lead">A scene or file becomes: torrent, animated cover, screenshot sheet (5×7), MediaInfo and a ready-made forum post.</p>
+  <p class="lead">A scene, file or folder becomes: torrent, animated cover, screenshot sheet (5×7), MediaInfo and a ready-made forum post.</p>
   <form method="post" action="/jobs">
     <label for="source">Source</label>
-    <input type="text" id="source" required autocomplete="off"
-           placeholder="{% if stash %}Search a title, scene number or stash:1234{% endif %}{% if roots %}{% if stash %}, {% endif %}or a file path{% endif %}">
+    <div class="row-input">
+      <input type="text" id="source" required autocomplete="off"
+             placeholder="{% if stash %}Search a title, scene number or stash:1234, or {% endif %}pick a file or folder">
+      <button type="button" class="ghost" id="browse-btn">Browse…</button>
+    </div>
     <input type="hidden" name="source" id="source-value">
     <input type="hidden" name="label" id="label-value">
     <p class="help">{% if stash %}Type 3+ letters of a title to get matching Stash scenes to click. A scene's number is in Stash's address bar (<code>…/scenes/1234</code>).{% endif %}
-      {% if roots %} A file path must lie inside a permitted <a href="/settings#roots">media folder</a>.{% endif %}</p>
+      <b>Browse…</b> picks a video file (torrent of that file) or a whole folder (torrent of the folder; its largest video provides the screenshots and cover). Browsing is limited to the permitted <a href="/settings#roots">media folders</a>.</p>
     <div id="results"></div>
     {% if not stash and not roots %}<p class="note">There is no source yet: connect Stash or permit a media folder in <a href="/settings">Settings</a>.</p>{% endif %}
     <div class="row">
@@ -47,11 +50,59 @@
   {% if total_jobs > jobs|length %}<p class="help"><a href="/history">Full history ({{ total_jobs }})</a></p>{% else %}<p class="help"><a href="/history">History</a></p>{% endif %}
 </section>
 {% endif %}
+<dialog id="browser">
+  <h2>Pick a file or folder</h2>
+  <div class="crumbs" id="crumbs"></div>
+  <div class="list" id="browse-list"></div>
+  <p class="help" id="browse-note"></p>
+  <p><button type="button" id="choose-folder">Choose this folder</button> <button type="button" class="ghost" id="browse-cancel">Cancel</button></p>
+</dialog>
 <script>
 const src = document.getElementById("source"), box = document.getElementById("results");
 const srcValue = document.getElementById("source-value"), labelValue = document.getElementById("label-value");
 // the box shows what the user typed or picked by name; the form submits the id (stash:1234) in a hidden field
 src.form.addEventListener("submit", () => { if (!labelValue.value) srcValue.value = src.value.trim(); });
+
+// ---- file/folder picker (limited to the permitted media folders by the server)
+const dlg = document.getElementById("browser"), blist = document.getElementById("browse-list"), crumbs = document.getElementById("crumbs");
+const chooseBtn = document.getElementById("choose-folder"), bnote = document.getElementById("browse-note");
+let here = "";
+const human = n => n >= 2**30 ? (n / 2**30).toFixed(2) + " GiB" : (n / 2**20).toFixed(1) + " MiB";
+const pick = path => { src.value = path; srcValue.value = path; labelValue.value = ""; box.innerHTML = ""; dlg.close(); };
+function item(text, size, onclick) {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "item";
+  const l = document.createElement("span"); l.textContent = text;
+  const r = document.createElement("span"); r.className = "mute"; r.textContent = size || "";
+  b.append(l, r); b.onclick = onclick; blist.append(b);
+}
+async function load(path) {
+  let d;
+  try {
+    const res = await fetch("/browse?path=" + encodeURIComponent(path));
+    if (!res.ok) throw new Error();
+    d = await res.json();
+  } catch (e) { blist.textContent = "Cannot open this folder."; return; }
+  here = d.path; blist.innerHTML = "";
+  crumbs.textContent = d.path || "Permitted media folders";
+  chooseBtn.style.display = d.roots ? "none" : "";
+  if (d.parent !== null) item("⬆ ..", "", () => load(d.parent));
+  for (const e of d.entries) {
+    if (e.type === "dir") item("📁 " + e.name, "", () => load(e.path));
+    else item("🎞 " + e.name, human(e.size), () => pick(e.path));
+  }
+  if (d.roots && !d.entries.length) blist.innerHTML = '<p class="help" style="padding:.6rem">No media folder is permitted yet. Add one in <a href="/settings#roots">Settings → Media folders</a>.</p>';
+  bnote.textContent = d.roots ? "" : "Only video files are listed" + (d.others ? " (" + d.others + " other files hidden)" : "") + ". Click a video to pick the file, or choose the folder to bake everything in it.";
+  try { localStorage.setItem("tb-browse", d.path); } catch (e) {}
+}
+document.getElementById("browse-btn").onclick = () => {
+  let start = "";
+  try { start = localStorage.getItem("tb-browse") || ""; } catch (e) {}
+  dlg.showModal(); load(start);
+};
+chooseBtn.onclick = () => pick(here);
+document.getElementById("browse-cancel").onclick = () => dlg.close();
+
 let timer;
 src.addEventListener("input", () => {
   clearTimeout(timer);

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -13,6 +14,7 @@ from fastapi.templating import Jinja2Templates
 from .. import config as config_mod
 from ..config import StashBoxCfg, Tracker
 from ..hosts import HOST_NAMES
+from ..media.files import is_video
 from ..render.post import format_tags
 from ..sources.gql import gql
 from .jobs import JobManager
@@ -57,6 +59,36 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     @app.get("/history")
     def history(request: Request):
         return templates.TemplateResponse(request, "history.html", {"jobs": jobs.all()})
+
+    @app.get("/browse")
+    def browse(path: str = ""):
+        """Directory listing for the source picker. Only inside the permitted media roots; symlinks pointing out of them are not followed."""
+        roots = [Path(r).resolve() for r in cfg().web_media_roots if Path(r).is_dir()]
+        if not path:
+            return {"path": "", "parent": None, "roots": True, "entries": [{"name": r.name or str(r), "path": str(r), "type": "dir"} for r in roots]}
+        p = Path(path).resolve()
+        root = next((r for r in roots if p == r or p.is_relative_to(r)), None)
+        if root is None or not p.is_dir():
+            raise HTTPException(403, "not inside a permitted media folder")
+        dirs, files, others = [], [], 0
+        try:
+            for e in os.scandir(p):
+                if e.name.startswith("."):
+                    continue
+                real = Path(e.path).resolve()
+                if not (real == root or real.is_relative_to(root)):
+                    continue  # symlink leading out of the root
+                if e.is_dir():
+                    dirs.append({"name": e.name, "path": e.path, "type": "dir"})
+                elif is_video(e.name):
+                    files.append({"name": e.name, "path": e.path, "type": "file", "size": e.stat().st_size})
+                else:
+                    others += 1
+        except OSError as exc:
+            raise HTTPException(403, f"cannot read folder: {exc.strerror}")
+        key = lambda x: x["name"].lower()  # noqa: E731
+        parent = "" if p == root else str(p.parent)
+        return {"path": str(p), "parent": parent, "roots": False, "others": others, "entries": (sorted(dirs, key=key) + sorted(files, key=key))[:2000]}
 
     @app.get("/search")
     def search(q: str):
