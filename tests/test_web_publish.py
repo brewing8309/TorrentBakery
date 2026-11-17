@@ -116,3 +116,40 @@ def test_qbit_test_uses_the_unsaved_form(tmp_path):
     assert config_mod.load(cfg_path).qbit.url == "http://qb"  # testing does not save
     blank = c.post("/settings/qbit/test", data={}).json()  # no form values: the saved connection
     assert blank["ok"] and "not saved yet" not in blank["message"]
+
+
+def test_seed_again_route(tmp_path):
+    from torrentbakery.web.jobs import JobManager as JM
+    posts = []
+    # a published bake with a real torrent the tracker serves
+    cfg_path = tmp_path / "config.toml"
+    config_mod.save(Config(trackers={"emp": Tracker([PASSKEY], site="empornium", base_url="https://tr.example", cookie="session=abc", category="2")},
+                           qbit=QbitCfg("http://qb")), cfg_path)
+    import test_publish as tp
+    from torf import Torrent
+    media = tmp_path / "share" / "Scene.mp4"
+    media.parent.mkdir()
+    media.write_bytes(b"x" * 40000)
+    t = Torrent(path=media)
+    t.trackers = ["https://tr.example/PASS123/announce"]
+    t.generate()
+    served = tmp_path / "served.torrent"
+    t.write(served)
+    out_root = tmp_path / "out"
+    d = out_root / "Scene"
+    d.mkdir(parents=True)
+    t.write(d / "Scene.torrent")
+    (d / "post.bbcode").write_text("x")
+    (d / "release.json").write_text(json.dumps({"release": {"title": "Scene"}, "media": {}, "uploads": {}, "folder_path": str(media.parent), "content_path": str(media)}))
+    (d / "publish.json").write_text(json.dumps({"emp": {"torrent_id": "4711", "qbit": {"ok": False, "message": "old"}}}))
+    mgr = JM(out_root, cfg_path, lambda *a, **k: d)
+    tr = tp.transport(posts, download=served.read_bytes())
+    qb = httpx.MockTransport(lambda r: httpx.Response(200, text="v5"))  # no login needed
+    c = TestClient(create_app(manager=mgr, config_path=cfg_path, transport=tr, qbit_transport=qb))
+    jid = c.post("/jobs", data={"source": "1", "tracker": "emp"}, follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
+    wait_done(c, jid)
+    assert "Add to qBittorrent again" in c.get(f"/jobs/{jid}").text
+    r = c.post(f"/jobs/{jid}/seed", data={"tracker": "emp"}).json()
+    assert r["ok"] and "tracker's torrent" in r["message"]
+    assert json.loads((d / "publish.json").read_text())["emp"]["qbit"]["ok"] is True
+    assert c.post(f"/jobs/{jid}/seed", data={"tracker": "nope"}).status_code == 400

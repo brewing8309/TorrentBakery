@@ -33,8 +33,21 @@
     {% if pub_error %}<p class="err">Automatic publishing failed: {{ pub_error }}</p>{% endif %}
     {% for tname, r in published.items() %}
       <p class="ok">Published on <b>{{ tname }}</b>: <a href="{{ r.torrent_url }}" target="_blank" rel="noopener">{{ r.torrent_url }}</a>
-        {% if r.qbit %}· qBittorrent: <span class="{{ 'ok' if r.qbit.ok else 'err' }}">{{ r.qbit.message }}</span>{% endif %}</p>
+        {% if r.qbit %}· qBittorrent: <span class="{{ 'ok' if r.qbit.ok else 'err' }}" id="seed-msg-{{ loop.index0 }}">{{ r.qbit.message }}</span>{% endif %}
+        <button type="button" class="ghost" onclick="seedAgain({{ tname | tojson | forceescape }}, 'seed-msg-{{ loop.index0 }}', this)">Add to qBittorrent again</button></p>
     {% endfor %}
+    {% if published %}<script>
+      async function seedAgain(tracker, id, btn) {
+        btn.disabled = true;
+        const span = document.getElementById(id) || btn.insertAdjacentElement("beforebegin", document.createElement("span"));
+        span.textContent = " Fetching the tracker's torrent …"; span.className = "mute";
+        try {
+          const r = await (await fetch("/jobs/{{ job.id }}/seed", {method: "POST", body: new URLSearchParams({tracker})})).json();
+          span.textContent = " " + r.message; span.className = r.ok ? "ok" : "err";
+        } catch (e) { span.textContent = " Failed."; span.className = "err"; }
+        btn.disabled = false;
+      }
+    </script>{% endif %}
     {% if job.pub.status in ("queued", "running") %}
       <p id="pub-stage" class="mute">{{ job.pub.stage or job.pub.status }}</p>
       <div class="bar"><div id="pub-bar"></div></div>

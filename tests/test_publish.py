@@ -34,10 +34,19 @@ def req(tmp_path, **kw):
     return PublishRequest(t, "Title", "[b]post[/b]", ["a", "b.c"], "https://img/c.jpg", **kw)
 
 
-def transport(posts, page=UPLOAD_PAGE, post_response=None):
+TORRENT_PAGE = '<a href="torrents.php?action=download&amp;id=4711&amp;authkey=AK&amp;torrent_pass=TP">DL</a><a href="torrents.php?action=download&amp;id=1&amp;authkey=AK">other</a>'
+
+
+def transport(posts, page=UPLOAD_PAGE, post_response=None, download=None, torrent_page=TORRENT_PAGE, gets=None):
     def h(r):
         assert r.headers["cookie"] == "session=abc"
         if r.method == "GET":
+            if gets is not None:
+                gets.append(str(r.url))
+            if "action=download" in str(r.url):
+                return httpx.Response(200, content=download if download is not None else b"<html>nope</html>")
+            if r.url.path.endswith("torrents.php"):
+                return httpx.Response(200, text=torrent_page)
             return httpx.Response(200, text=page)
         posts.append(r)
         return post_response or httpx.Response(302, headers={"location": "torrents.php?id=4711"})
@@ -153,8 +162,18 @@ def test_prepare_rebuilds_torrent_for_tracker(baked):
     assert Torrent.read(baked / "Scene.torrent").infohash != t.infohash  # the source flag changes the hash, so the base torrent stays untouched
 
 
+def tracker_version(baked):
+    """The torrent as the tracker serves it: same files, but it rewrote the source flag, so the infohash differs from ours."""
+    t = Torrent.read(baked / "Scene.torrent")
+    t.source = "HFtracker"
+    t.private = True
+    t.write(baked.parent / "served.torrent")  # outside the bake folder: it must not look like a bake's own torrent
+    return (baked.parent / "served.torrent").read_bytes(), t.infohash
+
+
 def test_publish_end_to_end_with_qbit(baked):
-    posts, qbit = [], []
+    posts, qbit, gets = [], [], []
+    served, served_hash = tracker_version(baked)
 
     def q(r):  # a qBittorrent that wants a login: everything but the login answers 403 until it set the session cookie
         qbit.append((r.url.path, r.content))
@@ -162,17 +181,24 @@ def test_publish_end_to_end_with_qbit(baked):
             return httpx.Response(200, text="Ok.", headers={"set-cookie": "SID=1; Path=/"})
         return httpx.Response(200, text="") if r.headers.get("cookie") else httpx.Response(403)
     cfg = Config(trackers={"emp": tracker()}, qbit=QbitCfg("http://qb:8080", "u", "p", "tb", True, [(str(baked.parent.parent / "share"), "/data")]))
-    out = publish(cfg, baked, "emp", transport=transport(posts), qbit_transport=httpx.MockTransport(q), tagmap=TagMap.load(baked / "none.toml"))
-    assert out["torrent_id"] == "4711" and out["qbit"]["ok"]
+    out = publish(cfg, baked, "emp", transport=transport(posts, download=served, gets=gets), qbit_transport=httpx.MockTransport(q), tagmap=TagMap.load(baked / "none.toml"))
+    assert out["torrent_id"] == "4711" and out["qbit"]["ok"] and "tracker changed the torrent" in out["qbit"]["message"]
+    assert out["infohash"]["tracker"] == served_hash != out["infohash"]["local"]
     paths = [p for p, _ in qbit]
     assert paths == ["/api/v2/app/version", "/api/v2/auth/login", "/api/v2/torrents/add", "/api/v2/torrents/recheck", "/api/v2/torrents/start"]
-    assert b"/data" in qbit[2][1] and b'name="category"' in qbit[2][1]
+    assert served in qbit[2][1] and b"/data" in qbit[2][1] and b'name="category"' in qbit[2][1]  # the tracker's file, not ours
+    assert served_hash.encode() in qbit[3][1]  # rechecked under the tracker's hash
+    assert any("authkey=AK&torrent_pass=TP" in g and "id=4711" in g for g in gets)  # the link of this torrent, not the "other" one
+    assert (baked / "Scene.tracker.emp.downloaded.torrent").read_bytes() == served
     assert json.loads((baked / "publish.json").read_text())["emp"]["torrent_id"] == "4711"
+    # the next publish still picks the right base torrent
+    assert prepare(cfg, baked, "emp", tagmap=TagMap.load(baked / "none.toml"), build_torrent=False).torrent.name == "Scene.tracker.emp.torrent"
 
 
 def test_publish_survives_qbit_failure(baked):
     cfg = Config(trackers={"emp": tracker()}, qbit=QbitCfg("http://qb:8080", "u", "p"))
-    out = publish(cfg, baked, "emp", transport=transport([]), qbit_transport=httpx.MockTransport(lambda r: httpx.Response(200, text="Fails.") if r.url.path.endswith("login") else httpx.Response(403)),
+    served, _ = tracker_version(baked)
+    out = publish(cfg, baked, "emp", transport=transport([], download=served), qbit_transport=httpx.MockTransport(lambda r: httpx.Response(200, text="Fails.") if r.url.path.endswith("login") else httpx.Response(403)),
                   tagmap=TagMap.load(baked / "none.toml"))
     assert out["torrent_id"] == "4711" and not out["qbit"]["ok"] and "login failed" in out["qbit"]["message"]
 
@@ -273,3 +299,36 @@ def test_qbit_without_login_when_the_address_is_whitelisted(tmp_path):
             return httpx.Response(403)
         return httpx.Response(200, text="Ok.", headers={"set-cookie": "SID=1; Path=/"}) if r.url.path.endswith("login") else httpx.Response(200, text="v5")
     assert QBittorrent(QbitCfg("http://qb", "u", "p"), httpx.MockTransport(locked)).test() == "qBittorrent v5"
+
+
+def test_download_builds_the_link_when_the_page_has_none(tmp_path):
+    gets = []
+    pub = get_publisher("emp", Config(trackers={"emp": tracker()}), transport([], download=b"d4:infod4:name1:xee", torrent_page="<p>nothing</p>", gets=gets))
+    assert pub.download_torrent("4711").startswith(b"d4:info")
+    assert any("action=download" in g and "id=4711" in g and "authkey=AUTHTOKEN" in g and "torrent_pass=PASS123" in g for g in gets)  # auth from the form, passkey from the announce URL
+
+
+def test_download_failures(tmp_path):
+    pub = get_publisher("emp", Config(trackers={"emp": tracker()}), transport([], download=None))
+    pub.retry_delay = 0
+    with pytest.raises(TrackerError, match="did not return a torrent"):
+        pub.download_torrent("4711")
+
+    def dead(r):
+        return httpx.Response(302, headers={"location": "/login"})
+    with pytest.raises(LoginError):
+        get_publisher("emp", Config(trackers={"emp": tracker()}), httpx.MockTransport(dead)).download_torrent("4711")
+
+
+def test_publish_reports_when_the_tracker_torrent_cannot_be_fetched(baked):
+    qbit = []
+    cfg = Config(trackers={"emp": tracker()}, qbit=QbitCfg("http://qb:8080"))
+    import torrentbakery.trackers.gazelle as gz
+    old = gz.GazellePublisher.retry_delay
+    gz.GazellePublisher.retry_delay = 0
+    try:
+        out = publish(cfg, baked, "emp", transport=transport([]), qbit_transport=httpx.MockTransport(lambda r: qbit.append(r.url.path) or httpx.Response(200, text="v5")),
+                      tagmap=TagMap.load(baked / "none.toml"))
+    finally:
+        gz.GazellePublisher.retry_delay = old
+    assert out["torrent_id"] == "4711" and not out["qbit"]["ok"] and "nothing added" in out["qbit"]["message"] and not any("torrents/add" in x for x in qbit)

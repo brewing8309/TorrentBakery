@@ -204,8 +204,26 @@ def publish_cmd(
     typer.echo(f"Published: {out['torrent_url']}")
     if out["qbit"]:
         typer.echo(f"qBittorrent: {out['qbit']['message']}")
+        if not out["qbit"]["ok"]:
+            typer.echo("(retry with `tb seed` once it is fixed)")
     if out["suggestions"]:
         typer.echo("Unknown tags (sent as-is): " + ", ".join(f"{k} -> {v}" for k, v in out["suggestions"].items()) + "  (teach them with `tb tags map`)")
+
+
+@app.command("seed")
+def seed_cmd(folder: Path = typer.Argument(..., help="A published bake folder"), tracker: str = typer.Option(..., "--tracker", "-t")) -> None:
+    """Add an already published release to qBittorrent (again), using the torrent file the tracker serves."""
+    from .clients import QbitError
+    from .publish import seed
+    from .trackers import TrackerError
+
+    try:
+        r = seed(config_mod.load(), folder, tracker, progress=lambda s, f=0.0: typer.echo(f"  {s}"))
+    except (TrackerError, QbitError, ValueError, KeyError) as e:
+        raise typer.Exit(typer.echo(f"FAILED: {e}", err=True) or 1)
+    typer.echo(r["message"])
+    if not r["ok"]:
+        raise typer.Exit(1)
 
 
 qbit_app = typer.Typer(help="qBittorrent connection for seeding published torrents.", no_args_is_help=True)

@@ -6,7 +6,9 @@ torrent as `file_input`. Field names are looked up by the element ids the usersc
 a `name` attribute still works."""
 from __future__ import annotations
 
+import html as htmllib
 import re
+import time
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 
@@ -95,9 +97,9 @@ class GazellePublisher:
     def _url(self, path: str) -> str:
         return urljoin(self.tracker.base_url.rstrip("/") + "/", path)
 
-    def _get_page(self, c: httpx.Client) -> tuple[_FormParser, str]:
-        url = self._url("upload.php")
-        for _ in range(4):  # follow redirects by hand: a bounce to login.php means the cookie is dead
+    def _follow(self, c: httpx.Client, url: str) -> tuple[httpx.Response, str]:
+        """GET following redirects by hand: a bounce to the login page means the cookie is dead (sites also move between domains)."""
+        for _ in range(5):
             r = c.get(url)
             if r.is_redirect:
                 url = urljoin(url, r.headers["location"])
@@ -108,7 +110,11 @@ class GazellePublisher:
         if r.status_code in (401, 403):
             raise LoginError(f"{self.name}: access denied (HTTP {r.status_code}); check the cookie")
         if r.status_code != 200:
-            raise TrackerError(f"{self.name}: upload page answered HTTP {r.status_code}")
+            raise TrackerError(f"{self.name}: {urlparse(url).path.lstrip('/')} answered HTTP {r.status_code}")
+        return r, url
+
+    def _get_page(self, c: httpx.Client) -> tuple[_FormParser, str]:
+        r, url = self._follow(c, self._url("upload.php"))
         p = _FormParser()
         p.feed(r.text)
         if _upload_form(p.forms) is None:
@@ -132,6 +138,40 @@ class GazellePublisher:
                 cats = [(o["value"], o["label"].strip()) for o in ctl["options"] if o["value"] not in ("", "0")]
                 break
         return UploadForm(action=urljoin(url, form["action"] or "upload.php"), fields=fields, categories=cats, announce=p.announces[0] if p.announces else "")
+
+    retry_delay = 2.0  # the tracker may need a moment before a fresh upload can be downloaded
+
+    def download_torrent(self, torrent_id: str) -> bytes:
+        """The .torrent exactly as the tracker serves it to you. Trackers rewrite uploaded torrents (own source flag, cleaned info
+        dictionary), which changes the infohash, so only this file is the one that works with the tracker when seeding.
+        The download link is read from the torrent's page; if the page has none, it is built from the form's auth token and your passkey."""
+        last = ""
+        for attempt in range(3):
+            if attempt:
+                time.sleep(self.retry_delay)
+            try:
+                with self._client() as c:
+                    page, url = self._follow(c, self._url(f"torrents.php?id={torrent_id}"))
+                    links = [htmllib.unescape(m) for m in re.findall(r"""href=["']([^"']*action=download[^"']*)""", page.text)]
+                    link = next((link for link in links if re.search(rf"[?&]id={torrent_id}\b", link)), None)
+                    if link is None:
+                        form_page, _ = self._get_page(c)
+                        auth = next((x["value"] for x in _upload_form(form_page.forms)["controls"] if x.get("name") == "auth"), "")
+                        m = re.search(r"/([^/]+)/announce", form_page.announces[0] if form_page.announces else "")
+                        if not (auth and m):
+                            raise TrackerError(f"{self.name}: no download link on the torrent page and no auth token/passkey to build one")
+                        link = f"torrents.php?action=download&id={torrent_id}&authkey={auth}&torrent_pass={m.group(1)}"
+                    r = c.get(urljoin(url, link))
+                    if r.is_redirect:
+                        r, _ = self._follow(c, urljoin(url, r.headers["location"]))
+                if r.status_code == 200 and r.content[:1] == b"d" and b"4:info" in r.content:
+                    return r.content
+                last = f"{self.name}: the download link did not return a torrent file (HTTP {r.status_code})"
+            except LoginError:
+                raise
+            except (TrackerError, httpx.HTTPError) as e:
+                last = str(e)
+        raise TrackerError(last)
 
     def _by_id(self, form: dict, key: str) -> dict | None:
         want = self.ids[key]

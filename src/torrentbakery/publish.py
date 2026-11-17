@@ -123,6 +123,43 @@ def prepare(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, 
                     image, torrent, suggestions, meta)
 
 
+def _seed(cfg: Config, out_dir: Path, name: str, torrent_id: str, local: Path, meta: dict, pub, qbit_transport, step) -> tuple[dict, dict]:
+    """Fetch the torrent the tracker serves for `torrent_id` and add it to qBittorrent. Returns (qbit result, infohashes).
+    Seeds the tracker's file, not our local one: the tracker rewrites uploads, which can change the infohash."""
+    hashes: dict = {}
+    try:
+        step("Fetching the tracker's torrent")
+        got = out_dir / f"{local.name.split('.tracker.')[0].removesuffix('.torrent')}.tracker.{name}.downloaded.torrent"  # ".tracker." keeps it from being taken for the base torrent
+        got.write_bytes(pub.download_torrent(torrent_id))
+        tor = Torrent.read(got)
+        hashes = {"tracker": tor.infohash, "local": Torrent.read(local).infohash}
+        step("Adding to qBittorrent")
+        content = _content_path(out_dir, meta, local)
+        QBittorrent(cfg.qbit, qbit_transport).add(got, tor.infohash, map_save_path(str(content.parent), cfg.qbit.path_map))
+        note = "" if tor.infohash == hashes["local"] else " (the tracker changed the torrent, so its own file was used)"
+        return {"ok": True, "message": "added the tracker's torrent" + (" and started" if cfg.qbit.start else " (paused)") + note}, hashes
+    except (QbitError, TrackerError, httpx.HTTPError, OSError, ValueError) as e:
+        return {"ok": False, "message": f"nothing added to qBittorrent: {e}. Download the torrent from the tracker and add it yourself."}, hashes
+
+
+def seed(cfg: Config, out_dir: Path, name: str, *, transport: httpx.BaseTransport | None = None, qbit_transport: httpx.BaseTransport | None = None, progress=None) -> dict:
+    """Add an already published release to qBittorrent again (e.g. after fixing the qBittorrent settings). Returns the qBit result."""
+    step = progress or (lambda stage, frac=0.0: None)
+    if not cfg.qbit.url:
+        raise QbitError("qBittorrent is not configured")
+    f = out_dir / "publish.json"
+    try:
+        published = json.loads(f.read_text())[name]
+    except (OSError, ValueError, KeyError):
+        raise TrackerError(f"this release was not published on {name!r}")
+    p = prepare(cfg, out_dir, name, build_torrent=False)
+    result, hashes = _seed(cfg, out_dir, name, published["torrent_id"], p.torrent, p.meta, get_publisher(name, cfg, transport), qbit_transport, step)
+    all_ = json.loads(f.read_text())
+    all_[name].update({"qbit": result, "infohash": hashes})
+    f.write_text(json.dumps(all_, indent=2, ensure_ascii=False))
+    return result
+
+
 def publish(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, tags: list[str] | None = None, category: str | None = None,
             dry_run: bool = False, tagmap: TagMap | None = None, transport: httpx.BaseTransport | None = None,
             qbit_transport: httpx.BaseTransport | None = None, progress=None) -> dict:
@@ -142,14 +179,7 @@ def publish(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, 
         return out
     # the upload is public from here on: a qBittorrent problem is reported, never raised
     if cfg.qbit.url:
-        step("Adding to qBittorrent")
-        try:
-            tor = Torrent.read(p.torrent)
-            content = _content_path(out_dir, p.meta, p.torrent)
-            QBittorrent(cfg.qbit, qbit_transport).add(p.torrent, tor.infohash, map_save_path(str(content.parent), cfg.qbit.path_map))
-            out["qbit"] = {"ok": True, "message": "added" + (" and started" if cfg.qbit.start else " (paused)")}
-        except (QbitError, TrackerError, httpx.HTTPError, OSError) as e:
-            out["qbit"] = {"ok": False, "message": str(e)}
+        out["qbit"], out["infohash"] = _seed(cfg, out_dir, name, res.torrent_id, p.torrent, p.meta, pub, qbit_transport, step)
     f = out_dir / "publish.json"
     try:
         old = json.loads(f.read_text())

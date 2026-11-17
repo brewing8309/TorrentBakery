@@ -17,7 +17,7 @@ from ..clients import QbitError, QBittorrent
 from ..config import SITE_SOURCES, StashBoxCfg, Tracker
 from ..hosts import HOST_NAMES
 from ..media.files import is_video
-from ..publish import prepare
+from ..publish import prepare, seed
 from ..render.post import release_tags
 from ..sources.gql import gql
 from ..tags import TagMap, load_user_map, save_user_map
@@ -33,7 +33,7 @@ query Search($q: String!) {
 """
 
 
-def create_app(out_root: Path = Path("out"), config_path: Path | None = None, manager: JobManager | None = None, transport: httpx.BaseTransport | None = None) -> FastAPI:
+def create_app(out_root: Path = Path("out"), config_path: Path | None = None, manager: JobManager | None = None, transport: httpx.BaseTransport | None = None, qbit_transport: httpx.BaseTransport | None = None) -> FastAPI:
     app = FastAPI(title="TorrentBakery")
     templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
     # announce URLs carry the tracker passkey: the pages only ever show the host
@@ -219,6 +219,16 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         jobs.submit_publish(job, name=tracker, title=title.strip() or None, category=category.strip() or None, tags=tags.split() or None,
                             tagmap=TagMap.load(tags_file()), transport=transport)
         return RedirectResponse(f"/jobs/{job.id}#publish", status_code=303)
+
+    @app.post("/jobs/{job_id}/seed")
+    def publish_seed(job_id: str, tracker: str = Form(...)):
+        """Add an already published release to qBittorrent (again), using the tracker's own torrent file."""
+        job = publishable_job(job_id, tracker)
+        try:
+            r = seed(cfg(), job.out_dir, tracker, transport=transport, qbit_transport=qbit_transport)
+        except (TrackerError, QbitError, ValueError, KeyError) as e:
+            return {"ok": False, "message": str(e)}
+        return {"ok": r["ok"], "message": r["message"]}
 
     @app.get("/jobs/{job_id}/publish/state")
     def publish_state(job_id: str):
