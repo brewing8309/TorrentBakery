@@ -29,6 +29,11 @@
     </p>
   </section>
   <section>
+    <h2>Title</h2>
+    <input type="text" id="release-title" readonly value="{{ release_title }}">
+    <p><button type="button" onclick="copyText('release-title', 'copied-title')">Copy title</button> <span id="copied-title" class="ok"></span></p>
+  </section>
+  <section>
     <h2>Forum post (BBCode)</h2>
     {% if not uploads %}<p class="note">No image host was chosen: the post contains only the file names (<code>{{ cover_file }}</code> and <code>contactsheet.jpg</code>) instead of image links. Pick a host on the start page next time, or download the images below and upload them yourself.</p>{% endif %}
     <textarea id="post" rows="18" readonly>{{ post }}</textarea>

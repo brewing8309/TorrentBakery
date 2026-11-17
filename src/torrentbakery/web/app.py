@@ -106,6 +106,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
                 meta = json.loads((job.out_dir / "release.json").read_text())
         title = job.label or job.title or meta.get("release", {}).get("title") or job.source.rsplit("/", 1)[-1]
         return templates.TemplateResponse(request, "job.html", {"job": job, "title": title, "files": job_files(job), "post": post, "uploads": meta.get("uploads", {}), "host": meta.get("image_host", ""), "cover_file": meta.get("cover_file", "cover.jpg"),
+                       "release_title": meta.get("release", {}).get("title") or title,
                        "tags": format_tags(meta.get("release", {}).get("tags", []))})
 
     @app.get("/jobs/{job_id}/state")
