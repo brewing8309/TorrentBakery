@@ -339,9 +339,42 @@ def host_set(name: str, option: list[str] = typer.Option(..., "--option", "-o", 
     typer.echo(f"Saved options for {name}")
 
 
+auth_app = typer.Typer(help="Optional web login with two-factor authentication", no_args_is_help=True)
+app.add_typer(auth_app, name="auth")
+
+
+@auth_app.command("status")
+def auth_status() -> None:
+    a = config_mod.load().auth
+    typer.echo(f"login {'on, user ' + a.username if a.enabled else 'off'}; 2FA {'on, ' + str(len(a.recovery)) + ' recovery codes left' if a.totp else 'off'}")
+
+
+@auth_app.command("set-password")
+def auth_set_password(username: str = typer.Argument(..., help="User name for the login")) -> None:
+    """Turn the login on (or change the password); the password is asked for, never given on the command line."""
+    from .web import auth
+
+    password = typer.prompt("Password", hide_input=True, confirmation_prompt=True)
+    if msg := auth.check_password_policy(password, username):
+        raise typer.BadParameter(msg)
+    cfg = config_mod.load()
+    cfg.auth.username, cfg.auth.password_hash = username, auth.hash_password(password)
+    config_mod.save(cfg)
+    typer.echo("Saved. Browsers that are already logged in stay logged in until the web service restarts: restart it if the old password may be known to someone.")
+
+
+@auth_app.command("disable")
+def auth_disable() -> None:
+    """Turn login and 2FA off (recovery when locked out; needs access to the server)."""
+    cfg = config_mod.load()
+    cfg.auth = config_mod.AuthCfg()
+    config_mod.save(cfg)
+    typer.echo("Login and two-factor authentication are off.")
+
+
 @app.command("serve")
 def serve(
-    host: str = typer.Option("127.0.0.1", "--host", envvar="TB_HOST", help="Bind address (the UI has no login: keep it on a trusted network)"),
+    host: str = typer.Option("127.0.0.1", "--host", envvar="TB_HOST", help="Bind address (the login is optional: without one, keep it on a trusted network)"),
     port: int = typer.Option(8080, "--port", envvar="TB_PORT"),
     out: Path = typer.Option(Path("out"), "--out", "-o", envvar="TB_OUT", help="Output root directory"),
 ) -> None:

@@ -14,4 +14,6 @@
 - `tb` wrapper sets TB_CONFIG/TB_OUT like the service, so the CLI sees the saved profiles.
 - qBittorrent: waits until the torrent is listed and checked, starts it only with complete files, confirms it is seeding (qBittorrent 5 left torrents "Completed"/stopped after the recheck).
 - New visual design for the web UI: logo and favicon set, design tokens, self-hosted fonts, light and dark theme with a switch in the header, responsive layouts.
+- Optional web login with TOTP two-factor authentication and recovery codes (scrypt password, in-memory sessions, throttling, CSRF check); `tb auth`.
+- Settings: path mappings (Stash, qBittorrent) and the tag mapping use the same layout (table with Remove, Add row).
 - Installable from a release tarball (`install.sh`, systemd service, `uninstall.sh`).

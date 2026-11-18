@@ -37,11 +37,12 @@
 <header class="topbar">
   <div class="topbar-in">
     <a class="brand" href="/" aria-label="TorrentBakery, start page">{% include "_logo.html" %}</a>
-    <nav class="nav" aria-label="Main">
+    {% if not bare %}<nav class="nav" aria-label="Main">
       <a href="/"{% if path == "/" or path.startswith("/jobs") %} aria-current="page"{% endif %}>Bake</a>
       <a href="/history"{% if path.startswith("/history") %} aria-current="page"{% endif %}>History</a>
       <a href="/settings"{% if path.startswith("/settings") %} aria-current="page"{% endif %}>Settings</a>
-    </nav>
+    </nav>{% endif %}
+    {% if request.state.auth_on and not bare %}<form method="post" action="/logout" class="inline"><button class="ghost">Log out</button></form>{% endif %}
     <button type="button" class="ghost icon theme-toggle" id="theme-toggle" aria-label="Switch between light and dark theme">
       <svg class="sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.2" fill="currentColor"/><path d="M8 .8v2M8 13.200v2M.8 8h2M13.200 8h2M2.900 2.900l1.400 1.400M11.700 11.700l1.400 1.400M2.900 13.100l1.400-1.400M11.700 4.300l1.400-1.400" stroke="currentColor" stroke-width="1.500" fill="none"/></svg>
       <svg class="moon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.800 10.300A6.200 6.200 0 0 1 5.700 2.200a6.200 6.200 0 1 0 8.100 8.100Z" fill="currentColor"/></svg>

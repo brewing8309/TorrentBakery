@@ -18,7 +18,7 @@ gh release download v0.1.0 -R brewing8309/TorrentBakery     # the repo is privat
 tar xzf torrentbakery-0.1.0.tar.gz
 cd torrentbakery-0.1.0 && ./install.sh                       # another port: PORT=9000 ./install.sh
 ```
-Then open `http://<host>:8080/` and set up trackers, Stash and media roots under **Settings**. The UI has no login; it listens on all interfaces by default (`TB_HOST=127.0.0.1` in `/etc/default/torrentbakery` restricts it).
+Then open `http://<host>:8080/` and set up trackers, Stash and media roots under **Settings**. The UI has no login unless you turn it on (see *Login and two-factor authentication*); it listens on all interfaces by default (`TB_HOST=127.0.0.1` in `/etc/default/torrentbakery` restricts it).
 - **Mounted shares** must be readable by the user `torrentbakery`; add them as media roots (or let Stash scenes map via path mappings).
 - **Data:** `/var/lib/torrentbakery` (`config.toml` with the API keys, `out/` with the baked releases). Another output folder needs a systemd drop-in with `ReadWritePaths=`.
 - **CLI:** `tb …` runs as the service user with the same settings, e.g. `tb bake stash:1234 -t main`.
@@ -53,7 +53,17 @@ For `stash:<id>`, a stash-box link on the scene is used if Stash holds its key: 
 .venv/bin/pip install -e '.[web]'
 .venv/bin/tb serve --host 0.0.0.0 --port 8080 --out /srv/torrentbakery/out
 ```
-The interface is in English. Pages: **Bake** (search Stash, enter a scene ID or pick a file/folder with the **Browse…** pop-up, pick tracker profile and image host, live progress, post preview with copy button, downloads for the ZIP, torrent and each image) **History** (every bake, newest first, kept across restarts in `<out>/history.jsonl`, each entry reopens its result page) and **Settings** (tracker profiles, animated-cover defaults, Stash URL/key and path mappings, stash-box keys, image-host options, media roots). The UI has no login: keep it on a trusted network. API keys are never shown again after saving. Plain files and folders can only be baked from (and browsed inside) the folders listed as media roots; Stash scenes need none. A folder becomes one torrent of the whole folder; its largest video provides the screenshots and the cover.
+The interface is in English. Pages: **Bake** (search Stash, enter a scene ID or pick a file/folder with the **Browse…** pop-up, pick tracker profile and image host, live progress, post preview with copy button, downloads for the ZIP, torrent and each image) **History** (every bake, newest first, kept across restarts in `<out>/history.jsonl`, each entry reopens its result page) and **Settings** (tracker profiles, animated-cover defaults, Stash URL/key and path mappings, stash-box keys, image-host options, media roots). Without the optional login keep it on a trusted network. API keys are never shown again after saving. Plain files and folders can only be baked from (and browsed inside) the folders listed as media roots; Stash scenes need none. A folder becomes one torrent of the whole folder; its largest video provides the screenshots and the cover.
+
+## Login and two-factor authentication
+Optional, off by default. Turn it on under **Settings → Login & 2FA** (user name and a password of at least 12 characters), then add a TOTP second factor: the page shows a setup key for any authenticator app (Aegis, 2FAS, Google Authenticator, a password manager …), you confirm with a code and get ten one-time recovery codes, shown once.
+
+- Passwords are stored only as a salted scrypt hash (64 MiB, in `config.toml`, mode 0600); the TOTP key and the SHA-256 of the unused recovery codes are stored there too. Nothing secret is ever rendered again.
+- Sessions are random tokens kept in the server's memory (cookie: `HttpOnly`, `SameSite=Strict`, `Secure` on https): at most 12 hours, 2 hours idle, ended by *Log out*, by a password change and by a service restart. A code works once (replay protection). Between password and code the browser holds only a 5-minute pending token that grants nothing; three wrong codes end it.
+- Failed logins are limited per address (the delay doubles after the third failure) and in total (20 per 15 minutes). A guesser cannot run through codes, but a flood of failures also blocks you for a while. Changing credentials, turning 2FA or the login off ask for the current password (and a fresh code).
+- Cross-site POSTs are refused, responses carry `X-Frame-Options: DENY` and `no-store`.
+- The login protects a plain-http connection only against guessing, not against someone who can read your network traffic: put it behind https (reverse proxy) when it leaves a trusted network.
+- Locked out? On the server: `tb auth disable` (login and 2FA off), `tb auth set-password USER` (new password), `tb auth status`. Restart the service afterwards if the old password may be known.
 
 ## Image hosts
 ```

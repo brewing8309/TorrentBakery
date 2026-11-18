@@ -24,7 +24,9 @@ from ..render.post import release_tags
 from ..sources.gql import gql
 from ..tags import TagMap, load_user_map, save_user_map
 from ..trackers import SITES, UNIT3D_SITES, TrackerError, get_publisher
+from . import auth as auth_mod
 from .jobs import JobManager
+from .login import install as install_login
 
 SEARCH_QUERY = """
 query Search($q: String!) {
@@ -47,6 +49,8 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     templates.env.filters["urlhost"] = lambda u: urlparse(u).netloc or u
     jobs = manager or JobManager(out_root, config_path)
     cfg = lambda: config_mod.load(config_path)  # noqa: E731 - re-read per request so settings edits apply at once
+
+    login_state = install_login(app, templates, config_path)
 
     tags_file = lambda: (config_path or config_mod.CONFIG_PATH).with_name("tags.toml")  # noqa: E731 - sits next to the config
 
@@ -297,12 +301,16 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     def settings(request: Request):
         c = cfg()
         um = load_user_map(tags_file())
+        flash, login_state.flash = login_state.flash, None
+        setup = login_state.setup_secret()
         return templates.TemplateResponse(request, "settings.html", {"c": c, "hosts": HOST_NAMES, "host_keys": {h: bool(c.hosts.get(h, {}).get("api_key")) for h in API_KEY_HOSTS}, "sites": SITES,
                                                                     # what the Edit button puts into the form: everything except the secrets (announce URL with passkey, cookie)
                                                                     "tracker_data": {n: {"source": t.source, "private": t.private, "site": t.site, "base_url": t.base_url, "category": t.category, "anonymous": t.anonymous,
                                                                                          "auto_publish": t.auto_publish, "title_template": t.title_template} for n, t in c.trackers.items()},
                                                                     "qbit_password": bool(c.qbit.password), "cookies": {n: bool(t.cookie) for n, t in c.trackers.items()},
-                                                                    "tag_default": um.get("tags", {}), "tag_tracker": um.get("tracker", {}), "tag_ignored": um.get("ignored", [])})
+                                                                    "tag_default": um.get("tags", {}), "tag_tracker": um.get("tracker", {}), "tag_ignored": um.get("ignored", []),
+                                                                    "auth_flash": flash, "setup_secret": setup and auth_mod.group(setup), "setup_uri": setup and auth_mod.totp_uri(setup, c.auth.username),
+                                                                    "recovery_left": len(c.auth.recovery), "min_password": auth_mod.MIN_PASSWORD})
 
     @app.post("/settings/tracker")
     def tracker_add(name: str = Form(...), announce: str = Form(""), source: str = Form(""), private: str = Form(""), site: str = Form(""), base_url: str = Form(""),
@@ -458,13 +466,27 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         return save(c)
 
     @app.post("/settings/qbit")
-    def qbit_set(url: str = Form(""), username: str = Form(""), password: str = Form(""), category: str = Form(""), start: str = Form(""), path_map: str = Form("")):
+    def qbit_set(url: str = Form(""), username: str = Form(""), password: str = Form(""), category: str = Form(""), start: str = Form(""), path_map: str | None = Form(None)):
         c = cfg()
         q = c.qbit
         q.url, q.username, q.category, q.start = url.strip().rstrip("/"), username.strip(), category.strip(), bool(start)
         if password:  # never shown again, so blank means keep
             q.password = password
-        q.path_map = [tuple(x.strip() for x in line.split("=", 1)) for line in path_map.splitlines() if "=" in line]  # type: ignore[misc]
+        if path_map is not None:  # the settings page edits the table separately; the old textarea form still works
+            q.path_map = [tuple(x.strip() for x in line.split("=", 1)) for line in path_map.splitlines() if "=" in line]  # type: ignore[misc]
+        return save(c)
+
+    @app.post("/settings/qbit/map")
+    def qbit_map_add(local_path: str = Form(...), qbit_path: str = Form(...)):
+        c = cfg()
+        c.qbit.path_map.append((local_path.strip(), qbit_path.strip()))
+        return save(c)
+
+    @app.post("/settings/qbit/map/{i}/delete")
+    def qbit_map_delete(i: int):
+        c = cfg()
+        if 0 <= i < len(c.qbit.path_map):
+            c.qbit.path_map.pop(i)
         return save(c)
 
     @app.post("/settings/qbit/test")

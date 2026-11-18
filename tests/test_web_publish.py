@@ -50,6 +50,12 @@ def test_secrets_never_rendered_and_blank_keeps(tmp_path):
     c.post("/settings/qbit", data={"url": "http://qb2/", "username": "u", "password": "", "start": "1", "path_map": "/a=/b\nnonsense"})
     q = config_mod.load(cfg_path).qbit
     assert q.password == "QBITPASS" and q.url == "http://qb2" and q.path_map == [("/a", "/b")]
+    c.post("/settings/qbit/map", data={"local_path": " /x ", "qbit_path": "/y"})
+    c.post("/settings/qbit", data={"url": "http://qb2/", "start": "1"})  # saving the connection keeps the table
+    assert config_mod.load(cfg_path).qbit.path_map == [("/a", "/b"), ("/x", "/y")]
+    assert "<code>/x</code> → <code>/y</code>" in c.get("/settings").text
+    c.post("/settings/qbit/map/0/delete")
+    assert config_mod.load(cfg_path).qbit.path_map == [("/x", "/y")]
 
 
 def test_tracker_test_and_fetch_announce(tmp_path):
