@@ -118,17 +118,18 @@ def test_publish_without_announce_uses_the_tracker_torrent(baked):  # noqa: F811
     assert prepare(cfg, baked, "bp", tagmap=TagMap.load(baked / "none.toml"), build_torrent=False).torrent.name == "Scene.tracker.bp.torrent"
 
 
-# ---- cover and banner through the web form ----
-EDIT_PAGE = """<html><body><form method="POST" action="https://bp.example/torrents/777" enctype="multipart/form-data">
+# ---- cover and banner through the web form (bitporn: hidden cover_url / banner_url, description in a Livewire snapshot) ----
+SNAPSHOT = '{&quot;data&quot;:{&quot;label&quot;:&quot;Description&quot;,&quot;name&quot;:&quot;description&quot;,&quot;contentBbcode&quot;:&quot;[b]post[/b]\\n\\nline &amp; two&quot;}}'
+EDIT_PAGE = f"""<html><body><form method="POST" action="https://bp.example/torrents/777">
 <input type="hidden" name="_token" value="CSRF1"><input type="hidden" name="_method" value="PATCH">
-<input type="file" id="torrent-cover" name="torrent-cover"><input type="file" id="torrent-banner" name="torrent-banner">
+<input type="hidden" name="cover_url" id="hidden-cover-url" value=""><input type="hidden" name="banner_url" id="hidden-banner-url" value="">
 <input type="text" name="name" value="Title &amp; more"><select name="category_id"><option value="4" selected>Amateur</option><option value="5">Anal</option></select>
-<textarea name="description">
-[b]post[/b]</textarea>
+<div wire:snapshot="{SNAPSHOT}"></div><textarea id="bbcode-description" name="description" required></textarea>
+<textarea name="bdinfo"></textarea>
 <input type="hidden" name="anon" value="0"><input type="checkbox" name="anon" value="1" checked>
 <input type="hidden" name="internal" value="0"><input type="checkbox" name="internal" value="1">
 </form></body></html>"""
-SESSION = "laravel_session=WEBSESSION"
+SESSION = "bitporn_session=WEBSESSION"
 
 
 def web_tracker(**kw):
@@ -151,45 +152,44 @@ def web_transport(posts, edit=EDIT_PAGE, post_response=None):
     return httpx.MockTransport(h)
 
 
-def images(tmp_path):
-    a, b = tmp_path / "poster.jpg", tmp_path / "banner.jpg"
-    a.write_bytes(b"\xff\xd8poster")
-    b.write_bytes(b"\xff\xd8banner")
-    return a, b
-
-
-def test_set_artwork_posts_the_edit_form_with_both_images(tmp_path):
+def test_set_artwork_patches_the_form_with_both_urls_and_the_post(tmp_path):
     posts = []
     p = get_publisher("bp", Config(trackers={"bp": web_tracker()}), web_transport(posts))
-    p.set_artwork("777", *images(tmp_path))
-    body = posts[0].content
-    for needle in (b'name="_token"\r\n\r\nCSRF1', b'name="_method"\r\n\r\nPATCH', b'name="name"\r\n\r\nTitle & more', b'name="category_id"\r\n\r\n4',
-                   b'name="description"\r\n\r\n[b]post[/b]', b'name="torrent-cover"; filename="poster.jpg"', b'name="torrent-banner"; filename="banner.jpg"',
-                   b'name="anon"\r\n\r\n1', b'name="internal"\r\n\r\n0'):
-        assert needle in body, needle
-    assert body.count(b'name="anon"') == 1  # the checked box replaced its hidden 0
+    p.set_artwork("777", "https://imghost.dev/c.jpg", "https://imghost.dev/b.jpg")
+    body = posts[0].content.decode()
+    form = dict(__import__("urllib.parse", fromlist=["parse_qsl"]).parse_qsl(body))
+    assert form["_token"] == "CSRF1" and form["_method"] == "PATCH" and form["name"] == "Title & more" and form["category_id"] == "4"
+    assert form["cover_url"] == "https://imghost.dev/c.jpg" and form["banner_url"] == "https://imghost.dev/b.jpg"
+    assert form["description"] == "[b]post[/b]\n\nline & two"  # taken from the snapshot, the textarea is empty in the HTML
+    assert form["anon"] == "1" and form["internal"] == "0"  # the checked box replaced its hidden 0
+
+
+def test_artwork_never_sends_an_empty_description(tmp_path):
+    posts = []
+    no_snapshot = EDIT_PAGE.replace("wire:snapshot", "data-x")
+    with pytest.raises(TrackerError, match="erase the description"):
+        get_publisher("bp", Config(trackers={"bp": web_tracker()}), web_transport(posts, edit=no_snapshot)).set_artwork("777", "u1", "u2")
+    assert posts == []
 
 
 def test_artwork_errors_are_explained(tmp_path):
-    ims = images(tmp_path)
     with pytest.raises(TrackerError, match="no web session cookie"):
-        get_publisher("bp", Config(trackers={"bp": tracker()}), web_transport([])).set_artwork("777", *ims)
+        get_publisher("bp", Config(trackers={"bp": tracker()}), web_transport([])).set_artwork("777", "u1", "u2")
     expired = httpx.MockTransport(lambda r: httpx.Response(302, headers={"location": "https://bp.example/login"}))
     with pytest.raises(LoginError, match="web session cookie is expired"):
-        get_publisher("bp", Config(trackers={"bp": web_tracker()}), expired).set_artwork("777", *ims)
+        get_publisher("bp", Config(trackers={"bp": web_tracker()}), expired).set_artwork("777", "u1", "u2")
     with pytest.raises(TrackerError, match="no cover field"):
-        get_publisher("bp", Config(trackers={"bp": web_tracker()}), web_transport([], edit="<html>forbidden</html>")).set_artwork("777", *ims)
+        get_publisher("bp", Config(trackers={"bp": web_tracker()}), web_transport([], edit="<html>forbidden</html>")).set_artwork("777", "u1", "u2")
     back = httpx.Response(302, headers={"location": "https://bp.example/torrents/777/edit"})
-
     gets = []
 
     def h(r):
         if r.method == "POST":
             return back
         gets.append(1)  # the first page is the clean form, the one shown after the bounce carries the error
-        return httpx.Response(200, text=EDIT_PAGE if len(gets) == 1 else EDIT_PAGE + '<div class="alert">The torrent-cover must be an image.</div>')
-    with pytest.raises(TrackerError, match="rejected: The torrent-cover must be an image"):
-        get_publisher("bp", Config(trackers={"bp": web_tracker()}), httpx.MockTransport(h)).set_artwork("777", *ims)
+        return httpx.Response(200, text=EDIT_PAGE if len(gets) == 1 else EDIT_PAGE + '<div class="alert">The cover url must be a valid URL.</div>')
+    with pytest.raises(TrackerError, match="rejected: The cover url must be a valid URL"):
+        get_publisher("bp", Config(trackers={"bp": web_tracker()}), httpx.MockTransport(h)).set_artwork("777", "u1", "u2")
 
 
 def test_login_test_reports_the_web_session():
@@ -227,19 +227,34 @@ def test_artwork_is_cut_from_the_promo_image_or_a_frame(tmp_path):
 
 def test_publish_sets_artwork_and_reports_failures_without_failing(baked, monkeypatch):  # noqa: F811
     import torrentbakery.publish as pm
-    calls = []
-    monkeypatch.setattr(pm, "make_artwork", lambda cfg, out, meta, transport=None: (calls.append(1), images(out.parent))[1])
+    from torrentbakery.hosts.base import Uploaded
+    uploaded = []
+
+    class Host:
+        def upload(self, path, nsfw=True):
+            uploaded.append((path.name, nsfw))
+            return Uploaded(f"https://imghost.dev/{path.name}", "", "")
+    monkeypatch.setattr(pm, "make_artwork", lambda cfg, out, meta, transport=None: (out / "poster.jpg", out / "banner.jpg"))
+    monkeypatch.setattr(pm, "get_uploader", lambda name, cfg, transport=None: Host())
+    posts = []
 
     def t(r):
-        if r.method == "POST" and r.url.path.startswith("/torrents/"):
-            return httpx.Response(302, headers={"location": "https://bp.example/torrents/777"})
-        if r.url.path.endswith("/edit"):
-            return httpx.Response(200, text=EDIT_PAGE)
-        return transport([]).handler(r) if r.url.path.startswith(("/api", "/torrent/")) else httpx.Response(200, text="x")
+        if r.url.path.startswith("/api") or r.url.path.startswith("/torrent/"):
+            return transport([]).handler(r)
+        return web_transport(posts).handler(r)
+    meta = json.loads((baked / "release.json").read_text())
+    meta["image_host"] = "imghost.dev"
+    (baked / "release.json").write_text(json.dumps(meta))
     cfg = Config(trackers={"bp": web_tracker()})
-    out = publish(cfg, baked, "bp", transport=httpx.MockTransport(lambda r: t(r)), tagmap=TagMap.load(baked / "none.toml"))
-    assert out["artwork"] == {"ok": True, "message": "cover and banner set"} and calls
+    out = publish(cfg, baked, "bp", transport=httpx.MockTransport(t), tagmap=TagMap.load(baked / "none.toml"))
+    assert out["artwork"]["ok"] and out["artwork"]["cover_url"] == "https://imghost.dev/poster.jpg" and out["artwork"]["banner_url"] == "https://imghost.dev/banner.jpg"
+    assert uploaded == [("poster.jpg", True), ("banner.jpg", True)] and b"cover_url=https%3A%2F%2Fimghost.dev%2Fposter.jpg" in posts[0].content
     assert json.loads((baked / "publish.json").read_text())["bp"]["artwork"]["ok"]
     # without the cookie the upload still succeeds and says what is missing
     out = publish(Config(trackers={"bp": tracker()}), baked, "bp", transport=transport([]), tagmap=TagMap.load(baked / "none.toml"))
     assert out["torrent_id"] == "777" and not out["artwork"]["ok"] and "no web session cookie" in out["artwork"]["message"]
+    # and without an image host there is nothing to link
+    meta.pop("image_host")
+    (baked / "release.json").write_text(json.dumps(meta))
+    out = publish(cfg, baked, "bp", transport=httpx.MockTransport(t), tagmap=TagMap.load(baked / "none.toml"))
+    assert not out["artwork"]["ok"] and "no image-host upload" in out["artwork"]["message"]

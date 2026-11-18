@@ -4,9 +4,10 @@ The tracker rewrites the uploaded torrent (own announce with your passkey, priva
 seed is the one `download_torrent` fetches afterwards."""
 from __future__ import annotations
 
+import html as htmllib
+import json
 import re
 import time
-from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -119,21 +120,27 @@ class Unit3dPublisher:
             raise TrackerError(f"{self.name}: {urlparse(url).path or '/'} answered HTTP {r.status_code}")
         return r, url
 
-    def set_artwork(self, torrent_id: str, poster: Path, banner: Path) -> None:
-        """Opens the torrent's edit form with the web session, keeps everything it holds and adds the two images (the owner may edit for a day after uploading)."""
+    def set_artwork(self, torrent_id: str, cover_url: str, banner_url: str) -> None:
+        """Opens the torrent's edit form with the web session, keeps everything it holds and sets its two list images. bitporn's form takes
+        them as URLs (hidden cover_url / banner_url, which its "Set as Cover" buttons fill); the owner may edit for a day after uploading."""
         if not self.tracker.session_cookie:
             raise TrackerError(f"{self.name}: no web session cookie saved (Settings → tracker profile → Web session cookie)")
         page, url = self._web_get(f"torrents/{torrent_id}/edit")
         p = _FormParser()
         p.feed(page.text)
-        form = next((f for f in p.forms if any(c["name"] == "torrent-cover" for c in f["controls"])), None)
+        form = next((f for f in p.forms if any(c["name"] == "cover_url" for c in f["controls"])), None)
         if form is None:
             raise TrackerError(f"{self.name}: the edit page has no cover field (not your torrent, or the one-day edit window is over)")
         data = form_values(form)
-        files = {"torrent-cover": (poster.name, poster.read_bytes(), "image/jpeg"), "torrent-banner": (banner.name, banner.read_bytes(), "image/jpeg")}
+        for name, text in livewire_texts(page.text).items():  # the BBCode editors are filled in the browser; the page carries their text in a snapshot
+            if not data.get(name):
+                data[name] = text
+        if not data.get("description"):
+            raise TrackerError(f"{self.name}: could not read the post from the edit page; not sending (it would erase the description)")
+        data["cover_url"], data["banner_url"] = cover_url, banner_url
         action = urljoin(url, form["action"] or f"/torrents/{torrent_id}")
         with self._web() as c:
-            r = c.post(action, data=data, files=files)
+            r = c.post(action, data=data)
             if r.is_redirect:
                 loc = urljoin(action, r.headers["location"])
                 if "login" in urlparse(loc).path:
@@ -212,6 +219,19 @@ def _error_text(j) -> str:
     if isinstance(detail, dict):  # field -> [messages]
         detail = "; ".join(f"{k}: {' '.join(v) if isinstance(v, list) else v}" for k, v in detail.items())
     return " ".join(f"{j.get('message', '')} {detail or ''}".split())[:300]
+
+
+def livewire_texts(html: str) -> dict[str, str]:
+    """name -> BBCode of the Livewire editors on the page (their textareas are empty in the HTML)."""
+    out: dict[str, str] = {}
+    for m in re.finditer(r'wire:snapshot="([^"]*)"', html):
+        try:
+            d = json.loads(htmllib.unescape(m.group(1))).get("data", {})
+        except ValueError:
+            continue
+        if isinstance(d, dict) and d.get("name") and isinstance(d.get("contentBbcode"), str):
+            out[d["name"]] = d["contentBbcode"]
+    return out
 
 
 def form_values(form: dict) -> dict[str, str]:

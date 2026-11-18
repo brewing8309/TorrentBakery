@@ -85,8 +85,8 @@
       <input type="password" id="t-cookie" name="cookie" autocomplete="off" placeholder="session=…; other=…">
       <p class="help">In your browser, logged in to the tracker: developer tools → Application/Storage → Cookies; copy the cookies as <code>name=value; name2=value2</code>. It is saved in the config file (readable only by the service user) and never shown again. When it expires, "Test login" says so; paste a fresh one. <b>UNIT3D sites (bitporn):</b> no cookie, paste your API token instead (account settings → Security → API token); it does not expire.</p>
       <label for="t-session">Web session cookie <span class="badge">UNIT3D only, optional</span></label>
-      <input type="password" id="t-session" name="session_cookie" autocomplete="off" placeholder="laravel_session=…; remember_web_…=…">
-      <p class="help">UNIT3D's API cannot set the list cover and banner of a torrent, only its web form can. With the cookies of your logged-in browser session (developer tools → Application/Storage → Cookies) TorrentBakery sets both right after the upload, cut from the release's promo image. Without it uploads still work, the list just shows no cover. Saved like the token and never shown again; when it expires, "Test login" says so.</p>
+      <input type="password" id="t-session" name="session_cookie" autocomplete="off" placeholder="bitporn_session=…">
+      <p class="help">UNIT3D's API cannot set the list cover and banner of a torrent, only its web form can. With the cookies of your logged-in browser session (developer tools → Application/Storage → Cookies) TorrentBakery sets both right after the upload: it cuts them from the release's promo image, uploads them to the bake's image host and enters the URLs in the torrent's edit form. Without it uploads still work, the list just shows no cover. Saved like the token and never shown again; when it expires, "Test login" says so.</p>
       <div class="row">
         <div><label for="t-cat">Default category</label>
           <select id="t-cat" name="category"><option value="">(none: pick one for each upload)</option></select>

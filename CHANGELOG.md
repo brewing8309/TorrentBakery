@@ -10,5 +10,6 @@
 - Publish to UNIT3D trackers through their upload API (bitporn.eu): API token instead of a cookie, no announce URL needed.
 - Review step between bake and upload in the web UI: category dropdowns with names everywhere, editable post, no upload without a chosen category.
 - Image host imghost.dev (bitporn's own host) and a warning in the review step when a tracker cannot display the bake's image host.
-- UNIT3D list cover and banner set through the web form with a browser session cookie (the API cannot), retry button on the result page.
+- UNIT3D (bitporn) list cover and banner set through the edit form with a browser session cookie (the API cannot): poster and banner are cut, hosted on the bake's image host and entered as URLs; retry button on the result page.
+- `tb` wrapper sets TB_CONFIG/TB_OUT like the service, so the CLI sees the saved profiles.
 - Installable from a release tarball (`install.sh`, systemd service, `uninstall.sh`).

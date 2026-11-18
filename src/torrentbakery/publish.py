@@ -13,6 +13,7 @@ from torf import Torrent
 
 from .clients import QbitError, QBittorrent, map_save_path
 from .config import Config, Tracker
+from .hosts import get_uploader
 from .media.artwork import make_artwork
 from .media.torrent import make_torrent
 from .models import credited_performers
@@ -146,17 +147,25 @@ def _seed(cfg: Config, out_dir: Path, name: str, torrent_id: str, local: Path, m
 
 
 def _artwork(cfg: Config, out_dir: Path, name: str, torrent_id: str, meta: dict, pub, transport, step) -> dict | None:
-    """The list cover and banner of a UNIT3D torrent, set through the web form. The upload is public by now, so a failure is reported, not raised."""
+    """The list cover and banner of a UNIT3D torrent. Their edit form takes image URLs, so poster and banner are cut from the promo image,
+    uploaded to the bake's image host and entered through the web form. The upload is public by now, so a failure is reported, not raised."""
     if not hasattr(pub, "set_artwork"):
         return None
     if not cfg.trackers[name].session_cookie:
         return {"ok": False, "message": "skipped: no web session cookie saved, so the list shows no cover and banner"}
+    host = meta.get("image_host")
+    if not host:
+        return {"ok": False, "message": "skipped: this bake has no image-host upload, so there are no URLs for cover and banner"}
     try:
-        step("Setting cover and banner")
+        step("Cutting cover and banner")
         poster, banner = make_artwork(cfg, out_dir, meta, transport)
-        pub.set_artwork(torrent_id, poster, banner)
-        return {"ok": True, "message": "cover and banner set"}
-    except (TrackerError, httpx.HTTPError, OSError, ValueError) as e:
+        step("Uploading cover and banner to " + host)
+        up = get_uploader(host, cfg)
+        cover_url, banner_url = up.upload(poster, nsfw=True).direct_url, up.upload(banner, nsfw=True).direct_url
+        step("Setting cover and banner")
+        pub.set_artwork(torrent_id, cover_url, banner_url)
+        return {"ok": True, "message": "cover and banner set", "cover_url": cover_url, "banner_url": banner_url}
+    except (TrackerError, httpx.HTTPError, OSError, ValueError, KeyError) as e:
         return {"ok": False, "message": f"cover and banner not set: {e}"}
 
 

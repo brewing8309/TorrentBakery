@@ -1,5 +1,7 @@
 #!/bin/sh
 # CLI wrapper: same settings and user as the service, so config.toml stays readable for both.
+# the service gets these from its systemd unit; the CLI needs the same ones to see the saved profiles
+export TB_CONFIG="${TB_CONFIG:-/var/lib/torrentbakery/config.toml}" TB_OUT="${TB_OUT:-/var/lib/torrentbakery/out}"
 [ -r /etc/default/torrentbakery ] && { set -a; . /etc/default/torrentbakery; set +a; }
 if [ "$(id -u)" = 0 ]; then
     exec runuser -u torrentbakery -- /opt/torrentbakery/venv/bin/tb "$@"
