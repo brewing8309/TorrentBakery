@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
@@ -10,6 +11,7 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .. import config as config_mod
@@ -36,6 +38,10 @@ query Search($q: String!) {
 def create_app(out_root: Path = Path("out"), config_path: Path | None = None, manager: JobManager | None = None, transport: httpx.BaseTransport | None = None, qbit_transport: httpx.BaseTransport | None = None) -> FastAPI:
     app = FastAPI(title="TorrentBakery")
     templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+    static_dir = Path(__file__).parent / "static"
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    # stylesheet links carry a content hash, so an update never leaves a browser on the old design
+    templates.env.globals["asset_v"] = hashlib.sha256(b"".join(p.read_bytes() for p in sorted(static_dir.glob("css/*.css")))).hexdigest()[:10]
     # announce URLs carry the tracker passkey: the pages only ever show the host
     templates.env.filters["datetime"] = lambda ts: time.strftime("%Y-%m-%d %H:%M", time.localtime(ts)) if ts else ""
     templates.env.filters["urlhost"] = lambda u: urlparse(u).netloc or u

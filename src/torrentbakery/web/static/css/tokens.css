@@ -1,0 +1,151 @@
+/* TorrentBakery design tokens ("Ofenblech"). Components in app.css only use the variables defined here. */
+
+@font-face { font-family: "Big Shoulders Display"; src: url("../fonts/big-shoulders-display-latin.woff2") format("woff2"); font-weight: 100 900; font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Big Shoulders Display"; src: url("../fonts/big-shoulders-display-latin-ext.woff2") format("woff2"); font-weight: 100 900; font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Atkinson Hyperlegible Next"; src: url("../fonts/atkinson-next-latin.woff2") format("woff2"); font-weight: 200 800; font-style: normal; font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Atkinson Hyperlegible Next"; src: url("../fonts/atkinson-next-latin-ext.woff2") format("woff2"); font-weight: 200 800; font-style: normal; font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Atkinson Hyperlegible Next"; src: url("../fonts/atkinson-next-italic-latin.woff2") format("woff2"); font-weight: 200 800; font-style: italic; font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+20AC, U+2122, U+FEFF, U+FFFD; }
+@font-face { font-family: "Atkinson Hyperlegible Mono"; src: url("../fonts/atkinson-mono-latin.woff2") format("woff2"); font-weight: 200 800; font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Atkinson Hyperlegible Mono"; src: url("../fonts/atkinson-mono-latin-ext.woff2") format("woff2"); font-weight: 200 800; font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+:root {
+  /* brand */
+  --yolk: #F5B301;
+  --ink: #15181B;
+  --flour: #F3F4F1;
+
+  /* type */
+  --font-display: "Big Shoulders Display", "Arial Narrow", "Liberation Sans Narrow", sans-serif;
+  --font-text: "Atkinson Hyperlegible Next", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Atkinson Hyperlegible Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --text-xs: .75rem;
+  --text-sm: .875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.625rem;
+  --text-2xl: clamp(1.875rem, 1.5rem + 1.6vw, 2.5rem);
+  --text-3xl: clamp(2.5rem, 1.9rem + 2.8vw, 4rem);
+  --leading-tight: 1.05;
+  --leading-body: 1.55;
+  --measure: 68ch;
+
+  /* spacing: 4px rhythm */
+  --sp-1: .25rem;
+  --sp-2: .5rem;
+  --sp-3: .75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-7: 3rem;
+  --sp-8: 4rem;
+
+  /* shape: the tin loaf, domed on top and tight at the base */
+  --radius-loaf: .75rem .75rem .1875rem .1875rem;
+  --radius-loaf-sm: .5rem .5rem .125rem .125rem;
+  --radius-tin: .1875rem;
+
+  /* lines */
+  --line-thin: 1px;
+  --line-field: 1.5px;
+  --line-heavy: 3px;
+
+  /* elevation: only floating layers get a shadow */
+  --shadow-float: 0 1.25rem 3rem rgb(10 12 14 / .35);
+
+  /* motion */
+  --dur-fast: 120ms;
+  --dur-med: 240ms;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+
+  /* layout */
+  --page-max: 76rem;
+  --gutter: var(--sp-4);
+
+  /* icons, used as masks */
+  --i-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2 8.5 6 12.5 14 3.5' fill='none' stroke='%23000' stroke-width='2.6'/%3E%3C/svg%3E");
+  --i-cross: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 3 13 13M13 3 3 13' fill='none' stroke='%23000' stroke-width='2.6'/%3E%3C/svg%3E");
+  --i-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2 4.5 8 9l6-4.5v3.2L8 12.2 2 7.700Z'/%3E%3C/svg%3E");
+  --i-folder: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1 3h5l1.500 2H15v8.500H1Z'/%3E%3C/svg%3E");
+  --i-film: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1 2h14v12H1ZM3 4v2h2V4Zm8 0v2h2V4ZM3 10v2h2v-2Zm8 0v2h2v-2ZM7 5v6l4-3Z'/%3E%3C/svg%3E");
+  --i-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2 11.500 8 7l6 4.500V8.300L8 3.800 2 8.300Z'/%3E%3C/svg%3E");
+
+  /* light theme */
+  color-scheme: light;
+  --bg: var(--flour);
+  --surface: #FBFBF9;
+  --sunken: #E6E8E3;
+  --text: var(--ink);
+  --muted: #4F585C;
+  --rule: #C6CBC5;
+  --rule-strong: var(--ink);
+  --field-line: #6E767A;
+  --accent: var(--yolk);
+  --accent-hover: #E0A200;
+  --on-accent: var(--ink);
+  --accent-edge: var(--ink);
+  --piece-done: var(--ink);
+  --piece-open: var(--rule);
+  --petrol: #0A6466;
+  --ember: #B3261A;
+  --ok: var(--petrol);
+  --err: var(--ember);
+  --warn: #7A5200;
+  --focus: var(--petrol);
+  --backdrop: rgb(21 24 27 / .55);
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%2315181B' d='M2 4.5 8 9l6-4.5v3.2L8 12.2 2 7.700Z'/%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111416;
+    --surface: #181C1F;
+    --sunken: #0C0F11;
+    --text: #ECEEEA;
+    --muted: #A4AEB1;
+    --rule: #30373B;
+    --rule-strong: #C9CFCF;
+    --field-line: #737D81;
+    --accent-hover: #FFC933;
+    --accent-edge: var(--yolk);
+    --piece-done: var(--yolk);
+    --petrol: #57C7BE;
+    --ember: #FF8A75;
+    --warn: var(--yolk);
+    --focus: var(--yolk);
+    --backdrop: rgb(4 5 6 / .7);
+    --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%23ECEEEA' d='M2 4.5 8 9l6-4.5v3.2L8 12.2 2 7.700Z'/%3E%3C/svg%3E");
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111416;
+  --surface: #181C1F;
+  --sunken: #0C0F11;
+  --text: #ECEEEA;
+  --muted: #A4AEB1;
+  --rule: #30373B;
+  --rule-strong: #C9CFCF;
+  --field-line: #737D81;
+  --accent-hover: #FFC933;
+  --accent-edge: var(--yolk);
+  --piece-done: var(--yolk);
+  --petrol: #57C7BE;
+  --ember: #FF8A75;
+  --warn: var(--yolk);
+  --focus: var(--yolk);
+  --backdrop: rgb(4 5 6 / .7);
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%23ECEEEA' d='M2 4.5 8 9l6-4.5v3.2L8 12.2 2 7.700Z'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur-med: 0ms; }
+}
