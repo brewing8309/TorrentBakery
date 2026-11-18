@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Log in · TorrentBakery{% endblock %}
+{% block body %}
+<div class="page-head">
+  <h1>Log in</h1>
+</div>
+<section class="sheet" style="max-width:26rem">
+  {% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}
+  {% if step == "password" %}
+  <form method="post" action="/login">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label for="l-user">User name</label>
+    <input type="text" id="l-user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+    <label for="l-pw">Password</label>
+    <input type="password" id="l-pw" name="password" autocomplete="current-password" required>
+    <p class="actions"><button>Log in</button></p>
+  </form>
+  {% else %}
+  <p class="lead">Enter the 6-digit code from your authenticator app. Lost the phone? A recovery code works here too.</p>
+  <form method="post" action="/login/code">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label for="l-code">Code</label>
+    <input type="text" id="l-code" name="code" inputmode="text" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" required autofocus>
+    <p class="actions"><button>Verify</button> <a href="/login">Start over</a></p>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

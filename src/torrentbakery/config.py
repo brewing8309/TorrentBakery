@@ -58,6 +58,24 @@ class StashBoxCfg:
 
 
 @dataclass
+class AuthCfg:
+    """Optional web login. Enabled as soon as a password hash is set; sessions live in memory only (see web/auth.py)."""
+    username: str = ""
+    password_hash: str = ""  # scrypt, self-describing ("scrypt$n$r$p$salt$hash"), never the password
+    totp_secret: str = ""  # base32; a secret
+    totp_last_step: int = 0  # last accepted 30-second step: a code works once
+    recovery: list[str] = field(default_factory=list)  # SHA-256 of the unused one-time recovery codes
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.password_hash)
+
+    @property
+    def totp(self) -> bool:
+        return bool(self.totp_secret)
+
+
+@dataclass
 class Config:
     sheet_cols: int = 5
     sheet_rows: int = 7
@@ -77,6 +95,7 @@ class Config:
     hosts: dict[str, dict[str, str]] = field(default_factory=dict)  # image host options, e.g. hamsterimg api_key
     # (stash path prefix, local path prefix): maps paths Stash reports to where the share is mounted here
     path_map: list[tuple[str, str]] = field(default_factory=list)
+    auth: AuthCfg = field(default_factory=AuthCfg)
 
 
 def load(path: Path | None = None) -> Config:
@@ -120,6 +139,8 @@ def load(path: Path | None = None) -> Config:
     q = data.get("qbittorrent", {})
     cfg.qbit = QbitCfg(q.get("url", ""), q.get("username", ""), q.get("password", ""), q.get("category", ""), q.get("start", True),
                        [(m["from"], m["to"]) for m in q.get("path_map", [])])
+    a = data.get("auth", {})
+    cfg.auth = AuthCfg(a.get("username", ""), a.get("password_hash", ""), a.get("totp_secret", ""), int(a.get("totp_last_step", 0)), list(a.get("recovery", [])))
     for name, b in data.get("stashbox", {}).items():
         cfg.stashboxes[name] = StashBoxCfg(b["endpoint"], b.get("api_key", ""))
     return cfg
@@ -155,6 +176,9 @@ def save(cfg: Config, path: Path | None = None) -> None:
         "web": {"media_roots": cfg.web_media_roots},
         "path_map": [{"from": a, "to": b} for a, b in cfg.path_map],
     }
+    if cfg.auth.enabled:
+        data["auth"] = {"username": cfg.auth.username, "password_hash": cfg.auth.password_hash, "totp_secret": cfg.auth.totp_secret,
+                        "totp_last_step": cfg.auth.totp_last_step, "recovery": cfg.auth.recovery}
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)

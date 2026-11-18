@@ -142,11 +142,14 @@ summary::before { content: ""; flex: none; width: .75rem; height: .75rem; backgr
 details[open] > summary::before { transform: none; }
 
 /* ---- settings ---- */
-.toc { margin-bottom: var(--sp-6); border-top: var(--line-heavy) solid var(--rule-strong); padding-top: var(--sp-3); }
-ul.steps { list-style: none; margin: 0; padding: 0; }
-ul.steps li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--sp-2); padding: var(--sp-2) 0; border-bottom: var(--line-thin) solid var(--rule); font-size: var(--text-sm); }
-ul.steps .badge { margin-left: 1.3rem; flex-basis: auto; }
+.tabs { display: flex; gap: var(--sp-1); overflow-x: auto; margin: var(--sp-4) 0 var(--sp-2); border-bottom: var(--line-heavy) solid var(--rule-strong); scrollbar-width: thin; }
+.tabs a { flex: none; display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3) .3rem; border: var(--line-field) solid transparent; border-bottom: 0; border-radius: var(--radius-loaf); font: 700 1rem/1.15 var(--font-display); text-transform: uppercase; letter-spacing: .02em; text-decoration: none; white-space: nowrap; transition: background-color var(--dur-fast) var(--ease); }
+.tabs a:hover { background: var(--sunken); }
+.tabs a[aria-current="page"] { background: var(--accent); border-color: var(--accent-edge); color: var(--on-accent); }
+.tabs-note { margin: 0 0 var(--sp-4); }
+.tabs-on .sheet { border-top: 0; padding-top: var(--sp-2); }
 .mark { flex: none; display: inline-block; width: .8rem; height: .8rem; border: var(--line-field) solid var(--field-line); border-radius: var(--radius-loaf-sm); align-self: center; }
+.tabs a[aria-current="page"] .mark { border-color: var(--on-accent); }
 .mark.on { background: var(--accent); border-color: var(--accent-edge); }
 
 /* ---- dialog and file picker ---- */
@@ -193,11 +196,11 @@ button.scene-hit img { flex: none; display: block; border-radius: var(--radius-t
   .sheet--rail { display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: var(--sp-5); }
   .sheet--rail .sheet-head { margin: 0; }
   .sheet--rail .sheet-body > :first-child { margin-top: 0; }
-  .settings-layout { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: var(--sp-7); align-items: start; }
-  .toc { position: sticky; top: var(--sp-4); margin: 0; }
 }
 
 @media (min-width: 72rem) {
   .bake-layout.has-rail { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; gap: var(--sp-7); align-items: start; }
   .rail { position: sticky; top: var(--sp-4); margin-top: 0; }
 }
+
+.key { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .06em; user-select: all; overflow-wrap: anywhere; }
