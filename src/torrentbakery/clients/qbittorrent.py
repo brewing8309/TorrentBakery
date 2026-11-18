@@ -1,7 +1,10 @@
-"""qBittorrent WebAPI v2 client: add a torrent paused, let it recheck the existing files, then start seeding.
-Same sequence as stash-empornium's client."""
+"""qBittorrent WebAPI v2 client: add a torrent stopped, let it recheck the existing files, then start seeding.
+Same sequence as stash-empornium's client, but every step waits for qBittorrent to have done it: adding is asynchronous, qBittorrent 5
+puts a torrent that was stopped before a recheck back to "Completed" (stopped) once the check is over, and a torrent whose files it does
+not find at the save path must not be started (it would start downloading)."""
 from __future__ import annotations
 
+import time
 from contextlib import closing
 from pathlib import Path
 
@@ -51,18 +54,65 @@ class QBittorrent:
         with closing(self._client()) as c:
             return "qBittorrent " + c.get("app/version").text.strip()
 
-    def add(self, torrent: Path, infohash: str, save_path: str) -> None:
-        """Add paused into `save_path` (already mapped), recheck, and start when configured."""
+    # qBittorrent states (v4 says paused, v5 says stopped)
+    CHECKING = ("checkingUP", "checkingDL", "checkingResumeData", "allocating", "moving")
+    SEEDING = ("uploading", "stalledUP", "forcedUP", "queuedUP")
+
+    poll_seconds = 1.0  # tests make it tiny
+    check_timeout = 3600.0  # a big release takes a while to hash
+    settle_timeout = 30.0
+
+    def _info(self, c: httpx.Client, infohash: str) -> dict | None:
+        r = c.get("torrents/info", params={"hashes": infohash})
+        r.raise_for_status()
+        return next((t for t in r.json() if t.get("hash", "").lower() == infohash.lower()), None)
+
+    def _wait(self, c: httpx.Client, infohash: str, done, timeout: float) -> dict | None:
+        """Poll the torrent until done(torrent) holds; returns the last state seen (None if qBittorrent never listed it)."""
+        end, t = time.monotonic() + timeout, None
+        while True:
+            t = self._info(c, infohash) or t
+            if t is not None and done(t) or time.monotonic() >= end:
+                return t
+            time.sleep(self.poll_seconds)
+
+    def add(self, torrent: Path, infohash: str, save_path: str) -> str:
+        """Add stopped into `save_path` (already mapped), recheck, and start seeding when configured. Returns what became of it."""
         with closing(self._client()) as c:
             fields = {"savepath": save_path, "paused": "true", "stopped": "true", "autoTMM": "false"}  # `stopped` is the qBittorrent 5 name
             if self.cfg.category:
                 fields["category"] = self.cfg.category
-            r = c.post("torrents/add", data=fields, files={"torrents": (torrent.name, torrent.read_bytes(), "application/x-bittorrent")})
-            if r.status_code != 200 or r.text.strip().lower().startswith("fails"):
-                raise QbitError(f"qBittorrent refused the torrent (HTTP {r.status_code}: {r.text.strip()[:100]})")
+            if self._info(c, infohash) is None:  # already there (e.g. stuck stopped from an earlier try): go on from where it is, qBittorrent refuses duplicates
+                r = c.post("torrents/add", data=fields, files={"torrents": (torrent.name, torrent.read_bytes(), "application/x-bittorrent")})
+                if r.status_code != 200 or r.text.strip().lower().startswith("fails"):
+                    raise QbitError(f"qBittorrent refused the torrent (HTTP {r.status_code}: {r.text.strip()[:100]})")
+            if self._wait(c, infohash, lambda t: True, self.settle_timeout) is None:
+                raise QbitError("qBittorrent does not list the torrent after adding it")
             c.post("torrents/recheck", data={"hashes": infohash}).raise_for_status()
-            if self.cfg.start:
+            seen = [False]
+            began = time.monotonic()
+
+            def checked(t: dict) -> bool:  # the state needs a moment to turn into "checking"; don't mistake the old one for a finished check
+                seen[0] = seen[0] or t["state"] in self.CHECKING
+                return t["state"] not in self.CHECKING and (seen[0] or time.monotonic() - began > 5)
+            t = self._wait(c, infohash, checked, self.check_timeout)
+            if t is None:
+                raise QbitError("qBittorrent lost the torrent while checking it")
+            if t["state"] in self.CHECKING:
+                raise QbitError("qBittorrent is still checking the files (it keeps the torrent stopped); start it there when the check is done")
+            if t.get("progress", 0) < 1:
+                raise QbitError(f"qBittorrent finds only {t.get('progress', 0):.0%} of the files in {save_path}: the torrent was left stopped. "
+                                "Check the path mapping in the qBittorrent settings")
+            if not self.cfg.start:
+                return "added (stopped, files complete)"
+            for _ in range(4):  # start until it sticks: a start sent while qBittorrent was still busy can be undone
                 r = c.post("torrents/start", data={"hashes": infohash})
                 if r.status_code == 404:  # qBittorrent 4 calls it resume
                     r = c.post("torrents/resume", data={"hashes": infohash})
                 r.raise_for_status()
+                t = self._wait(c, infohash, lambda t: t["state"] in self.SEEDING or t["state"] in ("error", "missingFiles"), self.settle_timeout / 4)
+                if t["state"] in self.SEEDING:
+                    return f"seeding ({t['state']})"
+                if t["state"] in ("error", "missingFiles"):
+                    raise QbitError(f"qBittorrent reports {t['state']} for the torrent: check the path mapping and that the files are readable there")
+            raise QbitError(f"qBittorrent did not start the torrent (state: {t['state']}); start it there")

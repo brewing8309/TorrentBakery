@@ -65,7 +65,7 @@ tb tracker list | tb tracker remove main
 ```
 
 ## Publishing to a tracker
-A tracker profile with a site type (Gazelle: `empornium`, `happyfappy`, `femdomcult`, `enthralled`; UNIT3D: `bitporn`) and your session cookie (UNIT3D: API token) can upload a baked release for you. TorrentBakery does server-side what the [stash-empornium](https://github.com/bdbenim/stash-empornium) userscript does in the browser: it reads `upload.php`, fills the form (title, post, tags, cover, category, anonymity) and posts it with the torrent. Afterwards the torrent goes to qBittorrent, which rechecks the files and starts seeding.
+A tracker profile with a site type (Gazelle: `empornium`, `happyfappy`, `femdomcult`, `enthralled`; UNIT3D: `bitporn`) and your session cookie (UNIT3D: API token) can upload a baked release for you. TorrentBakery does server-side what the [stash-empornium](https://github.com/bdbenim/stash-empornium) userscript does in the browser: it reads `upload.php`, fills the form (title, post, tags, cover, category, anonymity) and posts it with the torrent. Afterwards the torrent goes to qBittorrent, which rechecks the files and starts seeding. TorrentBakery waits for each step and confirms the torrent really is seeding; if qBittorrent finds the files incomplete at the save path (wrong path mapping) it leaves the torrent stopped instead of letting it download, and says so. A torrent that is already in qBittorrent (stuck stopped) is picked up again by "Add to qBittorrent again".
 ```
 tb tracker add emp -s Emp                         # announce URL is optional for publishing profiles
 tb tracker set emp --site empornium --url https://www.empornium.sx --cookie 'session=…' --category Amateur   # name or id

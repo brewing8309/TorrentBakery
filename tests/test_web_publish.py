@@ -9,6 +9,7 @@ from torrentbakery.config import Config, QbitCfg, Tracker
 from torrentbakery.web.app import create_app
 from torrentbakery.web.jobs import JobManager
 
+from qbit_fake import FakeQbit
 from test_publish import UPLOAD_PAGE
 from test_web import wait_done
 
@@ -145,7 +146,7 @@ def test_seed_again_route(tmp_path):
     (d / "publish.json").write_text(json.dumps({"emp": {"torrent_id": "4711", "qbit": {"ok": False, "message": "old"}}}))
     mgr = JM(out_root, cfg_path, lambda *a, **k: d)
     tr = tp.transport(posts, download=served.read_bytes())
-    qb = httpx.MockTransport(lambda r: httpx.Response(200, text="v5"))  # no login needed
+    qb = FakeQbit().transport()  # no login needed
     c = TestClient(create_app(manager=mgr, config_path=cfg_path, transport=tr, qbit_transport=qb))
     jid = c.post("/jobs", data={"source": "1", "tracker": "emp"}, follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
     wait_done(c, jid)

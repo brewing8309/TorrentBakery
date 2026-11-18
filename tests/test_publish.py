@@ -4,6 +4,7 @@ import httpx
 import pytest
 from torf import Torrent
 
+from qbit_fake import FakeQbit
 from torrentbakery.clients import QBittorrent, QbitError, map_save_path
 from torrentbakery.config import Config, QbitCfg, Tracker
 from torrentbakery.publish import performer_tags, prepare, publish, render_title
@@ -172,22 +173,20 @@ def tracker_version(baked):
 
 
 def test_publish_end_to_end_with_qbit(baked):
-    posts, qbit, gets = [], [], []
+    posts, gets = [], []
     served, served_hash = tracker_version(baked)
 
-    def q(r):  # a qBittorrent that wants a login: everything but the login answers 403 until it set the session cookie
-        qbit.append((r.url.path, r.content))
-        if r.url.path.endswith("login"):
-            return httpx.Response(200, text="Ok.", headers={"set-cookie": "SID=1; Path=/"})
-        return httpx.Response(200, text="") if r.headers.get("cookie") else httpx.Response(403)
+    fake = FakeQbit(login=True)  # wants a login; behaves like qBittorrent 5 (async add, a recheck re-stops a stopped torrent)
     cfg = Config(trackers={"emp": tracker()}, qbit=QbitCfg("http://qb:8080", "u", "p", "tb", True, [(str(baked.parent.parent / "share"), "/data")]))
-    out = publish(cfg, baked, "emp", transport=transport(posts, download=served, gets=gets), qbit_transport=httpx.MockTransport(q), tagmap=TagMap.load(baked / "none.toml"))
-    assert out["torrent_id"] == "4711" and out["qbit"]["ok"] and "tracker changed the torrent" in out["qbit"]["message"]
+    out = publish(cfg, baked, "emp", transport=transport(posts, download=served, gets=gets), qbit_transport=fake.transport(), tagmap=TagMap.load(baked / "none.toml"))
+    assert out["torrent_id"] == "4711" and out["qbit"]["ok"] and "tracker changed the torrent" in out["qbit"]["message"] and "seeding" in out["qbit"]["message"]
     assert out["infohash"]["tracker"] == served_hash != out["infohash"]["local"]
-    paths = [p for p, _ in qbit]
-    assert paths == ["/api/v2/app/version", "/api/v2/auth/login", "/api/v2/torrents/add", "/api/v2/torrents/recheck", "/api/v2/torrents/start"]
-    assert served in qbit[2][1] and b"/data" in qbit[2][1] and b'name="category"' in qbit[2][1]  # the tracker's file, not ours
-    assert served_hash.encode() in qbit[3][1]  # rechecked under the tracker's hash
+    assert fake.paths[:4] == ["app/version", "auth/login", "torrents/info", "torrents/add"] and "torrents/recheck" in fake.paths and fake.paths[-1] == "torrents/info"
+    assert fake.paths.index("torrents/start") > fake.paths.index("torrents/recheck")
+    add = dict(fake.calls)["torrents/add"]
+    assert served in add and b"/data" in add and b'name="category"' in add  # the tracker's file, not ours
+    assert served_hash.encode() in dict(fake.calls)["torrents/recheck"]  # rechecked under the tracker's hash
+    assert fake.t["running"] and not fake.t["checking"]  # it really ended up running
     assert any("authkey=AK&torrent_pass=TP" in g and "id=4711" in g for g in gets)  # the link of this torrent, not the "other" one
     assert (baked / "Scene.tracker.emp.downloaded.torrent").read_bytes() == served
     assert json.loads((baked / "publish.json").read_text())["emp"]["torrent_id"] == "4711"
@@ -339,3 +338,63 @@ def test_edited_post_is_what_gets_sent(baked):
     out = publish(cfg, baked, "emp", dry_run=True, description="[b]edited[/b]", transport=transport([]), tagmap=TagMap.load(baked / "none.toml"))
     assert out["sent"]["desc"] == "[b]edited[/b]"
     assert publish(cfg, baked, "emp", dry_run=True, transport=transport([]), tagmap=TagMap.load(baked / "none.toml"))["sent"]["desc"] == "[b]post[/b]"
+
+
+def add_to(fake, tmp_path, start=True, **cfgkw):
+    t = tmp_path / "x.torrent"
+    t.write_bytes(b"d4:infod4:name1:xee")
+    return QBittorrent(QbitCfg("http://qb:8080", "u", "p", "tb", start), fake.transport()).add(t, "ab" * 20, "/data")
+
+
+def test_qbit_starts_the_torrent_for_real_even_when_qbittorrent_undoes_an_early_start(tmp_path):
+    fake = FakeQbit(undo_start_during_check=True)
+    assert add_to(fake, tmp_path).startswith("seeding")
+    assert fake.t["running"] and fake.paths.count("torrents/start") == 1  # started after the check, so once is enough
+    assert fake.paths.index("torrents/info") < fake.paths.index("torrents/recheck")  # waited until the torrent was listed before rechecking
+
+
+def test_qbit_retries_a_start_that_does_not_stick(tmp_path):
+    class Flaky(FakeQbit):
+        starts = 0
+
+        def __call__(self, r):
+            if r.url.path.endswith("torrents/start"):
+                Flaky.starts += 1
+                if Flaky.starts < 3:
+                    self.calls.append(("torrents/start", b""))
+                    return httpx.Response(200, text="")  # accepted but ignored
+            return super().__call__(r)
+    fake = Flaky()
+    assert add_to(fake, tmp_path).startswith("seeding") and fake.paths.count("torrents/start") == 3
+
+
+def test_qbit_does_not_start_when_it_finds_no_files(tmp_path):
+    fake = FakeQbit(files_found=False)
+    with pytest.raises(QbitError, match="finds only 0% of the files in /data.*left stopped"):
+        add_to(fake, tmp_path)
+    assert "torrents/start" not in fake.paths  # starting would make it download
+
+
+def test_qbit_reports_a_torrent_that_never_starts(tmp_path):
+    with pytest.raises(QbitError, match="did not start the torrent"):
+        add_to(FakeQbit(never_starts=True), tmp_path)
+
+
+def test_qbit_start_off_leaves_it_stopped_but_complete(tmp_path):
+    fake = FakeQbit()
+    assert "stopped" in add_to(fake, tmp_path, start=False) and "torrents/start" not in fake.paths
+
+
+def test_qbit_missing_files_state_is_reported(tmp_path):
+    class Broken(FakeQbit):
+        def _state(self):
+            s = super()._state()
+            return "missingFiles" if s == "stalledUP" else s
+    with pytest.raises(QbitError, match="missingFiles"):
+        add_to(Broken(), tmp_path)
+
+
+def test_qbit_fixes_a_torrent_that_an_earlier_try_left_stopped(tmp_path):
+    fake = FakeQbit(existing=True)
+    assert add_to(fake, tmp_path).startswith("seeding") and fake.t["running"]
+    assert "torrents/add" not in fake.paths  # it was there already: no duplicate add, just recheck and start

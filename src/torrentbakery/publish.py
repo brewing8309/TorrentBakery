@@ -139,9 +139,9 @@ def _seed(cfg: Config, out_dir: Path, name: str, torrent_id: str, local: Path, m
         hashes = {"tracker": tor.infohash, "local": Torrent.read(local).infohash}
         step("Adding to qBittorrent")
         content = _content_path(out_dir, meta, local)
-        QBittorrent(cfg.qbit, qbit_transport).add(got, tor.infohash, map_save_path(str(content.parent), cfg.qbit.path_map))
+        state = QBittorrent(cfg.qbit, qbit_transport).add(got, tor.infohash, map_save_path(str(content.parent), cfg.qbit.path_map))
         note = "" if tor.infohash == hashes["local"] else " (the tracker changed the torrent, so its own file was used)"
-        return {"ok": True, "message": "added the tracker's torrent" + (" and started" if cfg.qbit.start else " (paused)") + note}, hashes
+        return {"ok": True, "message": f"added the tracker's torrent: {state}{note}"}, hashes
     except (QbitError, TrackerError, httpx.HTTPError, OSError, ValueError) as e:
         return {"ok": False, "message": f"nothing added to qBittorrent: {e}. Download the torrent from the tracker and add it yourself."}, hashes
 

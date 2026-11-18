@@ -12,3 +12,11 @@ def video(tmp_path_factory):
         check=True,
     )
     return path
+
+
+@pytest.fixture(autouse=True)
+def fast_qbit(monkeypatch):
+    from torrentbakery.clients import QBittorrent
+    monkeypatch.setattr(QBittorrent, "poll_seconds", 0.0)
+    monkeypatch.setattr(QBittorrent, "settle_timeout", 0.2)  # tests that wait for something that never happens must not take 30 s
+    monkeypatch.setattr(QBittorrent, "check_timeout", 2.0)

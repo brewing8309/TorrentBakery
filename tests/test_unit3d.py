@@ -2,6 +2,7 @@ import json
 
 import httpx
 import pytest
+from qbit_fake import FakeQbit
 from test_publish import baked, tracker_version  # noqa: F401  (fixture)
 from torf import Torrent
 
@@ -102,19 +103,17 @@ def test_resolution_ids():
 
 
 def test_publish_without_announce_uses_the_tracker_torrent(baked):  # noqa: F811
-    posts, qbit = [], []
+    posts = []
     served, served_hash = tracker_version(baked)
     cfg = Config(trackers={"bp": tracker()}, qbit=QbitCfg("http://qb:8080", "", "", "tb", True, []))
 
-    def q(r):
-        qbit.append(r.url.path)
-        return httpx.Response(200, text="")
-    out = publish(cfg, baked, "bp", transport=transport(posts, download=served), qbit_transport=httpx.MockTransport(q), tagmap=TagMap.load(baked / "none.toml"))
+    fake = FakeQbit()
+    out = publish(cfg, baked, "bp", transport=transport(posts, download=served), qbit_transport=fake.transport(), tagmap=TagMap.load(baked / "none.toml"))
     assert out["torrent_id"] == "777" and out["qbit"]["ok"] and out["infohash"]["tracker"] == served_hash
     sent = Torrent.read(baked / "Scene.tracker.bp.torrent")
     assert sent.trackers[0][0] == "https://bp.example/announce" and sent.private and not sent.source
     assert b"jane doe" in posts[0].content and b"eve" in posts[0].content  # performers first in the keywords
-    assert "/api/v2/torrents/add" in qbit
+    assert "torrents/add" in fake.paths and fake.t["running"]
     assert prepare(cfg, baked, "bp", tagmap=TagMap.load(baked / "none.toml"), build_torrent=False).torrent.name == "Scene.tracker.bp.torrent"
 
 
