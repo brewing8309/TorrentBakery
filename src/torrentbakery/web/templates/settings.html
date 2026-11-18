@@ -1,23 +1,30 @@
 {% extends "base.html" %}
 {% block title %}Settings · TorrentBakery{% endblock %}
 {% block body %}
-<section>
+{% macro mark(on) %}<span class="mark{{ ' on' if on }}" role="img" aria-label="{{ 'set up' if on else 'not set up' }}"></span>{% endmacro %}
+<div class="page-head">
   <h1>Settings</h1>
   <p class="lead">Here you decide where TorrentBakery gets its data and where the torrents go. For the usual case (baking a scene from Stash) you only need the first two items.</p>
+</div>
+<div class="settings-layout">
+<nav class="toc" aria-label="Settings sections">
   <ul class="steps">
-    <li>{{ "✅" if c.stash.url else "⬜" }} <a href="#stash">Connect Stash</a> <span class="badge req">needed for Stash scenes</span></li>
-    <li>{{ "✅" if c.trackers else "⬜" }} <a href="#tracker">Create a tracker profile</a> <span class="badge req">needed for torrents</span></li>
-    <li>✅ <a href="#cover">Animated cover</a> <span class="badge">defaults usually fine</span></li>
-    <li>{{ "✅" if c.web_media_roots else "⬜" }} <a href="#roots">Permit media folders</a> <span class="badge">only for single files</span></li>
-    <li>{{ "✅" if c.default_host or host_keys.values() | select | list else "⬜" }} <a href="#hosts">Image hosts</a> <span class="badge">optional</span></li>
-    <li>{{ "✅" if c.stashboxes else "⬜" }} <a href="#stashbox">Stash-box (StashDB)</a> <span class="badge">optional</span></li>
+    <li>{{ mark(c.stash.url) }} <a href="#stash">Connect Stash</a> <span class="badge req">needed for Stash scenes</span></li>
+    <li>{{ mark(c.trackers) }} <a href="#tracker">Create a tracker profile</a> <span class="badge req">needed for torrents</span></li>
+    <li>{{ mark(true) }} <a href="#cover">Animated cover</a> <span class="badge">defaults usually fine</span></li>
+    <li>{{ mark(c.web_media_roots) }} <a href="#roots">Permit media folders</a> <span class="badge">only for single files</span></li>
+    <li>{{ mark(c.default_host or host_keys.values() | select | list) }} <a href="#hosts">Image hosts</a> <span class="badge">optional</span></li>
+    <li>{{ mark(c.stashboxes) }} <a href="#stashbox">Stash-box (StashDB)</a> <span class="badge">optional</span></li>
+    <li>{{ mark(c.qbit.url) }} <a href="#qbit">qBittorrent</a> <span class="badge">optional</span></li>
+    <li>{{ mark(tag_default or tag_tracker or tag_ignored) }} <a href="#tags">Tag mapping</a> <span class="badge">optional</span></li>
   </ul>
   <p class="help">Every change is saved immediately and applies to the next bake. Saved API keys are never shown again.</p>
-</section>
+</nav>
+<div class="settings-main">
 
-<section id="stash">
-  <h1>1. Stash <span class="badge req">needed for Stash scenes</span></h1>
-  <p class="lead">The connection to your Stash instance. It lets TorrentBakery find your scenes (the search on the start page) and read title, studio, performers, tags and the file path. If the scene is linked to StashDB in Stash, the metadata comes from there; the tags always come from Stash.</p>
+<section id="stash" class="sheet">
+  <div class="sheet-head"><h2>1. Stash <span class="badge req">needed for Stash scenes</span></h2>
+  <p class="lead">The connection to your Stash instance. It lets TorrentBakery find your scenes (the search on the start page) and read title, studio, performers, tags and the file path. If the scene is linked to StashDB in Stash, the metadata comes from there; the tags always come from Stash.</p></div>
   <form id="stash-form" method="post" action="/settings/stash">
     <div class="row">
       <div>
@@ -31,26 +38,26 @@
         <p class="help">In Stash under <em>Settings → Security → API Key</em>. If Stash has no password, leave this empty.</p>
       </div>
     </div>
-    <p><button>Save</button> <button type="button" class="ghost" id="stash-test">Test connection</button> <span id="stash-result"></span></p>
+    <p class="actions"><button>Save</button> <button type="button" class="ghost" id="stash-test">Test connection</button> <span id="stash-result"></span></p>
     <p class="help">"Test connection" checks the values in the form, even before saving.</p>
   </form>
 
   <details>
     <summary>Path mapping (Stash path → path in this container), only for differing paths</summary>
     <p class="help">Stash reports where each file lives. If this container sees the same share under a <em>different</em> path, this table translates the beginning of the path. You notice it when baking stops with "… does not exist here". If both see the files under the same path (e.g. <code>/media/BF-stshpp</code>), leave the table empty.</p>
-    <table>{% for a, b in c.path_map %}<tr><td><code>{{ a }}</code> → <code>{{ b }}</code></td><td class="act"><form class="inline" method="post" action="/settings/map/{{ loop.index0 }}/delete"><button class="ghost">Remove</button></form></td></tr>{% endfor %}</table>
+    <table class="stack">{% for a, b in c.path_map %}<tr><td><code>{{ a }}</code> → <code>{{ b }}</code></td><td class="act"><form class="inline" method="post" action="/settings/map/{{ loop.index0 }}/delete"><button class="ghost danger">Remove</button></form></td></tr>{% endfor %}</table>
     <form method="post" action="/settings/map" class="row">
       <div><label>Path as Stash sees it</label><input type="text" name="stash_path" placeholder="/data/media" required></div>
       <div><label>Path in this container</label><input type="text" name="local_path" placeholder="/mnt/nas" required></div>
-      <div style="flex:0 0 auto;align-self:end"><button>Add</button></div>
+      <div class="row-end"><button>Add</button></div>
     </form>
   </details>
 </section>
 
-<section id="tracker">
-  <h1>2. Tracker profiles <span class="badge req">needed for torrents</span></h1>
-  <p class="lead">A profile bundles what your tracker (or forum) requires for the torrent. You pick a profile when baking; without one the torrent has no announce URL, which no tracker accepts. You can create as many as you like, e.g. one per tracker. A profile with a <b>site type</b> and session cookie can also upload the finished release to the tracker.</p>
-  <table>{% for name, t in c.trackers.items() %}
+<section id="tracker" class="sheet">
+  <div class="sheet-head"><h2>2. Tracker profiles <span class="badge req">needed for torrents</span></h2>
+  <p class="lead">A profile bundles what your tracker (or forum) requires for the torrent. You pick a profile when baking; without one the torrent has no announce URL, which no tracker accepts. You can create as many as you like, e.g. one per tracker. A profile with a <b>site type</b> and session cookie can also upload the finished release to the tracker.</p></div>
+  <table class="stack">{% for name, t in c.trackers.items() %}
     <tr><td><b>{{ name }}</b><br><span class="mute">{{ t.announce | map("urlhost") | join(", ") or "no announce URL yet" }} · source "{{ t.effective_source or "–" }}" · {{ "private" if t.private else "public" }}
         {% if t.site %}<br>publishes to {{ t.site }} ({{ t.base_url | urlhost }}) · cookie {{ "saved" if cookies[name] else "missing" }}{% if t.auto_publish %} · automatic after baking{% endif %}{% endif %}</span>
         <span id="tt-{{ loop.index0 }}" class="mute"></span></td>
@@ -58,9 +65,9 @@
           {% if t.site %}<button type="button" class="ghost" onclick="testTracker({{ name | tojson | forceescape }}, 'tt-{{ loop.index0 }}')">Test login</button>
           <form class="inline" method="post" action="/settings/tracker/{{ name | urlencode }}/announce"><button class="ghost">Fetch announce URL</button></form>{% endif %}
           <button type="button" class="ghost" onclick="editTracker({{ name | tojson | forceescape }})">Edit</button>
-          <form class="inline" method="post" action="/settings/tracker/{{ name | urlencode }}/delete"><button class="ghost">Remove</button></form></td></tr>
+          <form class="inline" method="post" action="/settings/tracker/{{ name | urlencode }}/delete"><button class="ghost danger">Remove</button></form></td></tr>
   {% else %}<tr><td class="mute">No profile yet.</td></tr>{% endfor %}</table>
-  <h2 id="tracker-form-title">Add or replace a profile</h2>
+  <h3 id="tracker-form-title" class="form-title">Add or replace a profile</h3>
   <form method="post" action="/settings/tracker" id="tracker-form">
     <div class="row">
       <div><label for="t-name">Name</label><input type="text" id="t-name" name="name" required placeholder="MyTracker">
@@ -71,7 +78,7 @@
     <label for="t-announce">Announce URL</label>
     <textarea id="t-announce" name="announce" rows="2" placeholder="https://tracker.example/abc123passkey/announce"></textarea>
     <p class="help">Your personal announce URL from your tracker's upload page, usually containing your passkey. Several URLs: one per line. This page later shows only the server name, never the passkey. With a site type and cookie you can leave it empty and use "Fetch announce URL" afterwards.</p>
-    <label><input type="checkbox" name="private" value="1" checked> Private torrent</label>
+    <label class="check"><input type="checkbox" name="private" value="1" checked> Private torrent</label>
     <p class="help">Turns off DHT and peer exchange. Keep it on for private trackers, switch it off only for public ones.</p>
     <details>
       <summary><b>Publishing</b> <span class="badge">optional</span></summary>
@@ -95,17 +102,17 @@
         <div><label for="t-title">Title template <span class="badge">optional</span></label><input type="text" id="t-title" name="title_template" placeholder="[{{ '{{ studio }}' }}] {{ '{{ title }}' }}">
           <p class="help">Jinja. Variables: studio, performers, performers_text, title, date, resolution, codec, duration, framerate. Empty = <code>[Studio] Performers - Title (date) [1080p]</code>.</p></div>
       </div>
-      <label><input type="checkbox" name="anonymous" value="1"> Upload anonymously</label>
-      <p><label><input type="checkbox" name="auto_publish" value="1"> Publish automatically after baking (command line <code>tb bake</code> only; the web interface always stops for review)</label></p>
+      <label class="check"><input type="checkbox" name="anonymous" value="1"> Upload anonymously</label>
+      <label class="check"><input type="checkbox" name="auto_publish" value="1"> Publish automatically after baking (command line <code>tb bake</code> only; the web interface always stops for review)</label>
       <p class="help">An upload needs an image host on the start page: the tracker requires a cover URL.</p>
     </details>
-    <p><button>Save profile</button> <button type="button" class="ghost" id="tracker-cancel" hidden>Cancel editing</button></p>
+    <p class="actions"><button>Save profile</button> <button type="button" class="ghost" id="tracker-cancel" hidden>Cancel editing</button></p>
   </form>
 </section>
 
-<section id="cover">
-  <h1>3. Animated cover <span class="badge">optional</span></h1>
-  <p class="lead">The cover of the post is a short animation (WebP or GIF) made of <b>1.5-second clips</b> spread evenly over the whole video (intro and credits skipped). Set the defaults here; on the start page you can change them for each bake.</p>
+<section id="cover" class="sheet">
+  <div class="sheet-head"><h2>3. Animated cover <span class="badge">optional</span></h2>
+  <p class="lead">The cover of the post is a short animation (WebP or GIF) made of <b>1.5-second clips</b> spread evenly over the whole video (intro and credits skipped). Set the defaults here; on the start page you can change them for each bake.</p></div>
   <form method="post" action="/settings/cover">
     <div class="row">
       <div><label for="cs">Source</label>
@@ -121,46 +128,46 @@
       <div><label for="cw">Width in pixels</label><input type="text" id="cw" name="width" value="{{ c.cover_width }}" inputmode="numeric">
         <p class="help">Default 480. Image hosts accept roughly 10 MB at most; if the file is larger, TorrentBakery reduces width, frame rate and quality automatically until it fits.</p></div>
     </div>
-    <p><button>Save</button></p>
+    <p class="actions"><button>Save</button></p>
   </form>
 </section>
 
-<section id="roots">
-  <h1>4. Media folders <span class="badge">only for single files</span></h1>
-  <p class="lead">On the start page you can enter a file path such as <code>/media/BF-stshpp/Film/film.mkv</code> instead of a Stash scene. For safety the interface only allows that inside the folders listed here. Stash scenes do not need this setting.</p>
+<section id="roots" class="sheet">
+  <div class="sheet-head"><h2>4. Media folders <span class="badge">only for single files</span></h2>
+  <p class="lead">On the start page you can enter a file path such as <code>/media/BF-stshpp/Film/film.mkv</code> instead of a Stash scene. For safety the interface only allows that inside the folders listed here. Stash scenes do not need this setting.</p></div>
   <form method="post" action="/settings/roots">
     <label for="roots-t">Permitted folders</label>
     <textarea id="roots-t" name="roots" rows="3" placeholder="/media/BF-stshpp">{{ c.web_media_roots | join("\n") }}</textarea>
     <p class="help">One folder per line, subfolders included. The folder must be mounted and readable in this container.</p>
-    <p><button>Save</button></p>
+    <p class="actions"><button>Save</button></p>
   </form>
 </section>
 
-<section id="hosts">
-  <h1>5. Image hosts <span class="badge">optional</span></h1>
-  <p class="lead">Without a host, the cover and the screenshot sheet are only files to download; the post then contains file names and you upload the images yourself. With a host, TorrentBakery uploads the images while baking and puts the links into the post. You choose the host on the start page for each bake.</p>
-  <table>
+<section id="hosts" class="sheet">
+  <div class="sheet-head"><h2>5. Image hosts <span class="badge">optional</span></h2>
+  <p class="lead">Without a host, the cover and the screenshot sheet are only files to download; the post then contains file names and you upload the images yourself. With a host, TorrentBakery uploads the images while baking and puts the links into the post. You choose the host on the start page for each bake.</p></div>
+  <table class="stack">
     <tr><td><b>pixhost.to, pixhost.cc, pixho.st, imgbox, imagebam</b></td><td class="mute">Work without an account and without settings.</td></tr>
-    {% for h, saved in host_keys.items() %}<tr><td><b>{{ h }}</b></td><td>{% if saved %}<span class="ok">API key saved</span> <form class="inline" method="post" action="/settings/host/{{ h }}/delete"><button class="ghost">Remove</button></form>{% else %}<span class="err">API key missing</span>, cannot be used without one{% endif %}{% if h == "imghost.dev" %}<br><span class="mute">bitporn's own host: bitporn shows images of other hosts through a proxy that blocks adult hosts such as pixhost, so use this one for posts on bitporn.</span>{% endif %}</td></tr>{% endfor %}
+    {% for h, saved in host_keys.items() %}<tr><td><b>{{ h }}</b></td><td>{% if saved %}<span class="ok">API key saved</span> <form class="inline" method="post" action="/settings/host/{{ h }}/delete"><button class="ghost danger">Remove</button></form>{% else %}<span class="err">API key missing</span>, cannot be used without one{% endif %}{% if h == "imghost.dev" %}<br><span class="mute">bitporn's own host: bitporn shows images of other hosts through a proxy that blocks adult hosts such as pixhost, so use this one for posts on bitporn.</span>{% endif %}</td></tr>{% endfor %}
   </table>
   <form method="post" action="/settings/default-host">
     <label for="dh">Default image host</label>
     <select id="dh" name="host"><option value="">none (images as files only)</option>{% for h in hosts %}<option{% if h == c.default_host %} selected{% endif %}>{{ h }}</option>{% endfor %}</select>
     <p class="help">Preselected on the start page, so the post always contains host links instead of file names. Changeable per bake.</p>
-    <p><button>Save</button></p>
+    <p class="actions"><button>Save</button></p>
   </form>
   {% for h, saved in host_keys.items() %}<form method="post" action="/settings/host/{{ h }}">
     <label for="key-{{ loop.index }}">{{ h }} API key</label>
     <input type="password" id="key-{{ loop.index }}" name="api_key" autocomplete="off" placeholder="{{ 'leave blank to keep the saved one' if saved else 'paste the API key' }}">
     <p class="help">In your {{ h }} account under the API section. Only needed if you want to use {{ h }} as a host.</p>
-    <p><button>Save</button></p>
+    <p class="actions"><button>Save</button></p>
   </form>{% endfor %}
 </section>
 
-<section id="stashbox">
-  <h1>6. Stash-box (e.g. StashDB) <span class="badge">optional</span></h1>
-  <p class="lead">Only for baking a <em>plain file</em> while still getting its metadata from StashDB (the "Stash-box scene address" field on the start page). Stash scenes get their metadata through the key Stash already knows, so you need nothing here for them.</p>
-  <table>{% for name, b in c.stashboxes.items() %}<tr><td><b>{{ name }}</b> <span class="mute">{{ b.endpoint }}</span>{% if b.api_key %} <span class="ok">· key saved</span>{% else %} <span class="err">· key missing</span>{% endif %}</td><td class="act"><form class="inline" method="post" action="/settings/stashbox/{{ name | urlencode }}/delete"><button class="ghost">Remove</button></form></td></tr>
+<section id="stashbox" class="sheet">
+  <div class="sheet-head"><h2>6. Stash-box (e.g. StashDB) <span class="badge">optional</span></h2>
+  <p class="lead">Only for baking a <em>plain file</em> while still getting its metadata from StashDB (the "Stash-box scene address" field on the start page). Stash scenes get their metadata through the key Stash already knows, so you need nothing here for them.</p></div>
+  <table class="stack">{% for name, b in c.stashboxes.items() %}<tr><td><b>{{ name }}</b> <span class="mute">{{ b.endpoint }}</span>{% if b.api_key %} <span class="ok">· key saved</span>{% else %} <span class="err">· key missing</span>{% endif %}</td><td class="act"><form class="inline" method="post" action="/settings/stashbox/{{ name | urlencode }}/delete"><button class="ghost danger">Remove</button></form></td></tr>
   {% else %}<tr><td class="mute">No stash-box configured.</td></tr>{% endfor %}</table>
   <form method="post" action="/settings/stashbox">
     <div class="row">
@@ -168,13 +175,13 @@
       <div><label>Endpoint</label><input type="text" name="endpoint" placeholder="https://stashdb.org/graphql" required><p class="help">Address ending in <code>/graphql</code>. For StashDB exactly the example.</p></div>
       <div><label>API key</label><input type="password" name="api_key" placeholder="API key" autocomplete="off"><p class="help">In StashDB under your user profile.</p></div>
     </div>
-    <p><button>Save</button></p>
+    <p class="actions"><button>Save</button></p>
   </form>
 </section>
 
-<section id="qbit">
-  <h1>7. qBittorrent <span class="badge">optional</span></h1>
-  <p class="lead">After an upload, the torrent is added to qBittorrent, checked against the existing files and started, so you seed right away. qBittorrent must be able to reach the media files. Uses its Web UI (Options → Web UI).</p>
+<section id="qbit" class="sheet">
+  <div class="sheet-head"><h2>7. qBittorrent <span class="badge">optional</span></h2>
+  <p class="lead">After an upload, the torrent is added to qBittorrent, checked against the existing files and started, so you seed right away. qBittorrent must be able to reach the media files. Uses its Web UI (Options → Web UI).</p></div>
   <form method="post" action="/settings/qbit" id="qbit-form">
     <div class="row">
       <div><label>Web UI address</label><input type="text" name="url" value="{{ c.qbit.url }}" placeholder="http://10.10.1.5:8080"></div>
@@ -183,36 +190,38 @@
     </div>
     <div class="row">
       <div><label>Category <span class="badge">optional</span></label><input type="text" name="category" value="{{ c.qbit.category }}"></div>
-      <div><label>&nbsp;</label><label><input type="checkbox" name="start" value="1"{% if c.qbit.start %} checked{% endif %}> Start seeding after the check</label></div>
+      <div class="row-end"><label class="check"><input type="checkbox" name="start" value="1"{% if c.qbit.start %} checked{% endif %}> Start seeding after the check</label></div>
     </div>
     <label>Folder translation <span class="badge">optional</span></label>
     <textarea name="path_map" rows="2" placeholder="/media/BF-stshpp=/data/media">{% for a, b in c.qbit.path_map %}{{ a }}={{ b }}
 {% endfor %}</textarea>
     <p class="help">One line <code>folder here=same folder for qBittorrent</code>. Only needed when qBittorrent sees the share under a different path than this container.</p>
-    <p><button>Save</button> <button type="button" class="ghost" id="qbit-test">Test connection</button> <span id="qbit-result" class="mute"></span></p>
+    <p class="actions"><button>Save</button> <button type="button" class="ghost" id="qbit-test">Test connection</button> <span id="qbit-result" class="mute"></span></p>
   </form>
 </section>
 
-<section id="tags">
-  <h1>8. Tag mapping <span class="badge">optional</span></h1>
-  <p class="lead">When publishing, Stash tags are translated into the tracker's tags. The built-in list (from <a href="https://github.com/bdbenim/stash-empornium" target="_blank" rel="noopener">stash-empornium</a>) covers about 1000 tags; add your own here, optionally for one tracker only. Tags the list does not know are sent in dotted form (<code>face.fuck</code>); the publish preview offers to remember or drop them.</p>
-  <table>
-    {% for st, tt in tag_default.items() %}<tr><td>{{ st }} → <code>{{ tt }}</code> <span class="mute">all trackers</span></td><td class="act"><form class="inline" method="post" action="/settings/tags/delete"><input type="hidden" name="kind" value="map"><input type="hidden" name="stash_tag" value="{{ st }}"><button class="ghost">Remove</button></form></td></tr>{% endfor %}
-    {% for tn, m in tag_tracker.items() %}{% for st, tt in m.items() %}<tr><td>{{ st }} → <code>{{ tt }}</code> <span class="mute">only {{ tn }}</span></td><td class="act"><form class="inline" method="post" action="/settings/tags/delete"><input type="hidden" name="kind" value="map"><input type="hidden" name="tracker" value="{{ tn }}"><input type="hidden" name="stash_tag" value="{{ st }}"><button class="ghost">Remove</button></form></td></tr>{% endfor %}{% endfor %}
-    {% for st in tag_ignored %}<tr><td>{{ st }} <span class="mute">never sent</span></td><td class="act"><form class="inline" method="post" action="/settings/tags/delete"><input type="hidden" name="kind" value="ignored"><input type="hidden" name="stash_tag" value="{{ st }}"><button class="ghost">Remove</button></form></td></tr>{% endfor %}
+<section id="tags" class="sheet">
+  <div class="sheet-head"><h2>8. Tag mapping <span class="badge">optional</span></h2>
+  <p class="lead">When publishing, Stash tags are translated into the tracker's tags. The built-in list (from <a href="https://github.com/bdbenim/stash-empornium" target="_blank" rel="noopener">stash-empornium</a>) covers about 1000 tags; add your own here, optionally for one tracker only. Tags the list does not know are sent in dotted form (<code>face.fuck</code>); the publish preview offers to remember or drop them.</p></div>
+  <table class="stack">
+    {% for st, tt in tag_default.items() %}<tr><td>{{ st }} → <code>{{ tt }}</code> <span class="mute">all trackers</span></td><td class="act"><form class="inline" method="post" action="/settings/tags/delete"><input type="hidden" name="kind" value="map"><input type="hidden" name="stash_tag" value="{{ st }}"><button class="ghost danger">Remove</button></form></td></tr>{% endfor %}
+    {% for tn, m in tag_tracker.items() %}{% for st, tt in m.items() %}<tr><td>{{ st }} → <code>{{ tt }}</code> <span class="mute">only {{ tn }}</span></td><td class="act"><form class="inline" method="post" action="/settings/tags/delete"><input type="hidden" name="kind" value="map"><input type="hidden" name="tracker" value="{{ tn }}"><input type="hidden" name="stash_tag" value="{{ st }}"><button class="ghost danger">Remove</button></form></td></tr>{% endfor %}{% endfor %}
+    {% for st in tag_ignored %}<tr><td>{{ st }} <span class="mute">never sent</span></td><td class="act"><form class="inline" method="post" action="/settings/tags/delete"><input type="hidden" name="kind" value="ignored"><input type="hidden" name="stash_tag" value="{{ st }}"><button class="ghost danger">Remove</button></form></td></tr>{% endfor %}
     {% if not tag_default and not tag_tracker and not tag_ignored %}<tr><td class="mute">No own entries yet.</td></tr>{% endif %}
   </table>
   <form method="post" action="/settings/tags" class="row">
     <div><label>Stash tag</label><input type="text" name="stash_tag" placeholder="Big Tits" required></div>
     <div><label>Tracker tags</label><input type="text" name="tracker_tags" placeholder="big.tits boobs" required></div>
     <div><label>Only for</label><select name="tracker"><option value="">all trackers</option>{% for n in c.trackers %}<option>{{ n }}</option>{% endfor %}</select></div>
-    <div style="flex:0 0 auto;align-self:end"><button>Add</button></div>
+    <div class="row-end"><button>Add</button></div>
   </form>
   <form method="post" action="/settings/tags/ignore" class="row">
     <div><label>Never send this Stash tag</label><input type="text" name="stash_tag" required></div>
-    <div style="flex:0 0 auto;align-self:end"><button class="ghost">Ignore</button></div>
+    <div class="row-end"><button class="ghost">Ignore</button></div>
   </form>
 </section>
+</div>
+</div>
 
 <script id="tracker-data" type="application/json">{{ tracker_data | tojson }}</script>
 <script>
@@ -228,7 +237,7 @@ function editTracker(name) {
   tform.querySelector("details").open = true;
   if (t.site) loadCategories(t.category);
   ttitle.textContent = "Edit profile " + name; tcancel.hidden = false;
-  tform.scrollIntoView({behavior: "smooth", block: "start"});
+  tform.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start"});
 }
 tcancel.addEventListener("click", () => {
   tform.reset(); setCategory(""); tform.elements.name.readOnly = false; tcancel.hidden = true; ttitle.textContent = "Add or replace a profile";
@@ -246,9 +255,9 @@ async function loadCategories(selected) {
   msg.className = "mute"; msg.textContent = "Loading …";
   try {
     const r = await (await fetch("/settings/tracker/categories", { method: "POST", body: new URLSearchParams({ name: f.name.value, site: f.site.value, base_url: f.base_url.value, cookie: f.cookie.value }) })).json();
-    msg.className = r.ok ? "ok" : "err"; msg.textContent = (r.ok ? "✅ " : "❌ ") + r.message;
+    msg.className = r.ok ? "ok" : "err"; msg.textContent = r.message;
     if (r.ok) setCategory(typeof selected === "string" ? selected : undefined, r.categories);
-  } catch (e) { msg.className = "err"; msg.textContent = "❌ Could not load."; }
+  } catch (e) { msg.className = "err"; msg.textContent = "Could not load."; }
 }
 document.getElementById("t-cat-load").addEventListener("click", () => loadCategories());
 async function testTracker(name, id) {
@@ -257,16 +266,16 @@ async function testTracker(name, id) {
   try {
     const r = await (await fetch("/settings/tracker/" + encodeURIComponent(name) + "/test", { method: "POST" })).json();
     out.className = r.ok ? "ok" : "err";
-    out.textContent = " " + (r.ok ? "✅ " : "❌ ") + r.message + (r.ok && r.categories.length ? " Categories: " + r.categories.map(c => c[0] + " = " + c[1]).join(", ") : "");
-  } catch (e) { out.className = "err"; out.textContent = " ❌ Test failed."; }
+    out.textContent = " " + r.message + (r.ok && r.categories.length ? " Categories: " + r.categories.map(c => c[0] + " = " + c[1]).join(", ") : "");
+  } catch (e) { out.className = "err"; out.textContent = " Test failed."; }
 }
 document.getElementById("qbit-test").addEventListener("click", async () => {
   const out = document.getElementById("qbit-result");
   out.className = "mute"; out.textContent = "Testing …";
   try {
     const r = await (await fetch("/settings/qbit/test", { method: "POST", body: new URLSearchParams(new FormData(document.getElementById("qbit-form"))) })).json();
-    out.className = r.ok ? "ok" : "err"; out.textContent = (r.ok ? "✅ " : "❌ ") + r.message;
-  } catch (e) { out.className = "err"; out.textContent = "❌ Test failed."; }
+    out.className = r.ok ? "ok" : "err"; out.textContent = r.message;
+  } catch (e) { out.className = "err"; out.textContent = "Test failed."; }
 });
 </script>
 
@@ -276,8 +285,8 @@ document.getElementById("stash-test").addEventListener("click", async () => {
   out.className = "mute"; out.textContent = "Testing …";
   try {
     const r = await (await fetch("/settings/stash/test", { method: "POST", body: new URLSearchParams(new FormData(form)) })).json();
-    out.className = r.ok ? "ok" : "err"; out.textContent = (r.ok ? "✅ " : "❌ ") + r.message;
-  } catch (e) { out.className = "err"; out.textContent = "❌ Test failed."; }
+    out.className = r.ok ? "ok" : "err"; out.textContent = r.message;
+  } catch (e) { out.className = "err"; out.textContent = "Test failed."; }
 });
 </script>
 {% endblock %}

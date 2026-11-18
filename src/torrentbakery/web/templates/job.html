@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block body %}
-<section>
+<div class="page-head release-head">
   <h1>{{ title }}</h1>
   {% if job.status in ("queued", "running") %}
     <p id="stage" class="mute">{{ job.stage or job.status }}</p>
@@ -20,47 +20,56 @@
     </script>
   {% elif job.status == "error" %}
     <p class="err">{{ job.error }}</p>
-    <p><a class="btn ghost" href="/">Back</a></p>
+    <p class="actions"><a class="btn ghost" href="/">Back</a></p>
   {% else %}
     <p class="ok">Done.</p>
-    <p>
-      <a class="btn" href="/jobs/{{ job.id }}/zip">Download everything as ZIP</a>
+    <p class="actions">
+      <a class="btn{% if publishable %} ghost{% endif %}" href="/jobs/{{ job.id }}/zip">Download everything as ZIP</a>
       {% for f in files if f.endswith(".torrent") %}<a class="btn ghost" href="/jobs/{{ job.id }}/files/{{ f | urlencode }}">{{ f }}</a>{% endfor %}
       {% if publishable %}<a class="btn" href="#publish">Next: review &amp; publish ↓</a>{% endif %}
     </p>
-  </section>
-  <section>
-    <h2>Title</h2>
-    <input type="text" id="release-title" readonly value="{{ release_title }}">
-    <p><button type="button" onclick="copyText('release-title', 'copied-title')">Copy title</button> <span id="copied-title" class="ok"></span></p>
-  </section>
-  {% if folder_name %}
-  <section>
-    <h2>Folder</h2>
-    <p class="help">The folder you selected, or the parent folder of the file.</p>
-    <input type="text" id="folder-name" readonly value="{{ folder_name }}">
-    <p><button type="button" onclick="copyText('folder-name', 'copied-folder')">Copy folder name</button> <span id="copied-folder" class="ok"></span></p>
-    <input type="text" id="folder-path" readonly value="{{ folder_path }}">
-    <p><button type="button" class="ghost" onclick="copyText('folder-path', 'copied-folder')">Copy full path</button></p>
-  </section>
   {% endif %}
-  <section>
-    <h2>Forum post (BBCode)</h2>
+</div>
+{% if job.status not in ("queued", "running", "error") %}
+<section class="sheet sheet--rail">
+  <div class="sheet-head"><h2>Title</h2></div>
+  <div class="sheet-body">
+    <input type="text" id="release-title" readonly value="{{ release_title }}">
+    <p class="actions"><button type="button" class="ghost" onclick="copyText('release-title', 'copied-title')">Copy title</button> <span id="copied-title" class="ok"></span></p>
+  </div>
+</section>
+{% if folder_name %}
+<section class="sheet sheet--rail">
+  <div class="sheet-head"><h2>Folder</h2><p class="help">The folder you selected, or the parent folder of the file.</p></div>
+  <div class="sheet-body">
+    <input type="text" id="folder-name" readonly value="{{ folder_name }}">
+    <p class="actions"><button type="button" class="ghost" onclick="copyText('folder-name', 'copied-folder')">Copy folder name</button> <span id="copied-folder" class="ok"></span></p>
+    <input type="text" id="folder-path" readonly value="{{ folder_path }}">
+    <p class="actions"><button type="button" class="ghost" onclick="copyText('folder-path', 'copied-folder')">Copy full path</button></p>
+  </div>
+</section>
+{% endif %}
+<section class="sheet sheet--rail">
+  <div class="sheet-head"><h2>Forum post (BBCode)</h2></div>
+  <div class="sheet-body">
     {% if not uploads %}<p class="note">No image host was chosen: the post contains only the file names (<code>{{ cover_file }}</code> and <code>contactsheet.jpg</code>) instead of image links. Pick a host on the start page next time, or download the images below and upload them yourself.</p>{% endif %}
     <textarea id="post" rows="18" readonly>{{ post }}</textarea>
-    <p><button type="button" onclick="copyText('post', 'copied')">Copy post</button> <span id="copied" class="ok"></span></p>
-  </section>
-  {% if tags %}
-  <section>
-    <h2>Tags</h2>
-    <p class="help">The tags from Stash for the tracker's tag field: separated by spaces, with spaces inside a tag replaced by dots.</p>
+    <p class="actions"><button type="button" class="ghost" onclick="copyText('post', 'copied')">Copy post</button> <span id="copied" class="ok"></span></p>
+  </div>
+</section>
+{% if tags %}
+<section class="sheet sheet--rail">
+  <div class="sheet-head"><h2>Tags</h2><p class="help">The tags from Stash for the tracker's tag field: separated by spaces, with spaces inside a tag replaced by dots.</p></div>
+  <div class="sheet-body">
     <textarea id="tags" rows="2" readonly>{{ tags }}</textarea>
-    <p><button type="button" onclick="copyText('tags', 'copied-tags')">Copy tags</button> <span id="copied-tags" class="ok"></span></p>
-  </section>
-  {% endif %}
-  <section>
-    <h2>Images</h2>
-    <div class="row">
+    <p class="actions"><button type="button" class="ghost" onclick="copyText('tags', 'copied-tags')">Copy tags</button> <span id="copied-tags" class="ok"></span></p>
+  </div>
+</section>
+{% endif %}
+<section class="sheet sheet--rail">
+  <div class="sheet-head"><h2>Images</h2></div>
+  <div class="sheet-body">
+    <div class="result-grid">
       {% for role, f, name in (("cover", cover_file, "Animated cover"), ("sheet", "contactsheet.jpg", "Screenshot sheet")) if f in files %}
       {% set up = uploads.get(role) %}
       <div>
@@ -84,12 +93,17 @@
         else { document.execCommand("copy"); done(); }  // plain-http LAN pages have no clipboard API
       }
     </script>
-  <section id="publish">
+  </div>
+</section>
+<section id="publish" class="sheet sheet--rail sheet--accent">
+  <div class="sheet-head">
     <h2>Step 2: review and publish</h2>
     <p class="help">The bake is finished and nothing has been uploaded yet. Look through the result above (title, post, tags, images), change what you want below, then upload.</p>
+  </div>
+  <div class="sheet-body">
     {% if pub_error %}<p class="err">Automatic publishing failed: {{ pub_error }}</p>{% endif %}
     {% for tname, r in published.items() %}
-      <p class="ok">Published on <b>{{ tname }}</b>: <a href="{{ r.torrent_url }}" target="_blank" rel="noopener">{{ r.torrent_url }}</a>
+      <p class="ok published">Published on <b>{{ tname }}</b>: <a href="{{ r.torrent_url }}" target="_blank" rel="noopener">{{ r.torrent_url }}</a>
         {% if r.qbit %}· qBittorrent: <span class="{{ 'ok' if r.qbit.ok else 'err' }}" id="seed-msg-{{ loop.index0 }}">{{ r.qbit.message }}</span>{% endif %}
         {% if r.artwork is defined and r.artwork %}<br><span class="{{ 'ok' if r.artwork.ok else 'err' }}" id="art-msg-{{ loop.index0 }}">Cover and banner: {{ r.artwork.message }}</span>
           {% if not r.artwork.ok %}<button type="button" class="ghost" onclick="artworkAgain({{ tname | tojson | forceescape }}, 'art-msg-{{ loop.index0 }}', this)">Set cover and banner again</button>{% endif %}{% endif %}
@@ -149,7 +163,7 @@
         <label for="pub-tags">Tags</label><textarea id="pub-tags" name="tags" rows="2"></textarea>
         <div id="pub-suggest"></div>
         <p id="pub-msg" class="mute"></p>
-        <p><button type="button" class="ghost" id="pub-preview">Load preview</button>
+        <p class="actions"><button type="button" class="ghost" id="pub-preview">Load preview</button>
            <button id="pub-go"{% if not has_image_host %} disabled{% endif %}>Publish</button></p>
       </form>
       <script>
@@ -169,6 +183,7 @@
           const box = $("pub-suggest"); box.replaceChildren();
           for (const [tag, proposed] of Object.entries(r.suggestions)) {
             const row = document.createElement("p"), inp = document.createElement("input");
+            row.className = "suggest-row";
             inp.type = "text"; inp.value = proposed; inp.style.width = "14em";
             row.append("Unknown tag ", Object.assign(document.createElement("b"), {textContent: tag}), " → ", inp, " ");
             const ok = Object.assign(document.createElement("button"), {type: "button", textContent: "Remember"});
@@ -177,7 +192,7 @@
             no.onclick = () => teach(row, {stash_tag: tag, ignore: "1"});
             row.append(ok, " ", no); box.append(row);
           }
-          if (r.warning) return msg("⚠ " + r.warning, "err");
+          if (r.warning) return msg(r.warning, "err");
           msg(r.suggestions && Object.keys(r.suggestions).length ? "Tags the mapping does not know are sent in their dotted form; remember or drop them." : "Ready.", "ok");
         }
         $("pub-preview").onclick = preview; $("pub-tracker").onchange = preview;
@@ -186,7 +201,7 @@
       </script>
       {% endif %}
     {% endif %}
-  </section>
-  {% endif %}
+  </div>
 </section>
+{% endif %}
 {% endblock %}
