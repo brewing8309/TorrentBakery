@@ -18,6 +18,8 @@ UA = "Mozilla/5.0 (X11; Linux x86_64) TorrentBakery"
 # ids are specific to each installation and the API has no lookup endpoint, so they are listed here per site
 UNIT3D_SITES: dict[str, dict] = {
     "bitporn": {
+        # UNIT3D shows images of non-whitelisted hosts through wsrv.nl, which blocks adult hosts (pixhost: "Domain or TLD blocked by policy")
+        "image_hosts": ("imghost.dev",),
         "type_id": 1,  # "None"; 4 is WEB-DL
         "categories": {
             4: "Amateur", 5: "Anal", 6: "Asian", 7: "BBW", 8: "BDSM", 9: "Big Ass", 10: "Big Tits", 11: "Black", 12: "Cartoon", 13: "Casting",

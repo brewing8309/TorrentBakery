@@ -52,10 +52,11 @@ The interface is in English. Pages: **Bake** (search Stash, enter a scene ID or 
 
 ## Image hosts
 ```
-tb bake file.mp4 --upload pixhost.cc          # also pixhost.to, pixho.st, imgbox, imagebam, hamsterimg
-tb host set hamsterimg -o api_key=KEY         # hamsterimg (Chevereto) needs an API key; others need none
+tb bake file.mp4 --upload pixhost.cc          # also pixhost.to, pixho.st, imgbox, imagebam, hamsterimg, imghost.dev
+tb host set imghost.dev -o api_key=KEY        # hamsterimg and imghost.dev (Chevereto) need an API key; others need none
 ```
-Uploads are marked adult by default (`--sfw` to change). The images are always also written to the output folder/ZIP, so you can upload them by hand instead.
+Uploads are marked adult by default (`--sfw` to change). **bitporn:** UNIT3D shows images of hosts it has not whitelisted through the proxy wsrv.nl, which blocks adult hosts like pixhost (broken images in the post). Use `imghost.dev`, bitporn's own host; the review step warns when the bake used another one.
+The images are always also written to the output folder/ZIP, so you can upload them by hand instead.
 
 ## Tracker profiles
 ```

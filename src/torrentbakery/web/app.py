@@ -15,13 +15,13 @@ from fastapi.templating import Jinja2Templates
 from .. import config as config_mod
 from ..clients import QbitError, QBittorrent
 from ..config import SITE_SOURCES, StashBoxCfg, Tracker
-from ..hosts import HOST_NAMES
+from ..hosts import API_KEY_HOSTS, HOST_NAMES
 from ..media.files import is_video
 from ..publish import prepare, seed
 from ..render.post import release_tags
 from ..sources.gql import gql
 from ..tags import TagMap, load_user_map, save_user_map
-from ..trackers import SITES, TrackerError, get_publisher
+from ..trackers import SITES, UNIT3D_SITES, TrackerError, get_publisher
 from .jobs import JobManager
 
 SEARCH_QUERY = """
@@ -213,7 +213,12 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
             form = get_publisher(tracker, c, transport).fetch_form()
         except (TrackerError, ValueError, KeyError, OSError) as e:
             return {"ok": False, "message": str(e)}
-        return {"ok": True, "title": p.title, "tags": " ".join(p.tags), "category": p.category, "categories": form.categories, "description": p.description, "suggestions": p.suggestions,
+        warning = ""
+        shown = UNIT3D_SITES.get(c.trackers[tracker].site, {}).get("image_hosts")
+        if shown and p.meta.get("image_host") not in shown:
+            warning = (f"The images of this bake are on {p.meta.get('image_host') or 'no host'}, which {tracker} does not show (it blocks other hosts through a proxy). "
+                       f"Bake again with {' or '.join(shown)} as the image host, or the post will show broken images.")
+        return {"ok": True, "warning": warning, "title": p.title, "tags": " ".join(p.tags), "category": p.category, "categories": form.categories, "description": p.description, "suggestions": p.suggestions,
                 "image": bool(p.image), "torrent": p.torrent.name}
 
     @app.post("/jobs/{job_id}/publish")
@@ -276,7 +281,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     def settings(request: Request):
         c = cfg()
         um = load_user_map(tags_file())
-        return templates.TemplateResponse(request, "settings.html", {"c": c, "hosts": HOST_NAMES, "hamster_key": bool(c.hosts.get("hamsterimg", {}).get("api_key")), "sites": SITES,
+        return templates.TemplateResponse(request, "settings.html", {"c": c, "hosts": HOST_NAMES, "host_keys": {h: bool(c.hosts.get(h, {}).get("api_key")) for h in API_KEY_HOSTS}, "sites": SITES,
                                                                     # what the Edit button puts into the form: everything except the secrets (announce URL with passkey, cookie)
                                                                     "tracker_data": {n: {"source": t.source, "private": t.private, "site": t.site, "base_url": t.base_url, "category": t.category, "anonymous": t.anonymous,
                                                                                          "auto_publish": t.auto_publish, "title_template": t.title_template} for n, t in c.trackers.items()},
@@ -397,17 +402,19 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         c.stashboxes.pop(name, None)
         return save(c)
 
-    @app.post("/settings/hamsterimg")
-    def hamsterimg_set(api_key: str = Form("")):
+    @app.post("/settings/host/{name}")
+    def host_key_set(name: str, api_key: str = Form("")):
+        if name not in API_KEY_HOSTS:
+            raise HTTPException(404, "this host needs no API key")
         c = cfg()
         if api_key.strip():  # never shown again, so blank means keep
-            c.hosts.setdefault("hamsterimg", {})["api_key"] = api_key.strip()
+            c.hosts.setdefault(name, {})["api_key"] = api_key.strip()
         return save(c)
 
-    @app.post("/settings/hamsterimg/delete")
-    def hamsterimg_delete():
+    @app.post("/settings/host/{name}/delete")
+    def host_key_delete(name: str):
         c = cfg()
-        c.hosts.pop("hamsterimg", None)
+        c.hosts.pop(name, None)
         return save(c)
 
     @app.post("/settings/default-host")

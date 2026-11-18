@@ -165,6 +165,7 @@
             no.onclick = () => teach(row, {stash_tag: tag, ignore: "1"});
             row.append(ok, " ", no); box.append(row);
           }
+          if (r.warning) return msg("⚠ " + r.warning, "err");
           msg(r.suggestions && Object.keys(r.suggestions).length ? "Tags the mapping does not know are sent in their dotted form; remember or drop them." : "Ready.", "ok");
         }
         $("pub-preview").onclick = preview; $("pub-tracker").onchange = preview;

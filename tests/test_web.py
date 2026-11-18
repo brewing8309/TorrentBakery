@@ -117,13 +117,16 @@ def test_stash_connection_test(tmp_path, cfg_path):
 
 def test_hamsterimg_key_via_settings(tmp_path, cfg_path):
     c = TestClient(create_app(tmp_path / "out", cfg_path))
-    c.post("/settings/hamsterimg", data={"api_key": "HAMSTERKEY"})
+    c.post("/settings/host/hamsterimg", data={"api_key": "HAMSTERKEY"})
     assert config_mod.load(cfg_path).hosts["hamsterimg"]["api_key"] == "HAMSTERKEY"
     assert "HAMSTERKEY" not in c.get("/settings").text
-    c.post("/settings/hamsterimg", data={"api_key": ""})
+    c.post("/settings/host/hamsterimg", data={"api_key": ""})
     assert config_mod.load(cfg_path).hosts["hamsterimg"]["api_key"] == "HAMSTERKEY"
-    c.post("/settings/hamsterimg/delete")
+    c.post("/settings/host/hamsterimg/delete")
     assert "hamsterimg" not in config_mod.load(cfg_path).hosts
+    c.post("/settings/host/imghost.dev", data={"api_key": "IMGKEY"})
+    assert config_mod.load(cfg_path).hosts["imghost.dev"]["api_key"] == "IMGKEY" and "IMGKEY" not in c.get("/settings").text
+    assert c.post("/settings/host/pixhost.to", data={"api_key": "x"}).status_code == 404
 
 
 def test_picked_scene_shows_its_name(tmp_path, cfg_path):

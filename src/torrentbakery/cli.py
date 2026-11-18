@@ -325,7 +325,7 @@ def host_list() -> None:
 
 @host_app.command("set")
 def host_set(name: str, option: list[str] = typer.Option(..., "--option", "-o", help="key=value, e.g. api_key=…")) -> None:
-    """Save host options (hamsterimg needs api_key; optional base_url)."""
+    """Save host options (hamsterimg and imghost.dev need api_key; optional base_url)."""
     if name not in HOST_NAMES:
         raise typer.BadParameter(f"unknown host {name!r}; known: {', '.join(HOST_NAMES)}")
     cfg = config_mod.load()

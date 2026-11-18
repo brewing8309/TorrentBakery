@@ -34,6 +34,16 @@ def test_hamsterimg(img):
         get_uploader("hamsterimg", Config())
 
 
+def test_imghost_dev_is_chevereto_with_its_own_address(img):
+    def h(req):
+        assert str(req.url) == "https://imghost.dev/api/1/upload" and req.headers["X-API-Key"] == "k"
+        return httpx.Response(200, json={"image": {"url": "https://imghost.dev/images/a.jpg", "url_viewer": "https://imghost.dev/image/a"}})
+    u = get_uploader("imghost.dev", Config(hosts={"imghost.dev": {"api_key": "k"}}), httpx.MockTransport(h)).upload(img)
+    assert u.direct_url == "https://imghost.dev/images/a.jpg"
+    with pytest.raises(ValueError, match="imghost.dev needs an API key"):
+        get_uploader("imghost.dev", Config())
+
+
 def test_imgbox(img):
     def h(req):
         if req.url.path == "/":

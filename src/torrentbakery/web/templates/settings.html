@@ -9,7 +9,7 @@
     <li>{{ "✅" if c.trackers else "⬜" }} <a href="#tracker">Create a tracker profile</a> <span class="badge req">needed for torrents</span></li>
     <li>✅ <a href="#cover">Animated cover</a> <span class="badge">defaults usually fine</span></li>
     <li>{{ "✅" if c.web_media_roots else "⬜" }} <a href="#roots">Permit media folders</a> <span class="badge">only for single files</span></li>
-    <li>{{ "✅" if c.default_host or hamster_key else "⬜" }} <a href="#hosts">Image hosts</a> <span class="badge">optional</span></li>
+    <li>{{ "✅" if c.default_host or host_keys.values() | select | list else "⬜" }} <a href="#hosts">Image hosts</a> <span class="badge">optional</span></li>
     <li>{{ "✅" if c.stashboxes else "⬜" }} <a href="#stashbox">Stash-box (StashDB)</a> <span class="badge">optional</span></li>
   </ul>
   <p class="help">Every change is saved immediately and applies to the next bake. Saved API keys are never shown again.</p>
@@ -138,7 +138,7 @@
   <p class="lead">Without a host, the cover and the screenshot sheet are only files to download; the post then contains file names and you upload the images yourself. With a host, TorrentBakery uploads the images while baking and puts the links into the post. You choose the host on the start page for each bake.</p>
   <table>
     <tr><td><b>pixhost.to, pixhost.cc, pixho.st, imgbox, imagebam</b></td><td class="mute">Work without an account and without settings.</td></tr>
-    <tr><td><b>hamsterimg</b></td><td>{% if hamster_key %}<span class="ok">API key saved</span> <form class="inline" method="post" action="/settings/hamsterimg/delete"><button class="ghost">Remove</button></form>{% else %}<span class="err">API key missing</span>, cannot be used without one{% endif %}</td></tr>
+    {% for h, saved in host_keys.items() %}<tr><td><b>{{ h }}</b></td><td>{% if saved %}<span class="ok">API key saved</span> <form class="inline" method="post" action="/settings/host/{{ h }}/delete"><button class="ghost">Remove</button></form>{% else %}<span class="err">API key missing</span>, cannot be used without one{% endif %}{% if h == "imghost.dev" %}<br><span class="mute">bitporn's own host: bitporn shows images of other hosts through a proxy that blocks adult hosts such as pixhost, so use this one for posts on bitporn.</span>{% endif %}</td></tr>{% endfor %}
   </table>
   <form method="post" action="/settings/default-host">
     <label for="dh">Default image host</label>
@@ -146,12 +146,12 @@
     <p class="help">Preselected on the start page, so the post always contains host links instead of file names. Changeable per bake.</p>
     <p><button>Save</button></p>
   </form>
-  <form method="post" action="/settings/hamsterimg">
-    <label for="ham">hamsterimg API key</label>
-    <input type="password" id="ham" name="api_key" autocomplete="off" placeholder="{{ 'leave blank to keep the saved one' if hamster_key else 'paste the API key' }}">
-    <p class="help">In your hamsterimg account under the API section. Only needed if you want to use hamsterimg as a host.</p>
+  {% for h, saved in host_keys.items() %}<form method="post" action="/settings/host/{{ h }}">
+    <label for="key-{{ loop.index }}">{{ h }} API key</label>
+    <input type="password" id="key-{{ loop.index }}" name="api_key" autocomplete="off" placeholder="{{ 'leave blank to keep the saved one' if saved else 'paste the API key' }}">
+    <p class="help">In your {{ h }} account under the API section. Only needed if you want to use {{ h }} as a host.</p>
     <p><button>Save</button></p>
-  </form>
+  </form>{% endfor %}
 </section>
 
 <section id="stashbox">

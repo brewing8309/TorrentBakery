@@ -221,3 +221,17 @@ def test_web_bake_stops_for_review_and_the_post_can_be_edited(tmp_path):
             break
         time.sleep(0.1)
     assert published["description"] == "[b]edited[/b]" and published["category"] == "2"
+
+
+def test_review_warns_when_the_tracker_cannot_show_the_image_host(tmp_path):
+    c, cfg_path, jid = setup(tmp_path)
+    cfg = config_mod.load(cfg_path)
+    cfg.trackers["bp"] = Tracker(site="bitporn", base_url="https://bp.example", cookie="T")
+    config_mod.save(cfg, cfg_path)
+    tr = httpx.MockTransport(lambda r: httpx.Response(200, json={"data": []}))
+    c = TestClient(create_app(manager=JobManager(tmp_path / "out", cfg_path, fake_bake), config_path=cfg_path, transport=tr))
+    jid = c.post("/jobs", data={"source": "1", "tracker": "bp"}, follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
+    wait_done(c, jid)
+    pv = c.get(f"/jobs/{jid}/publish/preview", params={"tracker": "bp"}).json()
+    assert pv["ok"] and "pixhost.to" in pv["warning"] and "imghost.dev" in pv["warning"]
+    assert c.get(f"/jobs/{jid}/publish/preview", params={"tracker": "bp"}).json()["categories"][0][1] == "Ai Generated"

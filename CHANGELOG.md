@@ -9,4 +9,5 @@
 - Publish to Gazelle trackers (Empornium, HappyFappy, FemdomCult, Enthralled) with a session cookie, add to qBittorrent, Stash→tracker tag mapping (default list from stash-empornium); `tb publish`, web UI publish section.
 - Publish to UNIT3D trackers through their upload API (bitporn.eu): API token instead of a cookie, no announce URL needed.
 - Review step between bake and upload in the web UI: category dropdowns with names everywhere, editable post, no upload without a chosen category.
+- Image host imghost.dev (bitporn's own host) and a warning in the review step when a tracker cannot display the bake's image host.
 - Installable from a release tarball (`install.sh`, systemd service, `uninstall.sh`).
