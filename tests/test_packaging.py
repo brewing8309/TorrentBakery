@@ -14,7 +14,7 @@ def test_build_tarball(tmp_path):
     names = set(tarfile.open(tar).getnames())
     top = f"torrentbakery-{__version__}"
     for f in ("install.sh", "uninstall.sh", "pyproject.toml", "CHANGELOG.md", "packaging/torrentbakery.service", "packaging/tb",
-              "src/torrentbakery/cli.py", "src/torrentbakery/web/templates/base.html", "src/torrentbakery/render/templates/default.bbcode.j2"):
+              "src/torrentbakery/cli.py", "src/torrentbakery/web/templates/base.html", "src/torrentbakery/web/static/css/tokens.css", "src/torrentbakery/web/static/brand/favicon.svg", "src/torrentbakery/web/static/fonts/atkinson-next-latin.woff2", "src/torrentbakery/render/templates/default.bbcode.j2"):
         assert f"{top}/{f}" in names, f
     assert not any("__pycache__" in n or "egg-info" in n or ".venv" in n or "tests/" in n for n in names)
 

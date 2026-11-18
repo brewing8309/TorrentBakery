@@ -218,3 +218,15 @@ def test_bake_form_remembers_last_choices(tmp_path, cfg_path):
     page = c.get("/").text
     assert not re.search(r"<option selected>(a|b)</option>", page) and "<option selected>imgbox</option>" not in page and "<option selected>pixhost.cc</option>" not in page
     assert config_mod.load(cfg_path).last_used["upload"] == "" and config_mod.load(cfg_path).trackers["b"].site == "empornium"
+
+
+def test_pages_link_only_existing_static_assets(tmp_path, cfg_path):
+    import re
+
+    c = TestClient(create_app(tmp_path / "out", cfg_path))
+    for url in ("/", "/history", "/settings"):
+        assets = set(re.findall(r'(?:href|content)="(?:http://testserver)?(/static/[^"?]+)', c.get(url).text))
+        assert len(assets) >= 8
+        assert all(c.get(a).status_code == 200 for a in assets)
+    css = c.get("/static/css/tokens.css").text
+    assert all(c.get("/static/fonts/" + f).status_code == 200 for f in re.findall(r'\.\./fonts/([\w.-]+)', css))

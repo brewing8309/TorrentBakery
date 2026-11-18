@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="src/torrentbakery/web/static/brand/logo-full-on-dark.svg">
+  <img src="src/torrentbakery/web/static/brand/logo-full.svg" alt="TorrentBakery" width="320">
+</picture>
+
 # TorrentBakery
 
 Bakes a release package from a video file: `.torrent`, 5×7 screenshot sheet, main image, MediaInfo and a ready-to-paste BBCode forum post.
