@@ -1,4 +1,5 @@
 import json
+import time
 
 import httpx
 from fastapi.testclient import TestClient
@@ -153,3 +154,70 @@ def test_seed_again_route(tmp_path):
     assert r["ok"] and "tracker's torrent" in r["message"]
     assert json.loads((d / "publish.json").read_text())["emp"]["qbit"]["ok"] is True
     assert c.post(f"/jobs/{jid}/seed", data={"tracker": "nope"}).status_code == 400
+
+
+def test_category_dropdown_data_uses_form_values_and_saved_cookie(tmp_path):
+    c, _, _ = setup(tmp_path)
+    r = c.post("/settings/tracker/categories", data={"name": "emp", "site": "empornium", "base_url": "https://tr.example", "cookie": ""}).json()
+    assert r["ok"] and r["categories"] == [["1", "Amateur"], ["2", "Studio"]]  # the saved cookie was used (the mock transport only answers the page either way)
+    assert COOKIE not in json.dumps(r)
+    assert not c.post("/settings/tracker/categories", data={"name": "new", "site": "", "base_url": ""}).json()["ok"]
+    assert 'id="t-cat"' in c.get("/settings").text and "Default category" in c.get("/settings").text
+
+
+def test_category_dropdown_for_unit3d_without_saving(tmp_path):
+    c, _, _ = setup(tmp_path)
+    tr = httpx.MockTransport(lambda r: httpx.Response(200, json={"data": []}))
+    cfg_path = tmp_path / "config.toml"
+    c2 = TestClient(create_app(manager=JobManager(tmp_path / "out2", cfg_path, fake_bake), config_path=cfg_path, transport=tr))
+    r = c2.post("/settings/tracker/categories", data={"name": "bp", "site": "bitporn", "base_url": "https://bp.example", "cookie": "TOKEN"}).json()
+    assert r["ok"] and ["4", "Amateur"] in r["categories"] and len(r["categories"]) == 52
+    assert "bp" not in config_mod.load(cfg_path).trackers  # looking up categories saves nothing
+
+
+def test_cli_category_by_name(tmp_path, monkeypatch):
+    from typer.testing import CliRunner
+
+    from torrentbakery.cli import app
+    cfg_path = tmp_path / "c.toml"
+    monkeypatch.setattr(config_mod, "CONFIG_PATH", cfg_path)
+    config_mod.save(Config(trackers={"bp": Tracker()}), cfg_path)
+    runner = CliRunner()
+    r = runner.invoke(app, ["tracker", "set", "bp", "--site", "bitporn", "--url", "https://bp.example", "--cookie", "T"])
+    assert r.exit_code == 0, r.output
+    import torrentbakery.trackers.unit3d as u
+    monkeypatch.setattr(u.Unit3dPublisher, "fetch_form", lambda self: u.UploadForm(categories=[(str(i), n) for i, n in u.UNIT3D_SITES["bitporn"]["categories"].items()]))
+    assert runner.invoke(app, ["tracker", "set", "bp", "--category", "amateur"]).exit_code == 0
+    assert config_mod.load(cfg_path).trackers["bp"].category == "4"
+    bad = runner.invoke(app, ["tracker", "set", "bp", "--category", "Nope"])
+    assert bad.exit_code != 0 and "not offered" in bad.output
+    assert runner.invoke(app, ["tracker", "set", "bp", "--category", "7"]).exit_code == 0 and config_mod.load(cfg_path).trackers["bp"].category == "7"
+
+
+def test_web_bake_stops_for_review_and_the_post_can_be_edited(tmp_path):
+    seen, published = {}, {}
+
+    def runner(cfg, source, out, **kw):
+        seen.update(kw)
+        return fake_bake(cfg, source, out, **kw)
+
+    def publisher(cfg, out_dir, progress=None, **kw):
+        published.update(kw)
+        return {"torrent_url": "https://tr.example/torrents.php?id=1", "torrent_id": "1"}
+    cfg_path = tmp_path / "config.toml"
+    config_mod.save(Config(trackers={"emp": Tracker([PASSKEY], site="empornium", base_url="https://tr.example", cookie=COOKIE, category="", auto_publish=True)}), cfg_path)
+    tr = httpx.MockTransport(lambda r: httpx.Response(200, text=UPLOAD_PAGE))
+    c = TestClient(create_app(manager=JobManager(tmp_path / "out", cfg_path, runner, publisher=publisher), config_path=cfg_path, transport=tr))
+    jid = c.post("/jobs", data={"source": "1", "tracker": "emp", "publish": "yes"}, follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
+    wait_done(c, jid)
+    assert seen["publish"] is False  # the profile says auto_publish and the old form field said yes: the web UI still waits for the review
+    page = c.get(f"/jobs/{jid}").text
+    assert "Step 2: review and publish" in page and 'href="#publish"' in page and 'name="description"' in page and "(choose a category)" in page
+    assert page.index("Forum post (BBCode)") < page.index("Step 2: review and publish")  # look at the bake first, then publish
+    assert c.get(f"/jobs/{jid}/publish/preview", params={"tracker": "emp"}).json()["description"] == "[b]post[/b]"
+    c.post(f"/jobs/{jid}/publish", data={"tracker": "emp", "category": "2", "description": " [b]edited[/b] "})
+    for _ in range(50):
+        if c.get(f"/jobs/{jid}/publish/state").json()["status"] == "done":
+            break
+        time.sleep(0.1)
+    assert published["description"] == "[b]edited[/b]" and published["category"] == "2"

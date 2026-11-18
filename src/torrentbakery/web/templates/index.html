@@ -19,10 +19,7 @@
     <div class="row">
       <div><label for="tracker">Tracker profile</label>
         <select id="tracker" name="tracker"><option value="">none (torrent without announce URL)</option>{% for t in trackers %}<option{% if t == last.get("tracker") %} selected{% endif %}>{{ t }}</option>{% endfor %}</select>
-        <p class="help">Sets announce URL, source tag and private/public.{% if not trackers %} <a href="/settings#tracker">Create a profile</a>{% endif %}</p>
-        {% if publishable %}<label for="publish">Publish after baking</label>
-        <select id="publish" name="publish"><option value="">as set in the profile</option><option value="yes"{% if last.get("publish") == "yes" %} selected{% endif %}>yes, upload to the tracker</option><option value="no"{% if last.get("publish") == "no" %} selected{% endif %}>no, only bake</option></select>
-        <p class="help">Needs an image host (the tracker wants a cover URL). {{ publishable | join(", ") }} can publish.</p>{% endif %}</div>
+        <p class="help">Sets announce URL, source tag and private/public. After the bake you review the result and upload it to this tracker yourself.{% if not trackers %} <a href="/settings#tracker">Create a profile</a>{% endif %}</p></div>
       <div><label for="upload">Image host</label>
         <select id="upload" name="upload"><option value="">none (images as files only)</option>{% set chosen_host = last["upload"] if "upload" in last else default_host %}{% for h in hosts %}<option{% if h == chosen_host %} selected{% endif %}>{{ h }}</option>{% endfor %}</select>
         <p class="help">Uploads the cover and the screenshot sheet and puts the host links into the post. Without a host the post only contains file names and you upload the images yourself. Set a default host in <a href="/settings#hosts">Settings</a>.</p></div>

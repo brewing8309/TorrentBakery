@@ -93,7 +93,7 @@ def _matches(torrent: Path, t: Tracker) -> bool:
     return bool(t.announce) and announces == set(t.announce) and (tor.source or "") == t.effective_source and bool(tor.private) == t.private
 
 
-def prepare(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, tags: list[str] | None = None, category: str | None = None,
+def prepare(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, tags: list[str] | None = None, category: str | None = None, description: str | None = None,
             tagmap: TagMap | None = None, build_torrent: bool = True, progress=None) -> Prepared:
     t = cfg.trackers.get(name)
     if t is None:
@@ -121,7 +121,7 @@ def prepare(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, 
         else:
             make_torrent(_content_path(out_dir, meta, base), torrent, Tracker(t.announce, t.effective_source, t.private), progress)
     image = (meta.get("uploads", {}).get("cover") or {}).get("direct_url", "")
-    return Prepared(name, title or render_title(t.title_template, release, media), (out_dir / "post.bbcode").read_text(), tags, category or t.category,
+    return Prepared(name, title or render_title(t.title_template, release, media), description or (out_dir / "post.bbcode").read_text(), tags, category or t.category,
                     image, torrent, suggestions, meta)
 
 
@@ -162,13 +162,13 @@ def seed(cfg: Config, out_dir: Path, name: str, *, transport: httpx.BaseTranspor
     return result
 
 
-def publish(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, tags: list[str] | None = None, category: str | None = None,
+def publish(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, tags: list[str] | None = None, category: str | None = None, description: str | None = None,
             dry_run: bool = False, tagmap: TagMap | None = None, transport: httpx.BaseTransport | None = None,
             qbit_transport: httpx.BaseTransport | None = None, progress=None) -> dict:
     """Returns the result dict that is also stored in <out_dir>/publish.json (unless dry_run)."""
     step = progress or (lambda stage, frac=0.0: None)
     step("Preparing upload")
-    p = prepare(cfg, out_dir, name, title=title, tags=tags, category=category, tagmap=tagmap, build_torrent=not dry_run,
+    p = prepare(cfg, out_dir, name, title=title, tags=tags, category=category, description=description, tagmap=tagmap, build_torrent=not dry_run,
                 progress=lambda f: step("Hashing torrent", f))
     if not p.image and not dry_run:
         raise TrackerError("this bake has no image-host upload; the tracker needs a cover URL. Bake again with an image host.")

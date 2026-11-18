@@ -123,13 +123,31 @@ def _tracker(cfg: config_mod.Config, name: str) -> Tracker:
     return cfg.trackers[name]
 
 
+def _category_id(cfg: config_mod.Config, name: str, t: Tracker, category: str | None, site: str | None, url: str | None, cookie: str | None) -> str | None:
+    """A category given by name becomes its id, using the tracker's own list (with the options of this same command applied)."""
+    if not category or category.isdigit():
+        return category
+    from dataclasses import replace
+
+    from .trackers import TrackerError, get_publisher
+    probe = replace(t, site=site or t.site, base_url=(url or t.base_url).rstrip("/"), cookie=cookie or t.cookie)
+    try:
+        cats = get_publisher("_probe", replace(cfg, trackers={**cfg.trackers, "_probe": probe})).fetch_form().categories
+    except (TrackerError, ValueError, KeyError) as e:
+        raise typer.BadParameter(f"cannot look up the category name ({e}); give its id instead") from e
+    hit = [v for v, label in cats if label.lower() == category.lower()]
+    if not hit:
+        raise typer.BadParameter(f"{category!r} is not offered by {name!r}; known: {', '.join(label for _, label in cats)}")
+    return hit[0]
+
+
 @tracker_app.command("set")
 def tracker_set(
     name: str,
     site: str = typer.Option(None, "--site", help=f"Site type: {', '.join(SITE_SOURCES)}"),
     url: str = typer.Option(None, "--url", help="Site address, e.g. https://www.empornium.sx"),
     cookie: str = typer.Option(None, "--cookie", help="Session cookie, e.g. 'session=abc; other=def' (copy from your logged-in browser); API token for UNIT3D sites"),
-    category: str = typer.Option(None, "--category", help="Default upload category id (see `tb tracker test`)"),
+    category: str = typer.Option(None, "--category", help="Default upload category: its name (e.g. Amateur) or id (see `tb tracker test`)"),
     anonymous: bool = typer.Option(None, "--anonymous/--no-anonymous"),
     title_template: str = typer.Option(None, "--title-template", help="Jinja template for the torrent title"),
     auto_publish: bool = typer.Option(None, "--auto-publish/--no-auto-publish", help="Publish right after baking with this tracker"),
@@ -139,6 +157,7 @@ def tracker_set(
     t = _tracker(cfg, name)
     if site is not None and site not in SITE_SOURCES:
         raise typer.BadParameter(f"site must be one of: {', '.join(SITE_SOURCES)}")
+    category = _category_id(cfg, name, t, category, site, url, cookie)
     for k, v in (("site", site), ("base_url", url.rstrip("/") if url else url), ("cookie", cookie), ("category", category), ("anonymous", anonymous),
                  ("title_template", title_template), ("auto_publish", auto_publish)):
         if v is not None:

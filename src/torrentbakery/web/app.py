@@ -146,7 +146,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
 
     @app.post("/jobs")
     def create_job(source: str = Form(...), label: str = Form(""), tracker: str = Form(""), upload: str = Form(""), sfw: str = Form(""), stashbox: str = Form(""),
-                   cover_source: str = Form(""), cover_format: str = Form(""), publish: str = Form("")):
+                   cover_source: str = Form(""), cover_format: str = Form("")):
         source = source.strip()
         if not source:
             raise HTTPException(400, "source required")
@@ -155,13 +155,13 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         if cover_source not in ("", "own", "stash") or cover_format not in ("", "webp", "gif"):
             raise HTTPException(400, "invalid cover option")
         c = cfg()  # the form comes back the way it was left: remember the choices (not the per-scene source and stash-box link)
-        used = {"tracker": tracker, "upload": upload, "publish": publish, "cover_source": cover_source, "cover_format": cover_format, "sfw": "1" if sfw else ""}
+        used = {"tracker": tracker, "upload": upload, "cover_source": cover_source, "cover_format": cover_format, "sfw": "1" if sfw else ""}
         if used != c.last_used:
             c.last_used = used
             config_mod.save(c, config_path)
         job = jobs.submit(source, label=label.strip()[:200], tracker=tracker or None, upload=upload or None, nsfw=not sfw, stashbox=stashbox.strip() or None,
                           cover_source=cover_source or None, cover_format=cover_format or None,
-                          publish={"yes": True, "no": False}.get(publish))  # "" = follow the profile's auto_publish
+                          publish=False)  # the web UI always stops after the bake: the job page is the review step before the upload
         return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
     @app.get("/jobs/{job_id}")
@@ -213,15 +213,15 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
             form = get_publisher(tracker, c, transport).fetch_form()
         except (TrackerError, ValueError, KeyError, OSError) as e:
             return {"ok": False, "message": str(e)}
-        return {"ok": True, "title": p.title, "tags": " ".join(p.tags), "category": p.category, "categories": form.categories, "suggestions": p.suggestions,
+        return {"ok": True, "title": p.title, "tags": " ".join(p.tags), "category": p.category, "categories": form.categories, "description": p.description, "suggestions": p.suggestions,
                 "image": bool(p.image), "torrent": p.torrent.name}
 
     @app.post("/jobs/{job_id}/publish")
-    def publish_start(job_id: str, tracker: str = Form(...), title: str = Form(""), category: str = Form(""), tags: str = Form("")):
+    def publish_start(job_id: str, tracker: str = Form(...), title: str = Form(""), category: str = Form(""), tags: str = Form(""), description: str = Form("")):
         job = publishable_job(job_id, tracker)
         if job.pub.get("status") in ("queued", "running"):
             raise HTTPException(409, "a publish is already running for this release")
-        jobs.submit_publish(job, name=tracker, title=title.strip() or None, category=category.strip() or None, tags=tags.split() or None,
+        jobs.submit_publish(job, name=tracker, title=title.strip() or None, category=category.strip() or None, tags=tags.split() or None, description=description.strip() or None,
                             tagmap=TagMap.load(tags_file()), transport=transport)
         return RedirectResponse(f"/jobs/{job.id}#publish", status_code=303)
 
@@ -298,6 +298,22 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
                                    cookie=cookie.strip() or old.cookie, category=category.strip(), anonymous=bool(anonymous), auto_publish=bool(auto_publish and site),
                                    title_template=title_template.strip())
         return save(c)
+
+    @app.post("/settings/tracker/categories")
+    def tracker_categories(name: str = Form(""), site: str = Form(""), base_url: str = Form(""), cookie: str = Form("")):
+        """The category names of the tracker as the form is filled in right now (a blank cookie means the saved one), so a profile can be set up before it is saved."""
+        c = cfg()
+        old = c.trackers.get(name.strip(), Tracker())
+        probe = replace(old, site=site, base_url=base_url.strip().rstrip("/"), cookie=cookie.strip() or old.cookie)
+        if not site or not probe.base_url:
+            return {"ok": False, "message": "pick a site type and enter the site address first"}
+        try:
+            form = get_publisher("_probe", replace(c, trackers={**c.trackers, "_probe": probe}), transport).fetch_form()
+        except (TrackerError, ValueError, KeyError) as e:
+            return {"ok": False, "message": str(e)}
+        except httpx.HTTPError as e:
+            return {"ok": False, "message": f"not reachable: {type(e).__name__}"}
+        return {"ok": True, "message": f"{len(form.categories)} categories loaded", "categories": form.categories}
 
     @app.post("/settings/tracker/{name}/test")
     def tracker_test(name: str):

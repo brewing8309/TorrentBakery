@@ -67,7 +67,7 @@ tb tracker list | tb tracker remove main
 A tracker profile with a site type (Gazelle: `empornium`, `happyfappy`, `femdomcult`, `enthralled`; UNIT3D: `bitporn`) and your session cookie (UNIT3D: API token) can upload a baked release for you. TorrentBakery does server-side what the [stash-empornium](https://github.com/bdbenim/stash-empornium) userscript does in the browser: it reads `upload.php`, fills the form (title, post, tags, cover, category, anonymity) and posts it with the torrent. Afterwards the torrent goes to qBittorrent, which rechecks the files and starts seeding.
 ```
 tb tracker add emp -s Emp                         # announce URL is optional for publishing profiles
-tb tracker set emp --site empornium --url https://www.empornium.sx --cookie 'session=…' --category 2
+tb tracker set emp --site empornium --url https://www.empornium.sx --cookie 'session=…' --category Amateur   # name or id
 tb tracker test emp                               # logs in, lists the category ids; posts nothing
 tb tracker fetch-announce emp                     # reads your announce URL from the upload page
 tb qbit set --url http://10.10.1.5:8080 --username u --password p --path-map /media/share=/data
@@ -75,7 +75,7 @@ tb publish out/My_Release -t emp --dry-run        # shows what would be sent
 tb publish out/My_Release -t emp                  # uploads (public!) and adds to qBittorrent
 tb bake stash:1234 -t emp -u pixhost.to --publish # bake and upload in one go (needs an image host: the tracker wants a cover URL)
 ```
-In the web UI, the result page has a "Publish to tracker" section with a preview (title, tags, category list read live from the tracker); `--auto-publish` / the profile setting uploads right after baking. A failed upload never fails the bake; the reason is shown on the result page. The cookie expires at some point: "Test login" tells you, paste a fresh one.
+In the web UI a bake never uploads by itself: the result page shows what was baked (title, post, tags, images) and ends with a **review step** (title, post, tags and category list read live from the tracker, all editable) before you press Publish. `--publish` / the profile's auto-publish setting uploads right after baking on the command line only. A failed upload never fails the bake; the reason is shown on the result page. The cookie expires at some point: "Test login" tells you, paste a fresh one.
 
 Stash tags are translated to tracker tags with the default list from stash-empornium (Unlicense) plus your own entries (`tb tags map "Big Tits" "big.tits boobs" [-t emp]`, `tb tags ignore TAG`, or in the web UI). The performers are always added as tags (first); metadata such as date, resolution or codec is not tagged. Tags the list does not know are sent in dotted form, and the preview offers to remember them.
 

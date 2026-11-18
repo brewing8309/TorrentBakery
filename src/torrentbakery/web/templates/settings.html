@@ -85,14 +85,16 @@
       <input type="password" id="t-cookie" name="cookie" autocomplete="off" placeholder="session=…; other=…">
       <p class="help">In your browser, logged in to the tracker: developer tools → Application/Storage → Cookies; copy the cookies as <code>name=value; name2=value2</code>. It is saved in the config file (readable only by the service user) and never shown again. When it expires, "Test login" says so; paste a fresh one. <b>UNIT3D sites (bitporn):</b> no cookie, paste your API token instead (account settings → Security → API token); it does not expire.</p>
       <div class="row">
-        <div><label for="t-cat">Default category id</label><input type="text" id="t-cat" name="category" placeholder="e.g. 2">
-          <p class="help">"Test login" lists the ids the tracker offers. You can still pick another one per upload.</p></div>
+        <div><label for="t-cat">Default category</label>
+          <select id="t-cat" name="category"><option value="">(none: pick one for each upload)</option></select>
+          <button type="button" class="ghost" id="t-cat-load">Load categories</button> <span id="t-cat-msg" class="mute"></span>
+          <p class="help">Read from the tracker with the site address and cookie/token above (a blank cookie uses the saved one). You can still pick another one per upload.</p></div>
         <div><label for="t-title">Title template <span class="badge">optional</span></label><input type="text" id="t-title" name="title_template" placeholder="[{{ '{{ studio }}' }}] {{ '{{ title }}' }}">
           <p class="help">Jinja. Variables: studio, performers, performers_text, title, date, resolution, codec, duration, framerate. Empty = <code>[Studio] Performers - Title (date) [1080p]</code>.</p></div>
       </div>
       <label><input type="checkbox" name="anonymous" value="1"> Upload anonymously</label>
-      <p><label><input type="checkbox" name="auto_publish" value="1"> Publish automatically after baking</label></p>
-      <p class="help">Needs an image host on the start page: the tracker requires a cover URL.</p>
+      <p><label><input type="checkbox" name="auto_publish" value="1"> Publish automatically after baking (command line <code>tb bake</code> only; the web interface always stops for review)</label></p>
+      <p class="help">An upload needs an image host on the start page: the tracker requires a cover URL.</p>
     </details>
     <p><button>Save profile</button> <button type="button" class="ghost" id="tracker-cancel" hidden>Cancel editing</button></p>
   </form>
@@ -217,17 +219,35 @@ function editTracker(name) {
   const t = trackerData[name], f = tform.elements;
   tform.reset();
   f.name.value = name; f.name.readOnly = true;  // a different name would create a second profile
-  f.source.value = t.source; f.private.checked = t.private; f.site.value = t.site; f.base_url.value = t.base_url; f.category.value = t.category;
+  f.source.value = t.source; f.private.checked = t.private; f.site.value = t.site; f.base_url.value = t.base_url; setCategory(t.category);
   f.title_template.value = t.title_template; f.anonymous.checked = t.anonymous; f.auto_publish.checked = t.auto_publish;
   f.announce.placeholder = "saved; leave empty to keep it (a new URL replaces it)"; f.cookie.placeholder = "saved; leave empty to keep it";
   tform.querySelector("details").open = true;
+  if (t.site) loadCategories(t.category);
   ttitle.textContent = "Edit profile " + name; tcancel.hidden = false;
   tform.scrollIntoView({behavior: "smooth", block: "start"});
 }
 tcancel.addEventListener("click", () => {
-  tform.reset(); tform.elements.name.readOnly = false; tcancel.hidden = true; ttitle.textContent = "Add or replace a profile";
+  tform.reset(); setCategory(""); tform.elements.name.readOnly = false; tcancel.hidden = true; ttitle.textContent = "Add or replace a profile";
   tform.elements.announce.placeholder = "https://tracker.example/abc123passkey/announce"; tform.elements.cookie.placeholder = "session=…; other=…";
 });
+function setCategory(value, cats) {  // keeps the saved id selectable even before the list is loaded
+  const sel = tform.elements.category, keep = value === undefined ? sel.value : value;
+  sel.replaceChildren(new Option("(none: pick one for each upload)", ""));
+  for (const [v, l] of cats || []) sel.add(new Option(l, v));
+  if (keep && ![...sel.options].some(o => o.value === keep)) sel.add(new Option("saved category (id " + keep + ")", keep));
+  sel.value = keep || "";
+}
+async function loadCategories(selected) {
+  const msg = document.getElementById("t-cat-msg"), f = tform.elements;
+  msg.className = "mute"; msg.textContent = "Loading …";
+  try {
+    const r = await (await fetch("/settings/tracker/categories", { method: "POST", body: new URLSearchParams({ name: f.name.value, site: f.site.value, base_url: f.base_url.value, cookie: f.cookie.value }) })).json();
+    msg.className = r.ok ? "ok" : "err"; msg.textContent = (r.ok ? "✅ " : "❌ ") + r.message;
+    if (r.ok) setCategory(typeof selected === "string" ? selected : undefined, r.categories);
+  } catch (e) { msg.className = "err"; msg.textContent = "❌ Could not load."; }
+}
+document.getElementById("t-cat-load").addEventListener("click", () => loadCategories());
 async function testTracker(name, id) {
   const out = document.getElementById(id);
   out.className = "mute"; out.textContent = " Testing …";

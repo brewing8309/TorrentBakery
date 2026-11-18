@@ -332,3 +332,10 @@ def test_publish_reports_when_the_tracker_torrent_cannot_be_fetched(baked):
     finally:
         gz.GazellePublisher.retry_delay = old
     assert out["torrent_id"] == "4711" and not out["qbit"]["ok"] and "nothing added" in out["qbit"]["message"] and not any("torrents/add" in x for x in qbit)
+
+
+def test_edited_post_is_what_gets_sent(baked):
+    cfg = Config(trackers={"emp": tracker()})
+    out = publish(cfg, baked, "emp", dry_run=True, description="[b]edited[/b]", transport=transport([]), tagmap=TagMap.load(baked / "none.toml"))
+    assert out["sent"]["desc"] == "[b]edited[/b]"
+    assert publish(cfg, baked, "emp", dry_run=True, transport=transport([]), tagmap=TagMap.load(baked / "none.toml"))["sent"]["desc"] == "[b]post[/b]"

@@ -206,10 +206,10 @@ def test_bake_form_remembers_last_choices(tmp_path, cfg_path):
     c = TestClient(create_app(manager=JobManager(tmp_path / "out", cfg_path, lambda cfg, source, out, **kw: out), config_path=cfg_path))
     page = c.get("/").text
     assert '<option selected>pixhost.cc</option>' in page and "<option selected>a</option>" not in page  # first visit: the default host, no tracker
-    jid = c.post("/jobs", data={"source": "1", "tracker": "b", "upload": "imgbox", "publish": "no", "cover_source": "stash", "cover_format": "gif", "sfw": "1"}, follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
+    jid = c.post("/jobs", data={"source": "1", "tracker": "b", "upload": "imgbox", "cover_source": "stash", "cover_format": "gif", "sfw": "1"}, follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
     wait_done(c, jid)
     page = c.get("/").text
-    assert "<option selected>b</option>" in page and "<option selected>imgbox</option>" in page and '<option value="no" selected>' in page
+    assert "<option selected>b</option>" in page and "<option selected>imgbox</option>" in page and 'name="publish"' not in page
     assert '<option value="stash" selected>' in page and '<option value="gif" selected>' in page and re.search(r'name="sfw" value="1" checked', page)
     c.post("/jobs", data={"source": "2", "tracker": "", "upload": ""}, follow_redirects=False)  # choosing "none" is remembered as well
     page = c.get("/").text
