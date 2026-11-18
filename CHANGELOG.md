@@ -13,4 +13,5 @@
 - UNIT3D (bitporn) list cover and banner set through the edit form with a browser session cookie (the API cannot): poster and banner are cut, hosted on the bake's image host and entered as URLs; retry button on the result page.
 - `tb` wrapper sets TB_CONFIG/TB_OUT like the service, so the CLI sees the saved profiles.
 - qBittorrent: waits until the torrent is listed and checked, starts it only with complete files, confirms it is seeding (qBittorrent 5 left torrents "Completed"/stopped after the recheck).
+- New visual design for the web UI: logo and favicon set, design tokens, self-hosted fonts, light and dark theme with a switch in the header, responsive layouts.
 - Installable from a release tarball (`install.sh`, systemd service, `uninstall.sh`).
