@@ -116,3 +116,130 @@ def test_publish_without_announce_uses_the_tracker_torrent(baked):  # noqa: F811
     assert b"jane doe" in posts[0].content and b"eve" in posts[0].content  # performers first in the keywords
     assert "/api/v2/torrents/add" in qbit
     assert prepare(cfg, baked, "bp", tagmap=TagMap.load(baked / "none.toml"), build_torrent=False).torrent.name == "Scene.tracker.bp.torrent"
+
+
+# ---- cover and banner through the web form ----
+EDIT_PAGE = """<html><body><form method="POST" action="https://bp.example/torrents/777" enctype="multipart/form-data">
+<input type="hidden" name="_token" value="CSRF1"><input type="hidden" name="_method" value="PATCH">
+<input type="file" id="torrent-cover" name="torrent-cover"><input type="file" id="torrent-banner" name="torrent-banner">
+<input type="text" name="name" value="Title &amp; more"><select name="category_id"><option value="4" selected>Amateur</option><option value="5">Anal</option></select>
+<textarea name="description">
+[b]post[/b]</textarea>
+<input type="hidden" name="anon" value="0"><input type="checkbox" name="anon" value="1" checked>
+<input type="hidden" name="internal" value="0"><input type="checkbox" name="internal" value="1">
+</form></body></html>"""
+SESSION = "laravel_session=WEBSESSION"
+
+
+def web_tracker(**kw):
+    return tracker(session_cookie=SESSION, **kw)
+
+
+def web_transport(posts, edit=EDIT_PAGE, post_response=None):
+    def h(r):
+        if r.url.path.startswith("/api/"):
+            return httpx.Response(200, json={"data": []})
+        assert r.headers["cookie"] == SESSION
+        if r.method == "POST":
+            posts.append(r)
+            return post_response or httpx.Response(302, headers={"location": "https://bp.example/torrents/777"})
+        if r.url.path == "/torrents/777/edit":
+            return httpx.Response(200, text=edit)
+        if r.url.path == "/login":
+            return httpx.Response(200, text="login")
+        return httpx.Response(200, text="home")
+    return httpx.MockTransport(h)
+
+
+def images(tmp_path):
+    a, b = tmp_path / "poster.jpg", tmp_path / "banner.jpg"
+    a.write_bytes(b"\xff\xd8poster")
+    b.write_bytes(b"\xff\xd8banner")
+    return a, b
+
+
+def test_set_artwork_posts_the_edit_form_with_both_images(tmp_path):
+    posts = []
+    p = get_publisher("bp", Config(trackers={"bp": web_tracker()}), web_transport(posts))
+    p.set_artwork("777", *images(tmp_path))
+    body = posts[0].content
+    for needle in (b'name="_token"\r\n\r\nCSRF1', b'name="_method"\r\n\r\nPATCH', b'name="name"\r\n\r\nTitle & more', b'name="category_id"\r\n\r\n4',
+                   b'name="description"\r\n\r\n[b]post[/b]', b'name="torrent-cover"; filename="poster.jpg"', b'name="torrent-banner"; filename="banner.jpg"',
+                   b'name="anon"\r\n\r\n1', b'name="internal"\r\n\r\n0'):
+        assert needle in body, needle
+    assert body.count(b'name="anon"') == 1  # the checked box replaced its hidden 0
+
+
+def test_artwork_errors_are_explained(tmp_path):
+    ims = images(tmp_path)
+    with pytest.raises(TrackerError, match="no web session cookie"):
+        get_publisher("bp", Config(trackers={"bp": tracker()}), web_transport([])).set_artwork("777", *ims)
+    expired = httpx.MockTransport(lambda r: httpx.Response(302, headers={"location": "https://bp.example/login"}))
+    with pytest.raises(LoginError, match="web session cookie is expired"):
+        get_publisher("bp", Config(trackers={"bp": web_tracker()}), expired).set_artwork("777", *ims)
+    with pytest.raises(TrackerError, match="no cover field"):
+        get_publisher("bp", Config(trackers={"bp": web_tracker()}), web_transport([], edit="<html>forbidden</html>")).set_artwork("777", *ims)
+    back = httpx.Response(302, headers={"location": "https://bp.example/torrents/777/edit"})
+
+    gets = []
+
+    def h(r):
+        if r.method == "POST":
+            return back
+        gets.append(1)  # the first page is the clean form, the one shown after the bounce carries the error
+        return httpx.Response(200, text=EDIT_PAGE if len(gets) == 1 else EDIT_PAGE + '<div class="alert">The torrent-cover must be an image.</div>')
+    with pytest.raises(TrackerError, match="rejected: The torrent-cover must be an image"):
+        get_publisher("bp", Config(trackers={"bp": web_tracker()}), httpx.MockTransport(h)).set_artwork("777", *ims)
+
+
+def test_login_test_reports_the_web_session():
+    assert "works" in get_publisher("bp", Config(trackers={"bp": web_tracker()}), web_transport([])).fetch_form().note
+    assert "No web session cookie" in pub().fetch_form().note
+    expired = httpx.MockTransport(lambda r: httpx.Response(200, json={"data": []}) if r.url.path.startswith("/api/") else httpx.Response(302, headers={"location": "/login"}))
+    assert "expired" in get_publisher("bp", Config(trackers={"bp": web_tracker()}), expired).fetch_form().note
+
+
+def test_artwork_is_cut_from_the_promo_image_or_a_frame(tmp_path):
+    import io
+
+    from PIL import Image
+
+    from torrentbakery.media.artwork import make_artwork
+    buf = io.BytesIO()
+    Image.new("RGB", (1920, 1080), (200, 30, 30)).save(buf, "JPEG")
+    seen = []
+
+    def h(r):
+        seen.append(dict(r.headers))
+        return httpx.Response(200, content=buf.getvalue())
+    cfg = Config()
+    cfg.stash.url, cfg.stash.api_key = "http://stash:9999", "STASHKEY"
+    out = tmp_path / "bake"
+    out.mkdir()
+    poster, banner = make_artwork(cfg, out, {"release": {"cover_url": "http://stash:9999/scene/1/screenshot"}}, httpx.MockTransport(h))
+    assert Image.open(poster).size == (400, 600) and Image.open(banner).size == (960, 540)
+    assert seen[0]["apikey"] == "STASHKEY"  # Stash images need the key
+    make_artwork(cfg, out, {"release": {"cover_url": "https://other.example/x.jpg"}}, httpx.MockTransport(h))
+    assert "apikey" not in seen[1]  # but nobody else gets it
+    with pytest.raises(FileNotFoundError):
+        make_artwork(cfg, out, {"release": {}, "content_path": str(tmp_path / "missing.mp4")})
+
+
+def test_publish_sets_artwork_and_reports_failures_without_failing(baked, monkeypatch):  # noqa: F811
+    import torrentbakery.publish as pm
+    calls = []
+    monkeypatch.setattr(pm, "make_artwork", lambda cfg, out, meta, transport=None: (calls.append(1), images(out.parent))[1])
+
+    def t(r):
+        if r.method == "POST" and r.url.path.startswith("/torrents/"):
+            return httpx.Response(302, headers={"location": "https://bp.example/torrents/777"})
+        if r.url.path.endswith("/edit"):
+            return httpx.Response(200, text=EDIT_PAGE)
+        return transport([]).handler(r) if r.url.path.startswith(("/api", "/torrent/")) else httpx.Response(200, text="x")
+    cfg = Config(trackers={"bp": web_tracker()})
+    out = publish(cfg, baked, "bp", transport=httpx.MockTransport(lambda r: t(r)), tagmap=TagMap.load(baked / "none.toml"))
+    assert out["artwork"] == {"ok": True, "message": "cover and banner set"} and calls
+    assert json.loads((baked / "publish.json").read_text())["bp"]["artwork"]["ok"]
+    # without the cookie the upload still succeeds and says what is missing
+    out = publish(Config(trackers={"bp": tracker()}), baked, "bp", transport=transport([]), tagmap=TagMap.load(baked / "none.toml"))
+    assert out["torrent_id"] == "777" and not out["artwork"]["ok"] and "no web session cookie" in out["artwork"]["message"]

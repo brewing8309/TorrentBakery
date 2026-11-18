@@ -91,9 +91,21 @@
     {% for tname, r in published.items() %}
       <p class="ok">Published on <b>{{ tname }}</b>: <a href="{{ r.torrent_url }}" target="_blank" rel="noopener">{{ r.torrent_url }}</a>
         {% if r.qbit %}· qBittorrent: <span class="{{ 'ok' if r.qbit.ok else 'err' }}" id="seed-msg-{{ loop.index0 }}">{{ r.qbit.message }}</span>{% endif %}
+        {% if r.artwork is defined and r.artwork %}<br><span class="{{ 'ok' if r.artwork.ok else 'err' }}" id="art-msg-{{ loop.index0 }}">Cover and banner: {{ r.artwork.message }}</span>
+          {% if not r.artwork.ok %}<button type="button" class="ghost" onclick="artworkAgain({{ tname | tojson | forceescape }}, 'art-msg-{{ loop.index0 }}', this)">Set cover and banner again</button>{% endif %}{% endif %}
         <button type="button" class="ghost" onclick="seedAgain({{ tname | tojson | forceescape }}, 'seed-msg-{{ loop.index0 }}', this)">Add to qBittorrent again</button></p>
     {% endfor %}
     {% if published %}<script>
+      async function artworkAgain(tracker, id, btn) {
+        btn.disabled = true;
+        const span = document.getElementById(id);
+        span.textContent = "Cover and banner: working …"; span.className = "mute";
+        try {
+          const r = await (await fetch("/jobs/{{ job.id }}/artwork", {method: "POST", body: new URLSearchParams({tracker})})).json();
+          span.textContent = "Cover and banner: " + r.message; span.className = r.ok ? "ok" : "err";
+        } catch (e) { span.textContent = "Cover and banner: failed."; span.className = "err"; }
+        btn.disabled = false;
+      }
       async function seedAgain(tracker, id, btn) {
         btn.disabled = true;
         const span = document.getElementById(id) || btn.insertAdjacentElement("beforebegin", document.createElement("span"));

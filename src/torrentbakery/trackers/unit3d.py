@@ -6,12 +6,15 @@ from __future__ import annotations
 
 import re
 import time
-from urllib.parse import urljoin
+from pathlib import Path
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
 from ..config import Tracker
 from .base import LoginError, PublishRequest, PublishResult, TrackerError, UploadForm
+from .gazelle import _error_text as _page_error
+from .gazelle import _FormParser
 
 UA = "Mozilla/5.0 (X11; Linux x86_64) TorrentBakery"
 
@@ -82,7 +85,64 @@ class Unit3dPublisher:
         self._check(r)
         if r.status_code != 200:
             raise TrackerError(f"{self.name}: api/torrents answered HTTP {r.status_code}")
-        return UploadForm(categories=[(str(i), n) for i, n in sorted(self.site["categories"].items(), key=lambda x: x[1].lower())])
+        note = ""
+        if self.tracker.session_cookie:
+            try:
+                self._web_get(f"")
+                note = "Web session for cover and banner works."
+            except LoginError:
+                note = "The web session cookie is expired or wrong: cover and banner cannot be set until you paste a fresh one."
+            except (TrackerError, httpx.HTTPError):
+                note = "The web session could not be checked."
+        else:
+            note = "No web session cookie saved: uploads work, but cover and banner for the list stay empty."
+        return UploadForm(categories=[(str(i), n) for i, n in sorted(self.site["categories"].items(), key=lambda x: x[1].lower())], note=note)
+
+    # ---- what the API cannot do: the list cover and banner, only the web form takes them ----
+    def _web(self) -> httpx.Client:
+        return httpx.Client(transport=self.transport, timeout=120, follow_redirects=False, headers={"Cookie": self.tracker.session_cookie, "User-Agent": UA})
+
+    def _web_get(self, path: str) -> tuple[httpx.Response, str]:
+        """GET a page of the site with the browser session; a bounce to the login page means the session is dead."""
+        url = self._url(path)
+        with self._web() as c:
+            for _ in range(5):
+                r = c.get(url)
+                if not r.is_redirect:
+                    break
+                url = urljoin(url, r.headers["location"])
+                if "login" in urlparse(url).path:
+                    raise LoginError(f"{self.name}: the web session cookie is expired or wrong (redirected to the login page)")
+        if r.status_code in (401, 403, 419):
+            raise LoginError(f"{self.name}: the web session was refused (HTTP {r.status_code})")
+        if r.status_code != 200:
+            raise TrackerError(f"{self.name}: {urlparse(url).path or '/'} answered HTTP {r.status_code}")
+        return r, url
+
+    def set_artwork(self, torrent_id: str, poster: Path, banner: Path) -> None:
+        """Opens the torrent's edit form with the web session, keeps everything it holds and adds the two images (the owner may edit for a day after uploading)."""
+        if not self.tracker.session_cookie:
+            raise TrackerError(f"{self.name}: no web session cookie saved (Settings → tracker profile → Web session cookie)")
+        page, url = self._web_get(f"torrents/{torrent_id}/edit")
+        p = _FormParser()
+        p.feed(page.text)
+        form = next((f for f in p.forms if any(c["name"] == "torrent-cover" for c in f["controls"])), None)
+        if form is None:
+            raise TrackerError(f"{self.name}: the edit page has no cover field (not your torrent, or the one-day edit window is over)")
+        data = form_values(form)
+        files = {"torrent-cover": (poster.name, poster.read_bytes(), "image/jpeg"), "torrent-banner": (banner.name, banner.read_bytes(), "image/jpeg")}
+        action = urljoin(url, form["action"] or f"/torrents/{torrent_id}")
+        with self._web() as c:
+            r = c.post(action, data=data, files=files)
+            if r.is_redirect:
+                loc = urljoin(action, r.headers["location"])
+                if "login" in urlparse(loc).path:
+                    raise LoginError(f"{self.name}: the web session ended; paste a fresh cookie")
+                if urlparse(loc).path.rstrip("/").endswith("/edit"):  # sent back to the form: validation failed
+                    back = c.get(loc)
+                    raise TrackerError(f"{self.name}: cover and banner rejected: {_page_error(back.text) or 'the form was sent back without a message'}")
+                return
+        raise TrackerError(f"{self.name}: cover and banner rejected: {_page_error(r.text) or f'HTTP {r.status_code}'}")
 
     def _data(self, req: PublishRequest) -> dict[str, str]:
         cat = req.category or self.tracker.category
@@ -152,3 +212,23 @@ def _error_text(j) -> str:
     if isinstance(detail, dict):  # field -> [messages]
         detail = "; ".join(f"{k}: {' '.join(v) if isinstance(v, list) else v}" for k, v in detail.items())
     return " ".join(f"{j.get('message', '')} {detail or ''}".split())[:300]
+
+
+def form_values(form: dict) -> dict[str, str]:
+    """What a browser would submit for the form as it stands (hidden _token and _method included); later fields win, so a checkbox overrides its hidden "0"."""
+    data: dict[str, str] = {}
+    for ctl in form["controls"]:
+        name, kind, typ = ctl.get("name"), ctl["kind"], ctl.get("type")
+        if not name:
+            continue
+        if kind == "input" and typ in ("hidden", "text", "number", "email", "url", "search"):
+            data[name] = ctl["value"]
+        elif kind == "input" and typ in ("checkbox", "radio"):
+            if ctl["checked"]:
+                data[name] = ctl["value"] or "on"
+        elif kind == "textarea":
+            data[name] = ctl["value"][1:] if ctl["value"].startswith("\n") else ctl["value"]
+        elif kind == "select":
+            sel = next((o for o in ctl["options"] if o["selected"]), ctl["options"][0] if ctl["options"] else None)
+            data[name] = sel["value"] if sel else ""
+    return data

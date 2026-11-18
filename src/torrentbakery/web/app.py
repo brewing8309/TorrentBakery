@@ -17,7 +17,7 @@ from ..clients import QbitError, QBittorrent
 from ..config import SITE_SOURCES, StashBoxCfg, Tracker
 from ..hosts import API_KEY_HOSTS, HOST_NAMES
 from ..media.files import is_video
-from ..publish import prepare, seed
+from ..publish import prepare, seed, set_artwork
 from ..render.post import release_tags
 from ..sources.gql import gql
 from ..tags import TagMap, load_user_map, save_user_map
@@ -240,6 +240,16 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
             return {"ok": False, "message": str(e)}
         return {"ok": r["ok"], "message": r["message"]}
 
+    @app.post("/jobs/{job_id}/artwork")
+    def publish_artwork(job_id: str, tracker: str = Form(...)):
+        """Set the list cover and banner of a published UNIT3D release (again), e.g. after pasting a fresh web session cookie."""
+        job = publishable_job(job_id, tracker)
+        try:
+            r = set_artwork(cfg(), job.out_dir, tracker, transport=transport)
+        except (TrackerError, ValueError, KeyError) as e:
+            return {"ok": False, "message": str(e)}
+        return r
+
     @app.get("/jobs/{job_id}/publish/state")
     def publish_state(job_id: str):
         pub = job_or_404(job_id).pub
@@ -290,7 +300,8 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
 
     @app.post("/settings/tracker")
     def tracker_add(name: str = Form(...), announce: str = Form(""), source: str = Form(""), private: str = Form(""), site: str = Form(""), base_url: str = Form(""),
-                    cookie: str = Form(""), category: str = Form(""), anonymous: str = Form(""), auto_publish: str = Form(""), title_template: str = Form("")):
+                    cookie: str = Form(""), category: str = Form(""), anonymous: str = Form(""), auto_publish: str = Form(""), title_template: str = Form(""),
+                    session_cookie: str = Form("")):
         c = cfg()
         name = name.strip()
         old = c.trackers.get(name, Tracker())
@@ -300,7 +311,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         if site and site not in SITE_SOURCES:
             raise HTTPException(400, "unknown site type")
         c.trackers[name] = replace(old, announce=urls, source=source.strip(), private=bool(private), site=site, base_url=base_url.strip().rstrip("/"),
-                                   cookie=cookie.strip() or old.cookie, category=category.strip(), anonymous=bool(anonymous), auto_publish=bool(auto_publish and site),
+                                   cookie=cookie.strip() or old.cookie, session_cookie=session_cookie.strip() or old.session_cookie, category=category.strip(), anonymous=bool(anonymous), auto_publish=bool(auto_publish and site),
                                    title_template=title_template.strip())
         return save(c)
 
@@ -328,7 +339,8 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
             return {"ok": False, "message": str(e)}
         except httpx.HTTPError as e:
             return {"ok": False, "message": f"not reachable: {type(e).__name__}"}
-        return {"ok": True, "message": "Logged in, upload form found." + ("" if form.announce else " (No announce URL on the page.)"), "categories": form.categories}
+        return {"ok": True, "message": ("Logged in, upload form found." + ("" if form.announce or form.note else " (No announce URL on the page.)") + (" " + form.note if form.note else "")),
+                "categories": form.categories}
 
     @app.post("/settings/tracker/{name}/announce")
     def tracker_announce(name: str):

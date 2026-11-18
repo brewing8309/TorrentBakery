@@ -21,6 +21,7 @@ class UploadForm:
     fields: dict[str, str] = field(default_factory=dict)
     categories: list[tuple[str, str]] = field(default_factory=list)  # (value, label)
     announce: str = ""
+    note: str = ""  # extra findings of the login test, shown next to "logged in"
 
 
 @dataclass

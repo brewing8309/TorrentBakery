@@ -235,3 +235,20 @@ def test_review_warns_when_the_tracker_cannot_show_the_image_host(tmp_path):
     pv = c.get(f"/jobs/{jid}/publish/preview", params={"tracker": "bp"}).json()
     assert pv["ok"] and "pixhost.to" in pv["warning"] and "imghost.dev" in pv["warning"]
     assert c.get(f"/jobs/{jid}/publish/preview", params={"tracker": "bp"}).json()["categories"][0][1] == "Ai Generated"
+
+
+def test_web_session_cookie_is_a_secret_and_the_artwork_can_be_set_again(tmp_path, monkeypatch):
+    import torrentbakery.web.app as appmod
+    c, cfg_path, jid = setup(tmp_path)
+    cfg = config_mod.load(cfg_path)
+    cfg.trackers["bp"] = Tracker(site="bitporn", base_url="https://bp.example", cookie="TOKEN")
+    config_mod.save(cfg, cfg_path)
+    c.post("/settings/tracker", data={"name": "bp", "private": "1", "site": "bitporn", "base_url": "https://bp.example", "cookie": "", "session_cookie": "laravel_session=WEBSECRET", "category": "4"})
+    assert config_mod.load(cfg_path).trackers["bp"].session_cookie == "laravel_session=WEBSECRET" and config_mod.load(cfg_path).trackers["bp"].cookie == "TOKEN"
+    c.post("/settings/tracker", data={"name": "bp", "private": "1", "site": "bitporn", "base_url": "https://bp.example", "session_cookie": "", "category": "4"})
+    assert config_mod.load(cfg_path).trackers["bp"].session_cookie == "laravel_session=WEBSECRET"  # blank keeps
+    for page in (c.get("/settings").text, c.get(f"/jobs/{jid}").text):
+        assert "WEBSECRET" not in page
+    calls = []
+    monkeypatch.setattr(appmod, "set_artwork", lambda cfg, out_dir, name, **kw: calls.append(name) or {"ok": True, "message": "cover and banner set"})
+    assert c.post(f"/jobs/{jid}/artwork", data={"tracker": "bp"}).json() == {"ok": True, "message": "cover and banner set"} and calls == ["bp"]

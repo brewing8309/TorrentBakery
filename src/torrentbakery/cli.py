@@ -147,6 +147,7 @@ def tracker_set(
     site: str = typer.Option(None, "--site", help=f"Site type: {', '.join(SITE_SOURCES)}"),
     url: str = typer.Option(None, "--url", help="Site address, e.g. https://www.empornium.sx"),
     cookie: str = typer.Option(None, "--cookie", help="Session cookie, e.g. 'session=abc; other=def' (copy from your logged-in browser); API token for UNIT3D sites"),
+    session_cookie: str = typer.Option(None, "--session-cookie", help="UNIT3D only: browser session cookies, used to set the list cover and banner (the API cannot)"),
     category: str = typer.Option(None, "--category", help="Default upload category: its name (e.g. Amateur) or id (see `tb tracker test`)"),
     anonymous: bool = typer.Option(None, "--anonymous/--no-anonymous"),
     title_template: str = typer.Option(None, "--title-template", help="Jinja template for the torrent title"),
@@ -158,7 +159,7 @@ def tracker_set(
     if site is not None and site not in SITE_SOURCES:
         raise typer.BadParameter(f"site must be one of: {', '.join(SITE_SOURCES)}")
     category = _category_id(cfg, name, t, category, site, url, cookie)
-    for k, v in (("site", site), ("base_url", url.rstrip("/") if url else url), ("cookie", cookie), ("category", category), ("anonymous", anonymous),
+    for k, v in (("site", site), ("base_url", url.rstrip("/") if url else url), ("cookie", cookie), ("session_cookie", session_cookie), ("category", category), ("anonymous", anonymous),
                  ("title_template", title_template), ("auto_publish", auto_publish)):
         if v is not None:
             setattr(t, k, v)
@@ -176,6 +177,8 @@ def tracker_test(name: str) -> None:
     except (TrackerError, ValueError, KeyError) as e:
         raise typer.Exit(typer.echo(f"FAILED: {e}", err=True) or 1)
     typer.echo(f"{name}: logged in, upload form found" + (", announce URL available (`tb tracker fetch-announce`)" if form.announce else ""))
+    if form.note:
+        typer.echo(form.note)
     for value, label in form.categories:
         typer.echo(f"  category {value}: {label}")
 

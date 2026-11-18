@@ -22,6 +22,7 @@ class Tracker:
     # publishing (all optional: a profile without `site` only controls what goes into the .torrent)
     site: str = ""  # key of SITE_SOURCES
     base_url: str = ""  # e.g. https://www.empornium.sx
+    session_cookie: str = ""  # UNIT3D only: browser session (cookie string) for what the API cannot do, the list cover and banner; a secret
     cookie: str = ""  # session cookie string ("name=value; name2=value2"), for UNIT3D sites the API token; a secret
     category: str = ""  # default category id of the upload form
     anonymous: bool = False
@@ -110,6 +111,7 @@ def load(path: Path | None = None) -> Config:
             site=t.get("site", ""),
             base_url=t.get("base_url", ""),
             cookie=t.get("cookie", ""),
+            session_cookie=t.get("session_cookie", ""),
             category=str(t.get("category", "")),
             anonymous=t.get("anonymous", False),
             title_template=t.get("title_template", ""),
@@ -126,7 +128,7 @@ def load(path: Path | None = None) -> Config:
 def _tracker_dict(t: Tracker) -> dict:
     d = {"announce": t.announce, "source": t.source, "private": t.private}
     # publishing fields only when set, so plain profiles stay as small as before
-    for k in ("site", "base_url", "cookie", "category", "title_template"):
+    for k in ("site", "base_url", "cookie", "session_cookie", "category", "title_template"):
         if getattr(t, k):
             d[k] = getattr(t, k)
     for k in ("anonymous", "auto_publish"):

@@ -13,6 +13,7 @@ from torf import Torrent
 
 from .clients import QbitError, QBittorrent, map_save_path
 from .config import Config, Tracker
+from .media.artwork import make_artwork
 from .media.torrent import make_torrent
 from .models import credited_performers
 from .tags import TagMap, empify
@@ -144,6 +145,38 @@ def _seed(cfg: Config, out_dir: Path, name: str, torrent_id: str, local: Path, m
         return {"ok": False, "message": f"nothing added to qBittorrent: {e}. Download the torrent from the tracker and add it yourself."}, hashes
 
 
+def _artwork(cfg: Config, out_dir: Path, name: str, torrent_id: str, meta: dict, pub, transport, step) -> dict | None:
+    """The list cover and banner of a UNIT3D torrent, set through the web form. The upload is public by now, so a failure is reported, not raised."""
+    if not hasattr(pub, "set_artwork"):
+        return None
+    if not cfg.trackers[name].session_cookie:
+        return {"ok": False, "message": "skipped: no web session cookie saved, so the list shows no cover and banner"}
+    try:
+        step("Setting cover and banner")
+        poster, banner = make_artwork(cfg, out_dir, meta, transport)
+        pub.set_artwork(torrent_id, poster, banner)
+        return {"ok": True, "message": "cover and banner set"}
+    except (TrackerError, httpx.HTTPError, OSError, ValueError) as e:
+        return {"ok": False, "message": f"cover and banner not set: {e}"}
+
+
+def set_artwork(cfg: Config, out_dir: Path, name: str, *, transport: httpx.BaseTransport | None = None, progress=None) -> dict:
+    """Set cover and banner of an already published release again (e.g. after pasting a fresh web session cookie)."""
+    f = out_dir / "publish.json"
+    try:
+        published = json.loads(f.read_text())[name]
+    except (OSError, ValueError, KeyError):
+        raise TrackerError(f"this release was not published on {name!r}")
+    pub = get_publisher(name, cfg, transport)
+    if not hasattr(pub, "set_artwork"):
+        raise TrackerError(f"{name!r} has no separate cover and banner")
+    result = _artwork(cfg, out_dir, name, published["torrent_id"], _read_meta(out_dir), pub, transport, progress or (lambda stage, frac=0.0: None))
+    all_ = json.loads(f.read_text())
+    all_[name]["artwork"] = result
+    f.write_text(json.dumps(all_, indent=2, ensure_ascii=False))
+    return result
+
+
 def seed(cfg: Config, out_dir: Path, name: str, *, transport: httpx.BaseTransport | None = None, qbit_transport: httpx.BaseTransport | None = None, progress=None) -> dict:
     """Add an already published release to qBittorrent again (e.g. after fixing the qBittorrent settings). Returns the qBit result."""
     step = progress or (lambda stage, frac=0.0: None)
@@ -180,7 +213,8 @@ def publish(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, 
            "torrent_url": res.torrent_url, "torrent_id": res.torrent_id, "sent": res.sent, "suggestions": p.suggestions, "qbit": None, "time": time.time()}
     if dry_run:
         return out
-    # the upload is public from here on: a qBittorrent problem is reported, never raised
+    # the upload is public from here on: a problem with cover/banner or qBittorrent is reported, never raised
+    out["artwork"] = _artwork(cfg, out_dir, name, res.torrent_id, p.meta, pub, transport, step)
     if cfg.qbit.url:
         out["qbit"], out["infohash"] = _seed(cfg, out_dir, name, res.torrent_id, p.torrent, p.meta, pub, qbit_transport, step)
     f = out_dir / "publish.json"
