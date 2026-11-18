@@ -10,8 +10,8 @@ import tomli_w
 CONFIG_PATH = Path(os.environ.get("TB_CONFIG", Path.home() / ".config/torrentbakery/config.toml"))
 
 
-# Gazelle-style sites we can publish to, with the source flag their torrents carry
-SITE_SOURCES = {"empornium": "Emp", "happyfappy": "HF", "femdomcult": "FDC", "enthralled": "Ent"}
+# Sites we can publish to, with the source flag their torrents carry. The first four are Gazelle (session cookie), bitporn is UNIT3D (API token).
+SITE_SOURCES = {"empornium": "Emp", "happyfappy": "HF", "femdomcult": "FDC", "enthralled": "Ent", "bitporn": ""}
 
 
 @dataclass
@@ -22,7 +22,7 @@ class Tracker:
     # publishing (all optional: a profile without `site` only controls what goes into the .torrent)
     site: str = ""  # key of SITE_SOURCES
     base_url: str = ""  # e.g. https://www.empornium.sx
-    cookie: str = ""  # session cookie string ("name=value; name2=value2"), a secret
+    cookie: str = ""  # session cookie string ("name=value; name2=value2"), for UNIT3D sites the API token; a secret
     category: str = ""  # default category id of the upload form
     anonymous: bool = False
     title_template: str = ""  # Jinja, empty = built-in default

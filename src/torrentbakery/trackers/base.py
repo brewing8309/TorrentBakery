@@ -33,6 +33,7 @@ class PublishRequest:
     category: str = ""
     anonymous: bool = False
     mediainfo: str = ""  # raw MediaInfo text, for forms that have their own field
+    resolution: int = 0  # video height in pixels, for sites with a resolution field
 
 
 @dataclass

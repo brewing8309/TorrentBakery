@@ -64,7 +64,7 @@ tb tracker list | tb tracker remove main
 ```
 
 ## Publishing to a tracker
-A tracker profile with a site type (`empornium`, `happyfappy`, `femdomcult`, `enthralled`) and your session cookie can upload a baked release for you. TorrentBakery does server-side what the [stash-empornium](https://github.com/bdbenim/stash-empornium) userscript does in the browser: it reads `upload.php`, fills the form (title, post, tags, cover, category, anonymity) and posts it with the torrent. Afterwards the torrent goes to qBittorrent, which rechecks the files and starts seeding.
+A tracker profile with a site type (Gazelle: `empornium`, `happyfappy`, `femdomcult`, `enthralled`; UNIT3D: `bitporn`) and your session cookie (UNIT3D: API token) can upload a baked release for you. TorrentBakery does server-side what the [stash-empornium](https://github.com/bdbenim/stash-empornium) userscript does in the browser: it reads `upload.php`, fills the form (title, post, tags, cover, category, anonymity) and posts it with the torrent. Afterwards the torrent goes to qBittorrent, which rechecks the files and starts seeding.
 ```
 tb tracker add emp -s Emp                         # announce URL is optional for publishing profiles
 tb tracker set emp --site empornium --url https://www.empornium.sx --cookie 'session=…' --category 2
@@ -79,7 +79,9 @@ In the web UI, the result page has a "Publish to tracker" section with a preview
 
 Stash tags are translated to tracker tags with the default list from stash-empornium (Unlicense) plus your own entries (`tb tags map "Big Tits" "big.tits boobs" [-t emp]`, `tb tags ignore TAG`, or in the web UI). The performers are always added as tags (first); metadata such as date, resolution or codec is not tagged. Tags the list does not know are sent in dotted form, and the preview offers to remember them.
 
-The field names of the four upload pages are looked up by the element ids the userscript uses; they are not verified against the live sites yet, so run `--dry-run` first.
+**UNIT3D (bitporn.eu)** has a real upload API, so there is no form scraping and no cookie: put your API token (account settings → Security) in the profile's cookie field, set the category id (`tb tracker test bitporn` lists them) and no announce URL is needed, the tracker adds your passkey itself. Category, type and resolution ids of the site are built in (`trackers/unit3d.py`); tags go into the keywords field with dots as spaces, the BBCode post as description. The torrent that is seeded is the one the tracker serves after the upload. Another UNIT3D site needs one entry with its ids in `UNIT3D_SITES`.
+
+The field names of the four Gazelle upload pages are looked up by the element ids the userscript uses; they are not verified against the live sites yet, so run `--dry-run` first.
 
 ## Config (`~/.config/torrentbakery/config.toml`, optional)
 ```toml

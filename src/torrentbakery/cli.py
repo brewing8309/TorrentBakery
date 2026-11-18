@@ -128,7 +128,7 @@ def tracker_set(
     name: str,
     site: str = typer.Option(None, "--site", help=f"Site type: {', '.join(SITE_SOURCES)}"),
     url: str = typer.Option(None, "--url", help="Site address, e.g. https://www.empornium.sx"),
-    cookie: str = typer.Option(None, "--cookie", help="Session cookie, e.g. 'session=abc; other=def' (copy from your logged-in browser)"),
+    cookie: str = typer.Option(None, "--cookie", help="Session cookie, e.g. 'session=abc; other=def' (copy from your logged-in browser); API token for UNIT3D sites"),
     category: str = typer.Option(None, "--category", help="Default upload category id (see `tb tracker test`)"),
     anonymous: bool = typer.Option(None, "--anonymous/--no-anonymous"),
     title_template: str = typer.Option(None, "--title-template", help="Jinja template for the torrent title"),
@@ -173,7 +173,7 @@ def tracker_fetch_announce(name: str) -> None:
     except (TrackerError, ValueError, KeyError) as e:
         raise typer.Exit(typer.echo(f"FAILED: {e}", err=True) or 1)
     if not form.announce:
-        raise typer.Exit(typer.echo("The upload page shows no announce URL.", err=True) or 1)
+        raise typer.Exit(typer.echo("The site shows no announce URL (UNIT3D sites need none: the tracker puts your passkey in itself).", err=True) or 1)
     t.announce = [form.announce]
     config_mod.save(cfg)
     typer.echo(f"Saved announce URL for {name} (host {form.announce.split('/')[2]})")

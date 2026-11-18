@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import httpx
@@ -16,7 +16,7 @@ from .config import Config, Tracker
 from .media.torrent import make_torrent
 from .models import credited_performers
 from .tags import TagMap, empify
-from .trackers import PublishRequest, TrackerError, get_publisher
+from .trackers import UNIT3D_SITES, PublishRequest, TrackerError, get_publisher
 
 DEFAULT_TITLE = ("{% if studio %}[{{ studio }}] {% endif %}{% if performers %}{{ performers_text }} - {% endif %}{{ title }} "
                  "{% if date %}({{ date }}) {% endif %}[{{ resolution }}]")
@@ -99,7 +99,9 @@ def prepare(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, 
     if t is None:
         raise KeyError(f"unknown tracker profile {name!r}")
     if not t.announce:
-        raise TrackerError(f"tracker {name!r} has no announce URL (tb tracker fetch-announce {name})")
+        if t.site not in UNIT3D_SITES:
+            raise TrackerError(f"tracker {name!r} has no announce URL (tb tracker fetch-announce {name})")
+        t = replace(t, announce=[t.base_url.rstrip("/") + "/announce"])  # UNIT3D rewrites the announce with your passkey on upload; any URL will do
     meta = _read_meta(out_dir)
     release, media = meta["release"], meta["media"]
     suggestions: dict[str, str] = {}
@@ -172,7 +174,8 @@ def publish(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, 
         raise TrackerError("this bake has no image-host upload; the tracker needs a cover URL. Bake again with an image host.")
     pub = get_publisher(name, cfg, transport)
     step("Uploading to " + name)
-    res = pub.publish(PublishRequest(p.torrent, p.title, p.description, p.tags, p.image, p.category, cfg.trackers[name].anonymous, mediainfo=_mediainfo(out_dir)), dry_run=dry_run)
+    res = pub.publish(PublishRequest(p.torrent, p.title, p.description, p.tags, p.image, p.category, cfg.trackers[name].anonymous, mediainfo=_mediainfo(out_dir),
+                                    resolution=int(_resolution(p.meta["media"]).rstrip("p") or 0)), dry_run=dry_run)
     out = {"tracker": name, "dry_run": dry_run, "title": p.title, "tags": p.tags, "category": p.category, "torrent": p.torrent.name,
            "torrent_url": res.torrent_url, "torrent_id": res.torrent_id, "sent": res.sent, "suggestions": p.suggestions, "qbit": None, "time": time.time()}
     if dry_run:

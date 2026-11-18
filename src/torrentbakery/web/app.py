@@ -317,7 +317,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         except (TrackerError, ValueError, KeyError) as e:
             raise HTTPException(400, str(e))
         if not form.announce:
-            raise HTTPException(400, "the upload page shows no announce URL")
+            raise HTTPException(400, "the site shows no announce URL (UNIT3D sites need none: the tracker puts your passkey in itself)")
         c.trackers[name].announce = [form.announce]
         return save(c)
 
