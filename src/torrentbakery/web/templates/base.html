@@ -4,47 +4,58 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}TorrentBakery{% endblock %}</title>
-<style>
-:root { color-scheme: light dark; --bg:#f6f4f1; --card:#fff; --fg:#1d1b19; --mute:#6b655e; --line:#ddd6cd; --accent:#b4531f; --accent-fg:#fff; --ok:#2e7d32; --err:#c62828; --warn:#8a5a00; }
-@media (prefers-color-scheme: dark) { :root { --bg:#161412; --card:#211e1b; --fg:#ece7e1; --mute:#a39b92; --line:#38332e; --accent:#e0824c; --accent-fg:#1a1006; --ok:#66bb6a; --err:#ef5350; --warn:#e6b450; } }
-* { box-sizing: border-box; }
-body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, sans-serif; }
-header { display:flex; gap:1.2rem; align-items:baseline; padding:.8rem 16px; border-bottom:1px solid var(--line); background:var(--card); }
-header a { color:var(--fg); text-decoration:none; } header .brand { font-weight:700; color:var(--accent); font-size:1.1rem; }
-main { max-width:960px; margin:0 auto; padding:16px; }
-section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
-a { color:var(--accent); }
-h1,h2 { margin:.2rem 0 .5rem; } h1 { font-size:1.35rem; } h2 { font-size:1.05rem; }
-label { display:block; margin:.7rem 0 .2rem; font-weight:600; font-size:.9rem; }
-.help { margin:.2rem 0 0; color:var(--mute); font-size:.85rem; }
-.lead { color:var(--mute); margin:.1rem 0 .8rem; }
-input[type=text], input[type=password], select, textarea { width:100%; padding:.5rem; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); font:inherit; }
-textarea { font-family: ui-monospace, monospace; font-size:.85rem; }
-button, .btn { display:inline-block; padding:.5rem .9rem; border:0; border-radius:6px; background:var(--accent); color:var(--accent-fg); font:inherit; cursor:pointer; text-decoration:none; }
-button.ghost, .btn.ghost { background:transparent; color:var(--fg); border:1px solid var(--line); }
-.row { display:flex; gap:12px; flex-wrap:wrap; } .row > * { flex:1 1 220px; }
-.mute { color:var(--mute); } .ok { color:var(--ok); } .err { color:var(--err); }
-.badge { display:inline-block; font-size:.72rem; font-weight:600; padding:.1rem .5rem; border-radius:99px; border:1px solid var(--line); color:var(--mute); vertical-align:middle; margin-left:.4rem; }
-.badge.req { color:var(--accent); border-color:var(--accent); }
-table { width:100%; border-collapse:collapse; } td,th { text-align:left; padding:.4rem .4rem; border-bottom:1px solid var(--line); vertical-align:top; }
-td.act { text-align:right; white-space:nowrap; }
-img.preview { max-width:100%; border-radius:6px; border:1px solid var(--line); }
-.bar { height:8px; background:var(--line); border-radius:4px; overflow:hidden; } .bar > div { height:100%; background:var(--accent); width:0; transition:width .3s; }
-form.inline { display:inline; }
-ul.steps { list-style:none; padding:0; margin:.4rem 0 0; } ul.steps li { padding:.25rem 0; }
-.note { border-left:3px solid var(--warn); padding:.3rem .7rem; margin:.7rem 0; color:var(--mute); font-size:.88rem; }
-dialog { background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:10px; width:calc(100% - 32px); max-width:720px; padding:16px; }
-dialog::backdrop { background:rgba(0,0,0,.5); }
-.crumbs { font-family:ui-monospace,monospace; font-size:.82rem; color:var(--mute); word-break:break-all; margin:.2rem 0 .6rem; }
-.list { max-height:50vh; overflow:auto; border:1px solid var(--line); border-radius:6px; }
-.list button.item { display:flex; justify-content:space-between; gap:12px; width:100%; text-align:left; background:transparent; color:var(--fg); border:0; border-bottom:1px solid var(--line); border-radius:0; padding:.45rem .6rem; }
-.list button.item:hover { background:var(--bg); }
-.row-input { display:flex; gap:8px; } .row-input input { flex:1; }
-details summary { cursor:pointer; color:var(--mute); font-size:.88rem; margin-top:.6rem; }
-</style>
+<meta name="description" content="Bakes torrents, animated covers, screenshot sheets and forum posts from video files and Stash scenes.">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#FBFBF9">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#181C1F">
+<meta property="og:type" content="website">
+<meta property="og:title" content="TorrentBakery">
+<meta property="og:description" content="Torrent, animated cover, 5×7 screenshot sheet, MediaInfo and a forum post from one source.">
+<meta property="og:image" content="{{ request.base_url }}static/brand/og-image.png">
+<link rel="icon" href="/static/brand/favicon.ico" sizes="48x48">
+<link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
+<link rel="manifest" href="/static/brand/site.webmanifest">
+<link rel="preload" href="/static/fonts/atkinson-next-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/big-shoulders-display-latin.woff2" as="font" type="font/woff2" crossorigin>
+<script>
+// before the first paint, so a saved theme never flashes the other one
+(function () {
+  var root = document.documentElement, dark = window.matchMedia("(prefers-color-scheme: dark)"), saved = null;
+  try { saved = localStorage.getItem("tb-theme"); } catch (e) {}
+  if (saved) root.dataset.theme = saved;
+  window.tbThemeNow = function () { root.dataset.themeNow = root.dataset.theme || (dark.matches ? "dark" : "light"); };
+  dark.addEventListener("change", window.tbThemeNow);
+  window.tbThemeNow();
+})();
+</script>
+<link rel="stylesheet" href="/static/css/tokens.css?v={{ asset_v }}">
+<link rel="stylesheet" href="/static/css/app.css?v={{ asset_v }}">
 </head>
 <body>
-<header><a class="brand" href="/">TorrentBakery</a><a href="/">Bake</a><a href="/history">History</a><a href="/settings">Settings</a></header>
-<main>{% block body %}{% endblock %}</main>
+<a class="skip" href="#main">Skip to content</a>
+{% set path = request.url.path %}
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="/" aria-label="TorrentBakery, start page">{% include "_logo.html" %}</a>
+    <nav class="nav" aria-label="Main">
+      <a href="/"{% if path == "/" or path.startswith("/jobs") %} aria-current="page"{% endif %}>Bake</a>
+      <a href="/history"{% if path.startswith("/history") %} aria-current="page"{% endif %}>History</a>
+      <a href="/settings"{% if path.startswith("/settings") %} aria-current="page"{% endif %}>Settings</a>
+    </nav>
+    <button type="button" class="ghost icon theme-toggle" id="theme-toggle" aria-label="Switch between light and dark theme">
+      <svg class="sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.2" fill="currentColor"/><path d="M8 .8v2M8 13.200v2M.8 8h2M13.200 8h2M2.900 2.900l1.400 1.400M11.700 11.700l1.400 1.400M2.900 13.100l1.400-1.400M11.700 4.300l1.400-1.400" stroke="currentColor" stroke-width="1.500" fill="none"/></svg>
+      <svg class="moon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.800 10.300A6.200 6.200 0 0 1 5.700 2.200a6.200 6.200 0 1 0 8.100 8.100Z" fill="currentColor"/></svg>
+    </button>
+  </div>
+</header>
+<main class="page" id="main">{% block body %}{% endblock %}</main>
+<script>
+document.getElementById("theme-toggle").addEventListener("click", function () {
+  var next = document.documentElement.dataset.themeNow === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem("tb-theme", next); } catch (e) {}
+  window.tbThemeNow();
+});
+</script>
 </body>
 </html>

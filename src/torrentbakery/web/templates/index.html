@@ -1,61 +1,79 @@
 {% extends "base.html" %}
 {% block body %}
-<section>
+<div class="page-head">
   <h1>Bake a release</h1>
   <p class="lead">A scene, file or folder becomes: torrent, animated cover, screenshot sheet (5×7), MediaInfo and a ready-made forum post.</p>
-  <form method="post" action="/jobs">
-    <label for="source">Source</label>
-    <div class="row-input">
-      <input type="text" id="source" required autocomplete="off"
-             placeholder="{% if stash %}Search a title, scene number or stash:1234, or {% endif %}pick a file or folder">
-      <button type="button" class="ghost" id="browse-btn">Browse…</button>
+</div>
+<div class="bake-layout{% if jobs %} has-rail{% endif %}">
+  <form class="bake-form" method="post" action="/jobs">
+    <div class="group">
+      <h2 class="group-title">Source</h2>
+      <div class="group-body">
+        <label class="sr-only" for="source">Source</label>
+        <div class="row-input">
+          <input type="text" id="source" required autocomplete="off"
+                 placeholder="{% if stash %}Search a title, scene number or stash:1234, or {% endif %}pick a file or folder">
+          <button type="button" class="ghost" id="browse-btn">Browse…</button>
+        </div>
+        <input type="hidden" name="source" id="source-value">
+        <input type="hidden" name="label" id="label-value">
+        <p class="help">{% if stash %}Type 3+ letters of a title to get matching Stash scenes to click. A scene's number is in Stash's address bar (<code>…/scenes/1234</code>).{% endif %}
+          <b>Browse…</b> picks a video file (torrent of that file) or a whole folder (torrent of the folder; its largest video provides the screenshots and cover). Browsing is limited to the permitted <a href="/settings#roots">media folders</a>.</p>
+        <div id="results"></div>
+        {% if not stash and not roots %}<p class="note">There is no source yet: connect Stash or permit a media folder in <a href="/settings">Settings</a>.</p>{% endif %}
+      </div>
     </div>
-    <input type="hidden" name="source" id="source-value">
-    <input type="hidden" name="label" id="label-value">
-    <p class="help">{% if stash %}Type 3+ letters of a title to get matching Stash scenes to click. A scene's number is in Stash's address bar (<code>…/scenes/1234</code>).{% endif %}
-      <b>Browse…</b> picks a video file (torrent of that file) or a whole folder (torrent of the folder; its largest video provides the screenshots and cover). Browsing is limited to the permitted <a href="/settings#roots">media folders</a>.</p>
-    <div id="results"></div>
-    {% if not stash and not roots %}<p class="note">There is no source yet: connect Stash or permit a media folder in <a href="/settings">Settings</a>.</p>{% endif %}
-    <div class="row">
-      <div><label for="tracker">Tracker profile</label>
-        <select id="tracker" name="tracker"><option value="">none (torrent without announce URL)</option>{% for t in trackers %}<option{% if t == last.get("tracker") %} selected{% endif %}>{{ t }}</option>{% endfor %}</select>
-        <p class="help">Sets announce URL, source tag and private/public. After the bake you review the result and upload it to this tracker yourself.{% if not trackers %} <a href="/settings#tracker">Create a profile</a>{% endif %}</p></div>
-      <div><label for="upload">Image host</label>
-        <select id="upload" name="upload"><option value="">none (images as files only)</option>{% set chosen_host = last["upload"] if "upload" in last else default_host %}{% for h in hosts %}<option{% if h == chosen_host %} selected{% endif %}>{{ h }}</option>{% endfor %}</select>
-        <p class="help">Uploads the cover and the screenshot sheet and puts the host links into the post. Without a host the post only contains file names and you upload the images yourself. Set a default host in <a href="/settings#hosts">Settings</a>.</p></div>
+    <div class="group">
+      <h2 class="group-title">Destination</h2>
+      <div class="group-body row">
+        <div><label for="tracker">Tracker profile</label>
+          <select id="tracker" name="tracker"><option value="">none (torrent without announce URL)</option>{% for t in trackers %}<option{% if t == last.get("tracker") %} selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+          <p class="help">Sets announce URL, source tag and private/public. After the bake you review the result and upload it to this tracker yourself.{% if not trackers %} <a href="/settings#tracker">Create a profile</a>{% endif %}</p></div>
+        <div><label for="upload">Image host</label>
+          <select id="upload" name="upload"><option value="">none (images as files only)</option>{% set chosen_host = last["upload"] if "upload" in last else default_host %}{% for h in hosts %}<option{% if h == chosen_host %} selected{% endif %}>{{ h }}</option>{% endfor %}</select>
+          <p class="help">Uploads the cover and the screenshot sheet and puts the host links into the post. Without a host the post only contains file names and you upload the images yourself. Set a default host in <a href="/settings#hosts">Settings</a>.</p></div>
+      </div>
     </div>
-    <div class="row">
-      <div><label for="cover_source">Animated cover: source</label>
-        <select id="cover_source" name="cover_source"><option value="own"{% if (last.get("cover_source") or cover_source) == "own" %} selected{% endif %}>build my own</option><option value="stash"{% if (last.get("cover_source") or cover_source) == "stash" %} selected{% endif %}>use Stash's preview</option></select>
-        <p class="help">Build my own: 1.5-second clips spread evenly over the whole video (30 minutes gives 12 clips, 18 seconds). Stash's preview: the animated preview Stash generated itself; only for Stash scenes, falls back to "build my own" if Stash has none.</p></div>
-      <div><label for="cover_format">Animated cover: format</label>
-        <select id="cover_format" name="cover_format"><option value="webp"{% if (last.get("cover_format") or cover_format) == "webp" %} selected{% endif %}>WebP (small)</option><option value="gif"{% if (last.get("cover_format") or cover_format) == "gif" %} selected{% endif %}>GIF (plays everywhere)</option></select>
-        <p class="help">WebP is much smaller at the same quality. Hosts that do not take WebP (imgbox, imagebam) automatically get a GIF.</p></div>
+    <div class="group">
+      <h2 class="group-title">Animated cover</h2>
+      <div class="group-body row">
+        <div><label for="cover_source">Animated cover: source</label>
+          <select id="cover_source" name="cover_source"><option value="own"{% if (last.get("cover_source") or cover_source) == "own" %} selected{% endif %}>build my own</option><option value="stash"{% if (last.get("cover_source") or cover_source) == "stash" %} selected{% endif %}>use Stash's preview</option></select>
+          <p class="help">Build my own: 1.5-second clips spread evenly over the whole video (30 minutes gives 12 clips, 18 seconds). Stash's preview: the animated preview Stash generated itself; only for Stash scenes, falls back to "build my own" if Stash has none.</p></div>
+        <div><label for="cover_format">Animated cover: format</label>
+          <select id="cover_format" name="cover_format"><option value="webp"{% if (last.get("cover_format") or cover_format) == "webp" %} selected{% endif %}>WebP (small)</option><option value="gif"{% if (last.get("cover_format") or cover_format) == "gif" %} selected{% endif %}>GIF (plays everywhere)</option></select>
+          <p class="help">WebP is much smaller at the same quality. Hosts that do not take WebP (imgbox, imagebam) automatically get a GIF.</p></div>
+      </div>
     </div>
-    <label for="stashbox">Stash-box scene address <span class="badge">optional</span></label>
-    <input type="text" id="stashbox" name="stashbox" placeholder="https://stashdb.org/scenes/…">
-    <p class="help">Plain files only: fetches title, performers and links from this StashDB page. Not needed for Stash scenes. The key for it is in <a href="/settings#stashbox">Settings</a>.</p>
-    <label><input type="checkbox" name="sfw" value="1"{% if last.get("sfw") %} checked{% endif %}> Mark images as family safe</label>
-    <p class="help">The default is "adult content". This only affects the upload at the image hosts.</p>
-    <p><button type="submit">Bake</button></p>
+    <div class="group">
+      <h2 class="group-title">Extras</h2>
+      <div class="group-body">
+        <label for="stashbox">Stash-box scene address <span class="badge">optional</span></label>
+        <input type="text" id="stashbox" name="stashbox" placeholder="https://stashdb.org/scenes/…">
+        <p class="help">Plain files only: fetches title, performers and links from this StashDB page. Not needed for Stash scenes. The key for it is in <a href="/settings#stashbox">Settings</a>.</p>
+        <label class="check"><input type="checkbox" name="sfw" value="1"{% if last.get("sfw") %} checked{% endif %}> Mark images as family safe</label>
+        <p class="help">The default is "adult content". This only affects the upload at the image hosts.</p>
+      </div>
+    </div>
+    <p class="bake-submit"><button type="submit" class="btn-lg">Bake</button></p>
   </form>
-</section>
-{% if jobs %}
-<section>
-  <h2>Recent jobs</h2>
-  <table>{% for j in jobs %}
-    <tr><td><a href="/jobs/{{ j.id }}">{{ j.label or j.title or j.source.rsplit("/", 1)[-1] }}</a></td>
-        <td class="{{ 'ok' if j.status == 'done' else 'err' if j.status == 'error' else 'mute' }}">{{ j.status }}</td></tr>
-  {% endfor %}</table>
-  {% if total_jobs > jobs|length %}<p class="help"><a href="/history">Full history ({{ total_jobs }})</a></p>{% else %}<p class="help"><a href="/history">History</a></p>{% endif %}
-</section>
-{% endif %}
+  {% if jobs %}
+  <aside class="rail" aria-labelledby="recent-title">
+    <h2 id="recent-title">Recent jobs</h2>
+    <table>{% for j in jobs %}
+      <tr><td><a href="/jobs/{{ j.id }}">{{ j.label or j.title or j.source.rsplit("/", 1)[-1] }}</a></td>
+          <td class="status"><span class="{{ 'ok' if j.status == 'done' else 'err' if j.status == 'error' else 'mute' }}">{{ j.status }}</span></td></tr>
+    {% endfor %}</table>
+    {% if total_jobs > jobs|length %}<p class="help"><a href="/history">Full history ({{ total_jobs }})</a></p>{% else %}<p class="help"><a href="/history">History</a></p>{% endif %}
+  </aside>
+  {% endif %}
+</div>
 <dialog id="browser">
   <h2>Pick a file or folder</h2>
   <div class="crumbs" id="crumbs"></div>
   <div class="list" id="browse-list"></div>
   <p class="help" id="browse-note"></p>
-  <p><button type="button" id="choose-folder">Choose this folder</button> <button type="button" class="ghost" id="browse-cancel">Cancel</button></p>
+  <p class="actions"><button type="button" id="choose-folder">Choose this folder</button> <button type="button" class="ghost" id="browse-cancel">Cancel</button></p>
 </dialog>
 <script>
 const src = document.getElementById("source"), box = document.getElementById("results");
@@ -69,11 +87,11 @@ const chooseBtn = document.getElementById("choose-folder"), bnote = document.get
 let here = "";
 const human = n => n >= 2**30 ? (n / 2**30).toFixed(2) + " GiB" : (n / 2**20).toFixed(1) + " MiB";
 const pick = path => { src.value = path; srcValue.value = path; labelValue.value = ""; box.innerHTML = ""; dlg.close(); };
-function item(text, size, onclick) {
+function item(kind, text, size, onclick) {
   const b = document.createElement("button");
   b.type = "button"; b.className = "item";
-  const l = document.createElement("span"); l.textContent = text;
-  const r = document.createElement("span"); r.className = "mute"; r.textContent = size || "";
+  const l = document.createElement("span"); l.className = "item-name " + kind; l.textContent = text;
+  const r = document.createElement("span"); r.className = "item-size"; r.textContent = size || "";
   b.append(l, r); b.onclick = onclick; blist.append(b);
 }
 async function load(path) {
@@ -86,12 +104,12 @@ async function load(path) {
   here = d.path; blist.innerHTML = "";
   crumbs.textContent = d.path || "Permitted media folders";
   chooseBtn.style.display = d.roots ? "none" : "";
-  if (d.parent !== null) item("⬆ ..", "", () => load(d.parent));
+  if (d.parent !== null) item("up", "..", "", () => load(d.parent));
   for (const e of d.entries) {
-    if (e.type === "dir") item("📁 " + e.name, "", () => load(e.path));
-    else item("🎞 " + e.name, human(e.size), () => pick(e.path));
+    if (e.type === "dir") item("dir", e.name, "", () => load(e.path));
+    else item("file", e.name, human(e.size), () => pick(e.path));
   }
-  if (d.roots && !d.entries.length) blist.innerHTML = '<p class="help" style="padding:.6rem">No media folder is permitted yet. Add one in <a href="/settings#roots">Settings → Media folders</a>.</p>';
+  if (d.roots && !d.entries.length) blist.innerHTML = '<p class="empty">No media folder is permitted yet. Add one in <a href="/settings#roots">Settings → Media folders</a>.</p>';
   bnote.textContent = d.roots ? "" : "Only video files are listed" + (d.others ? " (" + d.others + " other files hidden)" : "") + ". Click a video to pick the file, or choose the folder to bake everything in it.";
   try { localStorage.setItem("tb-browse", d.path); } catch (e) {}
 }
@@ -115,9 +133,9 @@ src.addEventListener("input", () => {
       box.innerHTML = "";
       for (const r of rows) {
         const b = document.createElement("button");
-        b.type = "button"; b.className = "ghost"; b.style.cssText = "display:flex;gap:10px;align-items:center;width:100%;margin-top:6px;text-align:left";
+        b.type = "button"; b.className = "ghost scene-hit";
         const img = document.createElement("img");
-        img.src = "/stash-thumb/" + r.id; img.width = 80; img.loading = "lazy";
+        img.src = "/stash-thumb/" + r.id; img.width = 80; img.loading = "lazy"; img.alt = "";
         const t = document.createElement("span");
         t.textContent = [r.title, r.studio, r.date].filter(Boolean).join(" · ") + "  (#" + r.id + ")";
         b.append(img, t);
