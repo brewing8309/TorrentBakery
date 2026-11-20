@@ -21,6 +21,7 @@ from ..hosts import API_KEY_HOSTS, HOST_NAMES
 from ..media.files import is_video
 from ..publish import prepare, seed, set_artwork
 from ..render.post import release_tags
+from ..sources import stashbox as stashbox_source
 from ..sources.gql import gql
 from ..tags import TagMap, load_user_map, save_user_map
 from ..trackers import SITES, UNIT3D_SITES, TrackerError, get_publisher
@@ -71,7 +72,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     @app.get("/")
     def index(request: Request):
         c = cfg()
-        return templates.TemplateResponse(request, "index.html", {"default_host": c.default_host, "cover_source": c.cover_source, "cover_format": c.cover_format, "last": c.last_used, "trackers": list(c.trackers), "publishable": [n for n, t in c.trackers.items() if t.site], "hosts": HOST_NAMES, "stash": bool(c.stash.url), "roots": c.web_media_roots, "jobs": jobs.recent(), "total_jobs": len(jobs.jobs)})
+        return templates.TemplateResponse(request, "index.html", {"default_host": c.default_host, "cover_source": c.cover_source, "cover_format": c.cover_format, "last": c.last_used, "trackers": list(c.trackers), "publishable": [n for n, t in c.trackers.items() if t.site], "hosts": HOST_NAMES, "stash": bool(c.stash.url), "has_boxes": bool(c.stashboxes), "roots": c.web_media_roots, "jobs": jobs.recent(), "total_jobs": len(jobs.jobs)})
 
     @app.get("/history")
     def history(request: Request):
@@ -141,6 +142,22 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
              "studio": s["studio"]["name"] if s["studio"] else ""}
             for s in data["findScenes"]["scenes"]
         ]
+
+    @app.get("/stashbox/search")
+    def stashbox_search(name: str):
+        """Scene candidates for a picked file, from every configured stash-box; the user makes the final choice."""
+        c = cfg()
+        term = stashbox_source.clean_query(name)
+        boxes = []
+        for box_name, box in c.stashboxes.items():
+            entry = {"name": box_name, "scenes": [], "error": ""}
+            if term:
+                try:
+                    entry["scenes"] = stashbox_source.search(box.endpoint, box.api_key, term, transport=transport)
+                except (RuntimeError, httpx.HTTPError, KeyError) as exc:
+                    entry["error"] = str(exc) or type(exc).__name__
+            boxes.append(entry)
+        return {"term": term, "boxes": boxes}
 
     @app.get("/stash-thumb/{scene_id}")
     def stash_thumb(scene_id: int):

@@ -169,6 +169,7 @@ dialog::backdrop { background: var(--backdrop); }
 
 /* scene search hits */
 button.scene-hit { display: flex; justify-content: flex-start; gap: var(--sp-3); width: 100%; margin-top: var(--sp-2); padding: var(--sp-2); border-radius: var(--radius-tin); text-align: left; font-weight: 500; }
+button.scene-hit.chosen { border-color: var(--accent, currentColor); outline: var(--line-thin) solid var(--accent, currentColor); }
 button.scene-hit img { flex: none; display: block; border-radius: var(--radius-tin); }
 
 /* ---- result page ---- */
