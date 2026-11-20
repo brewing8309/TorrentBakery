@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from .. import __url__, __version__
 from .. import config as config_mod
 from ..clients import QbitError, QBittorrent
 from ..config import StashBoxCfg, Tracker
@@ -48,6 +49,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     # stylesheet links carry a content hash, so an update never leaves a browser on the old design
     templates.env.globals["asset_v"] = hashlib.sha256(b"".join(p.read_bytes() for p in sorted(static_dir.glob("*/*.[cj]s*")))).hexdigest()[:10]
+    templates.env.globals.update(version=__version__, repo_url=__url__)
     # announce URLs carry the tracker passkey: the pages only ever show the host
     templates.env.filters["datetime"] = lambda ts: time.strftime("%Y-%m-%d %H:%M", time.localtime(ts)) if ts else ""
     templates.env.filters["size"] = lambda n: f"{n / 2**30:.2f} GiB" if n >= 2**30 else f"{n / 2**20:.1f} MiB" if n >= 2**20 else f"{max(1, round(n / 2**10))} KiB"

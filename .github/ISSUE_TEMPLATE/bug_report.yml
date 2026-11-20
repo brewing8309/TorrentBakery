@@ -1,0 +1,27 @@
+name: Bug report
+description: Something does not work as described.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Shown in the header of the web UI, or `tb version`.
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: "`journalctl -u torrentbakery -n 100`. Remove cookies, API keys and announce URLs (they contain your passkey) before posting."
+      render: text

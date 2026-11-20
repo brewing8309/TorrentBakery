@@ -46,6 +46,7 @@
       <a href="/settings"{% if path.startswith("/settings") %} aria-current="page"{% endif %}>{{ ic("settings") }}<span>Settings</span></a>
     </nav>{% endif %}
     <div class="topbar-tools">
+      <a class="btn ghost repo-link" href="{{ repo_url }}" target="_blank" rel="noopener" title="TorrentBakery {{ version }} on GitHub" aria-label="TorrentBakery version {{ version }} on GitHub">{{ ic("github") }}<span>v{{ version }}</span></a>
       {% if request.state.auth_on and not bare %}<form method="post" action="/logout" class="inline"><button class="ghost icon" aria-label="Log out" title="Log out">{{ ic("logout") }}</button></form>{% endif %}
       <button type="button" class="ghost icon theme-toggle" id="theme-toggle" aria-label="Switch between light and dark theme" title="Light / dark">{{ ic("sun", "sun") }}{{ ic("moon", "moon") }}</button>
     </div>

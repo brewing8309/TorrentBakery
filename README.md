@@ -1,118 +1,111 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="src/torrentbakery/web/static/brand/logo-full-on-dark.svg">
-  <img src="src/torrentbakery/web/static/brand/logo-full.svg" alt="TorrentBakery" width="320">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.png">
+  <img src="docs/assets/banner-light.png" alt="TorrentBakery: bake a release. From a video file or a Stash scene to a finished tracker upload." width="100%">
 </picture>
 
-# TorrentBakery
+<p align="center">
+  <a href="https://github.com/brewing8309/TorrentBakery/releases"><img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-F5B301?style=flat-square&labelColor=15181B"></a>
+  <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-F5B301?style=flat-square&labelColor=15181B">
+  <img alt="Debian / Ubuntu" src="https://img.shields.io/badge/runs%20on-Debian%20%2F%20Ubuntu%20%2F%20LXC-F5B301?style=flat-square&labelColor=15181B">
+  <a href="LICENSE"><img alt="License CC BY-NC 4.0" src="https://img.shields.io/badge/license-CC%20BY--NC%204.0-0A6466?style=flat-square&labelColor=15181B"></a>
+</p>
 
-Bakes a release package from a video file: `.torrent`, 5×7 screenshot sheet, main image, MediaInfo and a ready-to-paste BBCode forum post.
-Planned: Stash / stash-box metadata, image-host upload (pixhost, hamsterimg, imagebam, imgbox), web UI, later TMDB/IMDb for regular movies.
+<p align="center">
+  <b><a href="#-quick-start">Quick start</a></b> ·
+  <b><a href="docs/README.md">Documentation</a></b> ·
+  <b><a href="docs/tracker-templates.md">Add your own tracker</a></b> ·
+  <b><a href="CHANGELOG.md">Changelog</a></b>
+</p>
 
-## Status
-Phases 1–3 (local file → package, Stash/stash-box metadata, image-host upload) are implemented and covered by mocked tests. Verified live: the stash-box query against StashDB. Verified live with a generated test image: pixhost.to/.cc/pixho.st, imgbox, imagebam. Not yet verified live: Stash itself and hamsterimg (needs an API key). Phase 4 web UI is in (`tb serve`); it has only been exercised with a local test video.
+---
 
-## Installation (Debian/Ubuntu host or LXC)
-Release tarball, installed like Homelab Dashboard: `install.sh` sets up a venv in `/opt/torrentbakery`, a systemd service `torrentbakery` (user `torrentbakery`) and the `tb` command. It installs `ffmpeg`, `mediainfo` and `python3-venv` via apt if missing and needs Python ≥ 3.11 and access to pypi.org.
-```
-gh release download v0.1.0 -R brewing8309/TorrentBakery     # the repo is private, so plain curl needs a token
+**TorrentBakery** turns a video into everything a tracker upload needs, in one go. Pick a Stash scene, a file or a folder, press **Bake**, and you get the `.torrent`, a 5×7 screenshot sheet, an animated cover, the MediaInfo and a ready-to-paste BBCode forum post. If you like, it then fills in the tracker's upload form for you, hands the torrent to qBittorrent and checks that it really seeds.
+
+It runs as a small web app on your own server (an LXC container is ideal), next to your media, and has a full command line (`tb`) as well.
+
+## 🍞 What comes out of the oven
+
+| | |
+|---|---|
+| 🧲 **Torrent** | Private or public, your announce URL and source flag from a tracker profile. A folder becomes one torrent of the whole folder. |
+| 🖼️ **Screenshot sheet** | 5×7 thumbnails spread over the runtime, with a header of the file's facts. Size and grid are configurable. |
+| 🎞️ **Animated cover** | WebP (or GIF) from 1.5-second clips across the video, or the preview Stash already made. Shrunk automatically below ~9 MB. |
+| 📋 **MediaInfo** | The full `mediainfo` report, ready for the post. |
+| ✍️ **BBCode post** | Built from a Jinja2 template: title, performers, studio, description, tags, images, file facts. Live preview in the browser. |
+| 📦 **Downloads** | Everything as a ZIP, plus each file on its own. Nothing is uploaded unless you choose an image host or press Publish. |
+
+### And the extras
+- **Stash & stash-box metadata.** Search your Stash right from the start page. Title, performers, tags, description and cover come from StashDB (or any stash-box) when the scene is linked, otherwise from Stash.
+- **Image hosts.** pixhost (.to/.cc/pixho.st), imgbox, imagebam, hamsterimg, imghost.dev, bitporn.eu. The post links the hosted images directly.
+- **Publishing.** Gazelle trackers (session cookie, form filled server-side) and UNIT3D trackers (API token). Every upload passes a **review step** first: title, post, tags and category, all editable, categories read live from the tracker.
+- **Seeding.** Adds the torrent to qBittorrent, waits for the recheck and only starts it when the files are complete, so it never downloads by accident.
+- **Your own trackers.** A tracker is one small TOML file, data only. See [Add your own tracker](docs/tracker-templates.md).
+- **History** of every bake that survives restarts, **light & dark theme**, phone-friendly layout, optional **login with TOTP 2FA**.
+
+## 📸 A look inside
+
+<table>
+<tr>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/bake-dark.png"><img src="docs/assets/bake-light.png" alt="Bake page: pick a source, a tracker profile and an image host"></picture><p align="center"><b>Bake</b>: source, tracker profile, image host, go.</p></td>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/result-dark.png"><img src="docs/assets/result-light.png" alt="Result page with cover, downloads and BBCode preview"></picture><p align="center"><b>Result</b>: downloads, post preview, review &amp; publish.</p></td>
+</tr>
+<tr>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/history-dark.png"><img src="docs/assets/history-light.png" alt="History of all bakes"></picture><p align="center"><b>History</b>: every bake, filterable.</p></td>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/settings-dark.png"><img src="docs/assets/settings-light.png" alt="Settings with side navigation"></picture><p align="center"><b>Settings</b>: everything explained where you set it.</p></td>
+</tr>
+</table>
+
+## 🚀 Quick start
+
+**You need:** a Debian 12/13 or Ubuntu host or LXC container with Python ≥ 3.11, internet access to pypi.org, and your videos mounted on it. `ffmpeg` and `mediainfo` are installed for you.
+
+### 1. Install
+```sh
+curl -fLO https://github.com/brewing8309/TorrentBakery/releases/latest/download/torrentbakery-0.1.0.tar.gz
 tar xzf torrentbakery-0.1.0.tar.gz
-cd torrentbakery-0.1.0 && ./install.sh                       # another port: PORT=9000 ./install.sh
+cd torrentbakery-0.1.0 && sudo ./install.sh          # another port: sudo PORT=9000 ./install.sh
 ```
-Then open `http://<host>:8080/` and set up trackers, Stash and media roots under **Settings**. The UI has no login unless you turn it on (see *Login and two-factor authentication*); it listens on all interfaces by default (`TB_HOST=127.0.0.1` in `/etc/default/torrentbakery` restricts it).
-- **Mounted shares** must be readable by the user `torrentbakery`; add them as media roots (or let Stash scenes map via path mappings).
-- **Data:** `/var/lib/torrentbakery` (`config.toml` with the API keys, `out/` with the baked releases). Another output folder needs a systemd drop-in with `ReadWritePaths=`.
-- **CLI:** `tb …` runs as the service user with the same settings, e.g. `tb bake stash:1234 -t main`.
-- **Update:** unpack the new version, `./install.sh`; settings and output stay. **Remove:** `/opt/torrentbakery/uninstall.sh` (`--purge` also deletes settings and releases).
-- **Build the tarball yourself:** `scripts/build.sh` → `dist/torrentbakery-<version>.tar.gz`; `./deploy.sh <vmid>` pushes it into a Proxmox container. A tag `v<version>` triggers the release workflow.
+This creates the service `torrentbakery` (systemd, own user), a venv in `/opt/torrentbakery`, the `tb` command and the data folder `/var/lib/torrentbakery`.
 
-## Usage (from a checkout)
-Needs `ffmpeg`, `ffprobe` and `mediainfo` on the PATH.
+### 2. Open it
+Go to `http://<your-host>:8080/`. There is no login yet: either keep it on a trusted network or turn on **Settings → Login & 2FA** first.
 
-```
-python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
-.venv/bin/tb bake movie.mkv -o out [-t trackerprofile] [--cover image.jpg]
-```
+### 3. Set up the kitchen (Settings)
+1. **Media folders**: add the folders holding your videos (they must be readable by the user `torrentbakery`).
+2. **Stash** *(optional)*: address and API key, so you can search scenes and get their metadata. Add a **stash-box** key (e.g. StashDB) for the richest metadata.
+3. **Tracker profiles**: add one with your announce URL and source flag. For publishing, pick a tracker template and paste your cookie or API token, then press **Test login**.
+4. **Image host** *(optional)*: choose a default, so the post links real images.
 
-Output in `out/<name>/` (+ `out/<name>.zip`): `<name>.torrent`, `contactsheet.jpg`, `cover.webp` (or `.gif`), `mediainfo.txt`, `post.bbcode`, `release.json`.
-Without an image host the post references the images by file name; upload them yourself and replace the names.
+### 4. Bake
+On **Bake**, search a Stash scene or press **Browse…** for a file or folder, choose the tracker profile and image host, press **Bake**. A few minutes later the result page has the ZIP, the torrent, the images and the post with a copy button.
 
-**Animated cover:** the cover is a WebP (or GIF) built from 1.5-second clips spread evenly over the video, 5–95 % of the runtime (about one clip per 2.5 minutes, 4–12 clips; 30 min → 12 clips = 18 s). `--cover-source stash` uses the animated preview Stash generated itself (WebP, Stash scenes only, falls back to a self-built cover); `--cover-format gif` forces GIF, and hosts without WebP support (imgbox, imagebam) get a GIF automatically. If the file exceeds ~9 MB it is shrunk (width, frame rate, quality) until it fits. `--cover FILE` uses your own image/GIF/WebP instead.
+### 5. Publish *(optional)*
+At the bottom of the result page, review title, post, tags and category, then press **Publish**. TorrentBakery uploads to the tracker, adds the torrent to qBittorrent (set it up under **Settings → qBittorrent**) and tells you once it is seeding.
 
-## Stash / stash-box
-```
-tb stash set http://stash:9999 --api-key KEY          # saved in the config
-tb stash map-add /data/media /mnt/nas                  # Stash path prefix -> local mount (only if they differ)
-tb bake stash:1234 -t main                             # scene 1234 from Stash
-tb stash box-add stashdb https://stashdb.org/graphql --api-key KEY
-tb bake file.mp4 --stashbox https://stashdb.org/scenes/<id>   # plain file + stash-box metadata
-```
-For `stash:<id>`, a stash-box link on the scene is used if Stash holds its key: title, performers, tags, description, links and the cover (largest landscape image) then come from the stash-box, otherwise from Stash (cover: Stash screenshot).
+> [!TIP]
+> Everything works from the shell too: `tb bake stash:1234 -t mytracker -u pixhost.to`, `tb publish out/My_Release -t mytracker --dry-run`. See the [command line reference](docs/cli.md).
 
-## Web UI
-```
-.venv/bin/pip install -e '.[web]'
-.venv/bin/tb serve --host 0.0.0.0 --port 8080 --out /srv/torrentbakery/out
-```
-The interface is in English. Pages: **Bake** (search Stash, enter a scene ID or pick a file/folder with the **Browse…** pop-up, pick tracker profile and image host, live progress, post preview with copy button, downloads for the ZIP, torrent and each image) **History** (every bake, newest first, kept across restarts in `<out>/history.jsonl`, each entry reopens its result page) and **Settings** (tracker profiles, animated-cover defaults, Stash URL/key and path mappings, stash-box keys, image-host options, media roots). Without the optional login keep it on a trusted network. API keys are never shown again after saving. Plain files and folders can only be baked from (and browsed inside) the folders listed as media roots; Stash scenes need none. A folder becomes one torrent of the whole folder; its largest video provides the screenshots and the cover.
+## 📚 Documentation
 
-## Login and two-factor authentication
-Optional, off by default. Turn it on under **Settings → Login & 2FA** (user name and a password of at least 12 characters), then add a TOTP second factor: the page shows a setup key for any authenticator app (Aegis, 2FAS, Google Authenticator, a password manager …), you confirm with a code and get ten one-time recovery codes, shown once.
+| | |
+|---|---|
+| [Installation & updates](docs/installation.md) | Tarball install, LXC tips, update, remove, reverse proxy, running from a checkout |
+| [Using the web UI](docs/web-ui.md) | Bake, result page, review step, history, settings |
+| [Configuration](docs/configuration.md) | Stash & stash-box, path mappings, covers, sheet, image hosts, qBittorrent, tags, `config.toml` |
+| [Publishing to trackers](docs/publishing.md) | Gazelle and UNIT3D, cookies and tokens, review step, seeding |
+| [Add your own tracker](docs/tracker-templates.md) | Step-by-step guide and full reference for tracker templates |
+| [Login & 2FA](docs/security.md) | Optional login, TOTP, recovery codes, what is protected and what not |
+| [Command line](docs/cli.md) | Every `tb` command with examples |
 
-- Passwords are stored only as a salted scrypt hash (64 MiB, in `config.toml`, mode 0600); the TOTP key and the SHA-256 of the unused recovery codes are stored there too. Nothing secret is ever rendered again.
-- Sessions are random tokens kept in the server's memory (cookie: `HttpOnly`, `SameSite=Strict`, `Secure` on https): at most 12 hours, 2 hours idle, ended by *Log out*, by a password change and by a service restart. A code works once (replay protection). Between password and code the browser holds only a 5-minute pending token that grants nothing; three wrong codes end it.
-- Failed logins are limited per address (the delay doubles after the third failure) and in total (20 per 15 minutes). A guesser cannot run through codes, but a flood of failures also blocks you for a while. Changing credentials, turning 2FA or the login off ask for the current password (and a fresh code).
-- Cross-site POSTs are refused, responses carry `X-Frame-Options: DENY` and `no-store`.
-- The login protects a plain-http connection only against guessing, not against someone who can read your network traffic: put it behind https (reverse proxy) when it leaves a trusted network.
-- Locked out? On the server: `tb auth disable` (login and 2FA off), `tb auth set-password USER` (new password), `tb auth status`. Restart the service afterwards if the old password may be known.
+## 🧑‍🍳 Good to know
+- **Your data stays with you.** Nothing leaves your server unless you pick an image host or press Publish. API keys and cookies live only in `/var/lib/torrentbakery/config.toml` (mode 0600) and are never shown again in the UI.
+- **Trackers change.** Upload forms of Gazelle sites are read live, so small changes usually just work; when a site changes a lot, its template needs an update. Always try a new tracker with `--dry-run` or the review step first.
+- **Status of 0.1.0:** first release. Baking, the StashDB lookup and the image hosts pixhost, imgbox and imagebam are verified live; hamsterimg is implemented but untested (it needs an API key). Publishing ships with templates for HappyFappy (Gazelle) and bitporn (UNIT3D); please report how it works on your tracker.
 
-## Image hosts
-```
-tb bake file.mp4 --upload pixhost.cc          # also pixhost.to, pixho.st, imgbox, imagebam, hamsterimg, imghost.dev, bitporn.eu
-tb host set imghost.dev -o api_key=KEY        # hamsterimg and imghost.dev (Chevereto) need an API key; others need none
-```
-Uploads are marked adult by default (`--sfw` to change). **bitporn:** UNIT3D shows images of hosts it has not whitelisted through the proxy wsrv.nl, which blocks adult hosts like pixhost (broken images in the post). Use `imghost.dev`, bitporn's own host; the review step warns when the bake used another one.
-The images are always also written to the output folder/ZIP, so you can upload them by hand instead.
+## 🤝 Contributing
+Bug reports, ideas and tracker templates are welcome as [issues](https://github.com/brewing8309/TorrentBakery/issues) or pull requests. A new tracker is usually just one TOML file: see [Add your own tracker](docs/tracker-templates.md). Run the tests with `.venv/bin/pytest -q`.
 
-## Tracker profiles
-```
-tb tracker add main -a https://tracker.example/announce -s ABC   # --public for non-private
-tb tracker list | tb tracker remove main
-```
+## 📜 License
+[CC BY-NC 4.0](LICENSE): use it, change it, share it, build on it, as you like, as long as you **credit TorrentBakery with a link to this repository** and **do not charge money for it** or use it commercially.
 
-## Publishing to a tracker
-A tracker profile with a tracker template (built in: `happyfappy` (Gazelle), `bitporn` (UNIT3D); more from the community, see [docs/tracker-templates.md](docs/tracker-templates.md)) and your session cookie (UNIT3D: API token) can upload a baked release for you. TorrentBakery does server-side what the [stash-empornium](https://github.com/bdbenim/stash-empornium) userscript does in the browser: it reads `upload.php`, fills the form (title, post, tags, cover, category, anonymity) and posts it with the torrent. Afterwards the torrent goes to qBittorrent, which rechecks the files and starts seeding. TorrentBakery waits for each step and confirms the torrent really is seeding; if qBittorrent finds the files incomplete at the save path (wrong path mapping) it leaves the torrent stopped instead of letting it download, and says so. A torrent that is already in qBittorrent (stuck stopped) is picked up again by "Add to qBittorrent again".
-```
-tb tracker add hf -s HF                         # announce URL is optional for publishing profiles
-tb tracker set hf --site happyfappy --cookie 'session=…' --category Amateur   # name or id
-tb tracker test hf                               # logs in, lists the category ids; posts nothing
-tb tracker fetch-announce hf                     # reads your announce URL from the upload page
-tb qbit set --url http://10.10.1.5:8080 --username u --password p --path-map /media/share=/data
-tb publish out/My_Release -t hf --dry-run        # shows what would be sent
-tb publish out/My_Release -t hf                  # uploads (public!) and adds to qBittorrent
-tb bake stash:1234 -t hf -u pixhost.to --publish # bake and upload in one go (needs an image host: the tracker wants a cover URL)
-```
-In the web UI a bake never uploads by itself: the result page shows what was baked (title, post, tags, images) and ends with a **review step** (title, post, tags and category list read live from the tracker, all editable) before you press Publish. `--publish` / the profile's auto-publish setting uploads right after baking on the command line only. A failed upload never fails the bake; the reason is shown on the result page. The cookie expires at some point: "Test login" tells you, paste a fresh one.
-
-Stash tags are sent the way trackers write them: lowercase, dot-separated (`Anal Sex` → `anal.sex`); Stash housekeeping tags ("4K Available", …) are dropped, and you can block more with `tb tags ignore TAG` or in the web UI (`tb tags show TAG` shows what is sent). The performers are always added as tags (first); metadata such as date, resolution or codec is not tagged.
-
-**UNIT3D (bitporn.eu)** has a real upload API, so there is no form scraping and no cookie: put your API token (account settings → Security) in the profile's cookie field, set the category id (`tb tracker test bitporn` lists them) and no announce URL is needed, the tracker adds your passkey itself. Category, type and resolution ids of the site are built in (`trackers/unit3d.py`); tags go into the keywords field with dots as spaces, the BBCode post as description. The torrent that is seeded is the one the tracker serves after the upload. The API cannot set the list cover and banner of a torrent. bitporn's edit form takes them as image URLs (hidden `cover_url` / `banner_url`), so with the browser cookie in the profile's "Web session cookie" field (`--session-cookie`, e.g. `bitporn_session=…`) TorrentBakery cuts a 400×600 poster and a 960×540 banner from the release's promo image (a video frame if there is none), uploads both to the bake's image host and enters the URLs through the edit form right after the upload (the post is read back from the page and sent along unchanged; it is never sent empty). Without that cookie the upload still works; "Set cover and banner again" on the result page retries. Another UNIT3D site needs one entry with its ids in `UNIT3D_SITES`.
-
-The field names of the four Gazelle upload pages are looked up by the element ids the userscript uses; they are not verified against the live sites yet, so run `--dry-run` first.
-
-## Config (`~/.config/torrentbakery/config.toml`, optional)
-```toml
-template = "default.bbcode.j2"
-[sheet]
-cols = 5
-rows = 7
-thumb_width = 320
-[cover]
-source = "own"   # own | stash
-format = "webp"  # webp | gif
-clips = 0        # 0 = automatic
-width = 480
-[tracker.main]
-announce = "https://tracker.example/announce"
-source = "ABC"
-private = true
-```
+TorrentBakery is not affiliated with any tracker, image host or with Stash. Tag mapping and form field names were inspired by the [stash-empornium](https://github.com/bdbenim/stash-empornium) userscript. Fonts: Big Shoulders Display and Atkinson Hyperlegible (SIL OFL). Only upload what you have the right to share.

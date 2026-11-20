@@ -1,0 +1,28 @@
+name: Tracker template
+description: Share a template for a new tracker, or ask for support of one.
+labels: [tracker]
+body:
+  - type: input
+    id: site
+    attributes:
+      label: Tracker
+      description: Name and address.
+    validations:
+      required: true
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Tracker software
+      options: [Gazelle, UNIT3D, Other / not sure]
+    validations:
+      required: true
+  - type: textarea
+    id: template
+    attributes:
+      label: Template
+      description: "Your TOML file, if you have one (see docs/tracker-templates.md). Never include cookies or tokens."
+      render: toml
+  - type: textarea
+    id: notes
+    attributes:
+      label: What works, what not?

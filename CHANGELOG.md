@@ -1,19 +1,33 @@
 # Changelog
 
-## 0.1.0 – unreleased
-- Bake a release from a video file or a Stash scene: torrent, 5×7 screenshot sheet, main image, MediaInfo, BBCode forum post.
-- Metadata from Stash and stash-box; image upload to pixhost (.to/.cc/pixho.st), imgbox, imagebam, hamsterimg.
-- Animated cover (WebP/GIF) from 1.5-second clips spread over the video, or Stash's own preview.
-- Web UI history that survives restarts; English interface with explained settings.
-- Saved tracker profiles; CLI (`tb`) and web UI (`tb serve`).
-- Publish to Gazelle trackers (Empornium, HappyFappy, FemdomCult, Enthralled) with a session cookie, add to qBittorrent, Stash→tracker tag mapping (default list from stash-empornium); `tb publish`, web UI publish section.
-- Publish to UNIT3D trackers through their upload API (bitporn.eu): API token instead of a cookie, no announce URL needed.
-- Review step between bake and upload in the web UI: category dropdowns with names everywhere, editable post, no upload without a chosen category.
-- Image host imghost.dev (bitporn's own host) and a warning in the review step when a tracker cannot display the bake's image host.
-- UNIT3D (bitporn) list cover and banner set through the edit form with a browser session cookie (the API cannot): poster and banner are cut, hosted on the bake's image host and entered as URLs; retry button on the result page.
-- `tb` wrapper sets TB_CONFIG/TB_OUT like the service, so the CLI sees the saved profiles.
-- qBittorrent: waits until the torrent is listed and checked, starts it only with complete files, confirms it is seeding (qBittorrent 5 left torrents "Completed"/stopped after the recheck).
-- New visual design for the web UI: logo and favicon set, design tokens, self-hosted fonts, light and dark theme with a switch in the header, responsive layouts.
-- Optional web login with TOTP two-factor authentication and recovery codes (scrypt password, in-memory sessions, throttling, CSRF check); `tb auth`.
-- Settings: path mappings (Stash, qBittorrent) and the tag mapping use the same layout (table with Remove, Add row).
-- Installable from a release tarball (`install.sh`, systemd service, `uninstall.sh`).
+## 0.1.0 – 2026-11-20
+The first release: from a video file or a Stash scene to a finished, seeding tracker upload.
+
+### Baking
+- One bake makes the `.torrent`, a 5×7 screenshot sheet, an animated cover, the MediaInfo and a BBCode forum post, plus a ZIP of everything.
+- Sources: Stash scenes (searchable from the start page), single files, or whole folders (one torrent, the largest video provides the pictures).
+- Animated cover (WebP/GIF) from 1.5-second clips spread over the video, or Stash's own preview; shrunk automatically below ~9 MB.
+- Metadata from Stash and stash-box (StashDB): title, performers, studio, tags, description and cover; path mappings when Stash sees the files elsewhere.
+- Image hosts: pixhost (.to/.cc/pixho.st), imgbox, imagebam, hamsterimg, imghost.dev and bitporn.eu; the images always stay in the release folder too.
+
+### Publishing and seeding
+- Gazelle trackers through their upload form with your session cookies, UNIT3D trackers through their API with a token.
+- Built-in tracker templates for HappyFappy (Gazelle) and bitporn (UNIT3D); add more as small, data-only TOML files ([guide](https://github.com/brewing8309/TorrentBakery/blob/main/docs/tracker-templates.md)).
+- Review step before every upload in the web UI: title, post, tags and category, all editable, categories read live from the tracker.
+- UNIT3D list cover and banner set through the edit form (with an optional web session cookie).
+- qBittorrent: rechecks, starts only with complete files and confirms the torrent seeds; nothing is ever downloaded by accident.
+- Tags sent the way trackers write them (lowercase, dotted), performers first, housekeeping tags dropped, own never-send list.
+
+### Web UI
+- Bake, History and Settings pages in English, light and dark theme, phone layout with a bottom tab bar.
+- Live progress with the screenshot sheet filling up, result page with downloads and BBCode preview, history that survives restarts.
+- Version and GitHub link in the header.
+- Optional login with TOTP two-factor authentication and recovery codes (scrypt, in-memory sessions, throttling, CSRF check).
+
+### Install
+- Release tarball with `install.sh` (systemd service, venv in `/opt/torrentbakery`, data in `/var/lib/torrentbakery`, `tb` command) and `uninstall.sh`; native, no Docker.
+- Full CLI (`tb bake`, `tb publish`, `tb seed`, `tb tracker`, `tb stash`, …) sharing the service's settings.
+
+### Documentation and license
+- New README and documentation in `docs/`: installation, web UI, configuration, publishing, adding your own tracker, login & 2FA, CLI.
+- Licensed under CC BY-NC 4.0: free to use, change and share with credit to this project; no commercial use.

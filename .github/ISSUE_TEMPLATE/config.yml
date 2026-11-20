@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/brewing8309/TorrentBakery/tree/main/docs
+    about: Installation, configuration, publishing and adding your own tracker.
