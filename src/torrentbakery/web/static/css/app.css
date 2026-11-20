@@ -548,3 +548,6 @@ dialog h2 { font-size: var(--text-xl); }
   .release-hero { grid-template-columns: minmax(0, 26rem) minmax(0, 1fr); }
 }
 .release-hero.no-cover { grid-template-columns: minmax(0, 1fr) !important; }
+@media (max-width: 47.99rem) {
+  .bake-summary { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-mask: linear-gradient(90deg, #000 80%, transparent); mask: linear-gradient(90deg, #000 80%, transparent); }
+}
