@@ -103,3 +103,19 @@ def test_host_without_webp_gets_a_gif(video, tmp_path):
     out = bake(video, tmp_path, Config(), Release(title="T"), uploader=NoWebp())
     assert (out / "cover.gif").exists() and not (out / "cover.webp").exists()
     assert "https://host.example/cover.gif" in (out / "post.bbcode").read_text()
+
+
+def test_bitporn_local_upload_uses_session_and_csrf(img):
+    from torrentbakery.config import Tracker
+    seen = []
+
+    def h(req):
+        seen.append(req)
+        if req.method == "GET":
+            return httpx.Response(200, text='<meta name="csrf-token" content="TOK">')
+        assert str(req.url) == "https://bitporn.eu/upload-image" and req.headers["X-CSRF-TOKEN"] == "TOK" and req.headers["Cookie"] == "bitporn_session=s"
+        return httpx.Response(200, json={"image": {"url": "https://imghost.dev/i.jpg"}})
+    cfg = Config(trackers={"bp": Tracker(site="bitporn", base_url="https://bitporn.eu", session_cookie="bitporn_session=s")})
+    assert get_uploader("bitporn.eu", cfg, httpx.MockTransport(h)).upload(img).direct_url == "https://imghost.dev/i.jpg"
+    with pytest.raises(ValueError, match="web session cookie"):
+        get_uploader("bitporn.eu", Config())

@@ -67,7 +67,7 @@ Optional, off by default. Turn it on under **Settings → Login & 2FA** (user na
 
 ## Image hosts
 ```
-tb bake file.mp4 --upload pixhost.cc          # also pixhost.to, pixho.st, imgbox, imagebam, hamsterimg, imghost.dev
+tb bake file.mp4 --upload pixhost.cc          # also pixhost.to, pixho.st, imgbox, imagebam, hamsterimg, imghost.dev, bitporn.eu
 tb host set imghost.dev -o api_key=KEY        # hamsterimg and imghost.dev (Chevereto) need an API key; others need none
 ```
 Uploads are marked adult by default (`--sfw` to change). **bitporn:** UNIT3D shows images of hosts it has not whitelisted through the proxy wsrv.nl, which blocks adult hosts like pixhost (broken images in the post). Use `imghost.dev`, bitporn's own host; the review step warns when the bake used another one.
