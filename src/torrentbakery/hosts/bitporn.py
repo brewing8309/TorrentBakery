@@ -29,7 +29,7 @@ class BitpornLocal:
         with httpx.Client(transport=self.transport, timeout=120, follow_redirects=True, headers={"Cookie": self.cookie, "User-Agent": UA}) as c:
             page = c.get(f"{self.base}/torrents/create")
             if "login" in page.url.path:
-                raise ValueError("bitporn: the web session cookie is expired; log in with "Remember me" ticked and paste both cookies (bitporn_session and remember_web_…) in the tracker profile, then it renews itself")
+                raise ValueError("bitporn: the web session cookie is expired; log in with 'Remember me' ticked and paste both cookies (bitporn_session and remember_web_...) in the tracker profile, then it renews itself")
             m = re.search(r'<meta[^>]+name="csrf-token"[^>]+content="([^"]+)"', page.text)
             if not m:
                 raise ValueError("bitporn: no CSRF token on the upload page")
