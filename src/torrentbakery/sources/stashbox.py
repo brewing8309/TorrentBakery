@@ -54,18 +54,13 @@ def fetch(endpoint: str, api_key: str, scene_id: str, transport: httpx.BaseTrans
     )
 
 
-SEARCH_QUERY = """
-query Search($input: SceneQueryInput!) {
-  queryScenes(input: $input) {
-    scenes {
-      id title release_date
+_HIT = """id title release_date
       studio { name }
       performers { as performer { name } }
-      images { url width height }
-    }
-  }
-}
-"""
+      images { url width height }"""
+# stash-box itself answers queryScenes; ThePornDB's endpoint returns "scenes: null" there but has searchScene
+SEARCH_QUERY = "query Search($input: SceneQueryInput!) { queryScenes(input: $input) { scenes { %s } } }" % _HIT
+SEARCH_TERM_QUERY = "query Search($term: String!, $limit: Int) { searchScene(term: $term, limit: $limit) { %s } }" % _HIT
 
 # what release names carry around the actual title: resolution/codec/source tags, the dash-separated release group
 _NOISE = re.compile(r"\b(?:\d{3,4}p|\d{3,4}x\d{3,4}|[24]k|uhd|hd|sd|fhd|hevc|[xh]\.?26[45]|av1|mp4|aac|web-?dl|web-?rip|webrip|bluray|bdrip|hdtv|xxx|mp\d|\d+fps|\d+mbps|kbps)\b", re.I)
@@ -84,13 +79,24 @@ def clean_query(name: str) -> str:
 
 def search(endpoint: str, api_key: str, term: str, limit: int = 8, transport: httpx.BaseTransport | None = None) -> list[dict]:
     """Scenes of one stash-box matching a free-text term, as short rows for the user to pick from."""
-    data = gql(endpoint, SEARCH_QUERY, {"input": {"text": term, "per_page": limit, "page": 1, "sort": "DATE", "direction": "DESC"}}, api_key, transport)
+    scenes = None
+    try:
+        data = gql(endpoint, SEARCH_QUERY, {"input": {"text": term, "per_page": limit, "page": 1, "sort": "DATE", "direction": "DESC"}}, api_key, transport)
+        scenes = data["queryScenes"]["scenes"]
+    except RuntimeError as exc:
+        first_error = exc
+    if scenes is None:
+        try:
+            scenes = gql(endpoint, SEARCH_TERM_QUERY, {"term": term, "limit": limit}, api_key, transport)["searchScene"]
+        except RuntimeError:
+            if "first_error" in locals():
+                raise first_error from None
+            raise
     rows = []
-    for s in data["queryScenes"]["scenes"]:
-        image = pick_cover(s["images"])
+    for s in scenes or []:
         rows.append({
             "id": s["id"], "url": page_url(endpoint, s["id"]), "title": s["title"] or "", "date": s["release_date"] or "",
-            "studio": s["studio"]["name"] if s["studio"] else "", "image": image,
-            "performers": [a["as"] or a["performer"]["name"] for a in s["performers"]][:4],
+            "studio": s["studio"]["name"] if s["studio"] else "", "image": pick_cover(s["images"] or []),
+            "performers": [a["as"] or a["performer"]["name"] for a in s["performers"] or []][:4],
         })
     return rows

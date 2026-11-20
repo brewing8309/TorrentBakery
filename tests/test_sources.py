@@ -115,3 +115,15 @@ def test_stashbox_search_maps_rows():
     rows = stashbox.search(BOX, "boxkey", "some title", transport=httpx.MockTransport(h))
     assert rows == [{"id": "abc", "url": "https://box.example/scenes/abc", "title": "Box Title", "date": "2025-05-06", "studio": "Studio X",
                      "image": "https://img.example/wide.jpg", "performers": ["Alias"]}]
+
+
+def test_stashbox_search_falls_back_to_search_scene():
+    def h(req: httpx.Request) -> httpx.Response:
+        body = json.loads(req.content)
+        if "queryScenes" in body["query"]:
+            return httpx.Response(200, json={"data": {"queryScenes": {"scenes": None}}})
+        assert body["variables"] == {"term": "some title", "limit": 8}
+        return httpx.Response(200, json={"data": {"searchScene": [
+            {"id": "x1", "title": "T", "release_date": None, "studio": None, "performers": [], "images": []}]}})
+    rows = stashbox.search(BOX, "boxkey", "some title", transport=httpx.MockTransport(h))
+    assert [r["id"] for r in rows] == ["x1"] and rows[0]["image"] == ""

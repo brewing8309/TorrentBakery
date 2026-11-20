@@ -154,7 +154,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
             if term:
                 try:
                     entry["scenes"] = stashbox_source.search(box.endpoint, box.api_key, term, transport=transport)
-                except (RuntimeError, httpx.HTTPError, KeyError) as exc:
+                except Exception as exc:  # one broken box must not take the others down
                     entry["error"] = str(exc) or type(exc).__name__
             boxes.append(entry)
         return {"term": term, "boxes": boxes}
