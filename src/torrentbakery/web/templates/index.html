@@ -32,7 +32,7 @@
           <select id="tracker" name="tracker"><option value="">none (torrent without announce URL)</option>{% for t in trackers %}<option{% if t == last.get("tracker") %} selected{% endif %}>{{ t }}</option>{% endfor %}</select>
           <p class="help">Sets announce URL, source tag and private/public. After the bake you review the result and upload it to this tracker yourself.{% if not trackers %} <a href="/settings#tracker">Create a profile</a>{% endif %}</p></div>
         <div><label for="upload">Image host</label>
-          <select id="upload" name="upload"><option value="">none (images as files only)</option>{% set chosen_host = last["upload"] if "upload" in last else default_host %}{% for h in hosts %}<option{% if h == chosen_host %} selected{% endif %}{% if h == "bitporn.eu" %} data-site="bitporn"{% endif %}>{{ h }}</option>{% endfor %}</select>
+          <select id="upload" name="upload"><option value="">none (images as files only)</option>{% set chosen_host = last["upload"] if "upload" in last else default_host %}{% for h in hosts %}<option{% if h == chosen_host %} selected{% endif %}>{{ h }}</option>{% endfor %}</select>
           <p class="help">Uploads the cover and the screenshot sheet and puts the host links into the post. Without a host the post only contains file names and you upload the images yourself. Set a default host in <a href="/settings#hosts">Settings</a>.</p></div>
         <div><label class="check"><input type="checkbox" name="sfw" value="1"{% if last.get("sfw") %} checked{% endif %}> Mark images as family safe</label>
           <p class="help">The default is "adult content". This only affects the upload at the image hosts.</p></div>
@@ -168,9 +168,9 @@ document.getElementById("browse-btn").onclick = () => {
 chooseBtn.onclick = () => pick(here);
 document.getElementById("browse-cancel").onclick = () => dlg.close();
 
-// options that only make sense in some contexts: Stash's preview needs a Stash scene, the bitporn.eu host needs the bitporn tracker
-const trackerSites = {{ tracker_sites | tojson }};
-function limitOptions(sel, allowed, optionFilter) {
+// options that only make sense in some contexts: a tracker-bound host needs its tracker, a tracker template may allow only some hosts
+const trackerHosts = {{ tracker_hosts | tojson }}, hostSites = {{ host_sites | tojson }};
+function limitOptions(sel, _unused, optionFilter) {
   for (const o of sel.options) { const ok = optionFilter(o); o.hidden = o.disabled = !ok; }
   if (sel.selectedOptions[0] && sel.selectedOptions[0].hidden) sel.selectedIndex = [...sel.options].findIndex(o => !o.hidden);
 }
@@ -183,7 +183,8 @@ function syncOptions() {
   stashOpt.textContent = isScene ? "use Stash's preview" : "use Stash's preview (only for scenes picked from Stash)";
   if (!isScene && coverSel.value === "stash") coverSel.value = "own";
   if (isScene && coverWanted === "stash") coverSel.value = "stash";
-  limitOptions(hostSel, 0, o => o.dataset.site === undefined || trackerSites[trackerSel.value] === o.dataset.site);
+  const tr = trackerHosts[trackerSel.value];  // undefined = no tracker chosen: any host that is not tied to a tracker
+  limitOptions(hostSel, 0, o => o.index === 0 || (hostSites[o.value] === undefined || (tr && tr.site === hostSites[o.value])) && (!tr || !tr.hosts.length || tr.hosts.includes(o.value)));
 }
 trackerSel.addEventListener("change", syncOptions);
 coverSel.addEventListener("change", () => { if (/^(stash:)?\d+$/.test(srcValue.value.trim())) coverWanted = coverSel.value; });

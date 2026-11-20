@@ -18,7 +18,7 @@ from .media.artwork import make_artwork
 from .media.torrent import make_torrent
 from .models import credited_performers
 from .tags import TagMap, empify
-from .trackers import UNIT3D_SITES, PublishRequest, TrackerError, get_publisher
+from .trackers import PublishRequest, TrackerError, get_publisher, get_template
 
 DEFAULT_TITLE = ("{% if studio %}[{{ studio }}] {% endif %}{% if performers %}{{ performers_text }} - {% endif %}{{ title }} "
                  "{% if date %}({{ date }}) {% endif %}[{{ resolution }}]")
@@ -101,9 +101,9 @@ def prepare(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, 
     if t is None:
         raise KeyError(f"unknown tracker profile {name!r}")
     if not t.announce:
-        if t.site not in UNIT3D_SITES:
+        if not (t.template and t.template.engine == "unit3d"):
             raise TrackerError(f"tracker {name!r} has no announce URL (tb tracker fetch-announce {name})")
-        t = replace(t, announce=[t.base_url.rstrip("/") + "/announce"])  # UNIT3D rewrites the announce with your passkey on upload; any URL will do
+        t = replace(t, announce=[t.effective_base_url + "/announce"])  # UNIT3D rewrites the announce with your passkey on upload; any URL will do
     meta = _read_meta(out_dir)
     release, media = meta["release"], meta["media"]
     suggestions: dict[str, str] = {}

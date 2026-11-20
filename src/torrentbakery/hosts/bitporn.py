@@ -16,13 +16,14 @@ class BitpornLocal:
     web session cookie. The images end up on bitporn's image host, which bitporn shows without its proxy."""
 
     name = "bitporn.eu"
+    site = "bitporn"  # only offered for profiles of this tracker template
     formats = ("jpg", "png", "gif", "webp")
 
     def __init__(self, cfg: Config, transport: httpx.BaseTransport | None = None, **_):
-        t = next((t for t in cfg.trackers.values() if t.site == "bitporn" and t.session_cookie), None)
+        t = next((t for t in cfg.trackers.values() if t.site == self.site and t.session_cookie), None)
         if t is None:
             raise ValueError("bitporn.eu as image host needs a bitporn tracker profile with a web session cookie (Settings → Trackers)")
-        self.base, self.cookie, self.transport = t.base_url.rstrip("/"), t.session_cookie, transport
+        self.base, self.cookie, self.transport = t.effective_base_url, t.session_cookie, transport
 
     def upload(self, path: Path, nsfw: bool = True) -> Uploaded:
         with httpx.Client(transport=self.transport, timeout=120, follow_redirects=True, headers={"Cookie": self.cookie, "User-Agent": UA}) as c:

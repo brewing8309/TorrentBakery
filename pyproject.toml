@@ -20,7 +20,7 @@ tb = "torrentbakery.cli:app"
 where = ["src"]
 
 [tool.setuptools.package-data]
-torrentbakery = ["render/templates/*.j2", "web/templates/*.html", "web/static/css/*", "web/static/fonts/*", "web/static/brand/*", "tags/*.toml"]
+torrentbakery = ["render/templates/*.j2", "web/templates/*.html", "web/static/css/*", "web/static/fonts/*", "web/static/brand/*", "tags/*.toml", "trackers/templates/*.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

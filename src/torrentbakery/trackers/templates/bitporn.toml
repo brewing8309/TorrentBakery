@@ -1,0 +1,95 @@
+schema = 1
+id = "bitporn"
+name = "bitporn.eu"
+engine = "unit3d"
+description = "UNIT3D tracker. Uploads through its API; cover and banner through the web form."
+base_url = "https://bitporn.eu"   # default address; the profile may override it (mirror)
+source = ""                       # UNIT3D torrents carry no source flag
+private = true
+
+[[auth.credentials]]
+field = "cookie"
+label = "API token"
+required = true
+help = "Account settings -> Security -> API token. It does not expire."
+
+[[auth.credentials]]
+field = "session_cookie"
+label = "Web session cookie"
+required = false
+help = "Only needed to set the list cover/banner and to use the bitporn.eu image host: the cookies of your logged-in browser (developer tools -> Application/Storage -> Cookies) as name=value; name2=value2. It expires; paste a fresh one."
+
+[images]
+# bitporn shows images of other hosts through the proxy wsrv.nl, which blocks adult hosts (pixhost: "Domain or TLD blocked by policy"),
+# so only these two work. "bitporn.eu" is the upload endpoint of the site's own form and needs the web session cookie; imghost.dev needs an API key.
+hosts = ["bitporn.eu", "imghost.dev"]
+
+[unit3d]
+type_id = 1   # "None"; 4 is WEB-DL (ids are specific to each installation and the API has no lookup endpoint)
+
+[unit3d.categories]
+4 = "Amateur"
+5 = "Anal"
+6 = "Asian"
+7 = "BBW"
+8 = "BDSM"
+9 = "Big Ass"
+10 = "Big Tits"
+11 = "Black"
+12 = "Cartoon"
+13 = "Casting"
+14 = "Classic"
+15 = "Collection"
+16 = "Creampie"
+17 = "Oral / Cumshot"
+18 = "Deepthroat"
+19 = "Extreme"
+20 = "Fansite"
+21 = "Family"
+22 = "Feature"
+23 = "Fetish"
+24 = "Fisting"
+25 = "Gangbang/Group sex"
+26 = "Game"
+27 = "Gay / Bi"
+28 = "Hair"
+29 = "Hardcore"
+30 = "HiddenCam"
+31 = "Homemade"
+32 = "Interracial"
+33 = "Lesbian"
+34 = "Magyar"
+35 = "Masturbation"
+36 = "Mature"
+37 = "Milf"
+38 = "Old and Young"
+39 = "Parody"
+40 = "Pictures"
+41 = "Pissing"
+42 = "POV"
+43 = "Pregnant"
+44 = "Public"
+45 = "Shemale"
+46 = "Softcore"
+47 = "Squirt"
+48 = "Scat"
+49 = "Teen"
+50 = "Threesome"
+51 = "VR"
+52 = "Uncategorized"
+53 = "Movie"
+54 = "Ai Generated"
+55 = "PMV"
+
+[unit3d.resolutions]
+11 = "Other"
+12 = "SD"
+13 = "1080p(FHD)"
+14 = "2048p (2K)"
+15 = "3160p (6K)"
+16 = "4320p (8K)"
+17 = "720p(WXGA)"
+18 = "2160p (4K)"
+19 = "1600p"
+20 = "1440p(QHD)"
+21 = "3072p (VR)"

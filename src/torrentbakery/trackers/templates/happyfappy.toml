@@ -1,0 +1,22 @@
+schema = 1
+id = "happyfappy"
+name = "HappyFappy"
+engine = "gazelle"
+description = "Gazelle tracker. Fills in and posts upload.php with your browser session."
+base_url = "https://happyfappy.org"
+source = "HF"
+private = true
+
+[[auth.credentials]]
+field = "cookie"
+label = "Session cookie"
+required = true
+help = "Your logged-in browser (developer tools -> Application/Storage -> Cookies), copied as name=value; name2=value2. It expires; paste a fresh one when Test login says so."
+
+[images]
+# empty = any host works (the tracker hotlinks the cover and the post's images)
+hosts = []
+
+[gazelle]
+# element ids of the upload form fields (the defaults suit stash-empornium-style Gazelle forms)
+field_ids = {}

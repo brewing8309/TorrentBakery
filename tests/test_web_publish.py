@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from torrentbakery import config as config_mod
 from torrentbakery.config import Config, QbitCfg, Tracker
+from torrentbakery.trackers import get_template
 from torrentbakery.web.app import create_app
 from torrentbakery.web.jobs import JobManager
 
@@ -29,7 +30,7 @@ def fake_bake(cfg, source, out, **kw):
 
 def setup(tmp_path, publisher=None):
     cfg_path = tmp_path / "config.toml"
-    config_mod.save(Config(trackers={"emp": Tracker([PASSKEY], site="empornium", base_url="https://tr.example", cookie=COOKIE, category="2")},
+    config_mod.save(Config(trackers={"emp": Tracker([PASSKEY], site="happyfappy", base_url="https://tr.example", cookie=COOKIE, category="2")},
                            qbit=QbitCfg("http://qb", "u", "QBITPASS")), cfg_path)
     tr = httpx.MockTransport(lambda r: httpx.Response(200, text=UPLOAD_PAGE))
     kw = {"publisher": publisher} if publisher else {}
@@ -43,8 +44,8 @@ def test_secrets_never_rendered_and_blank_keeps(tmp_path):
     c, cfg_path, _ = setup(tmp_path)
     for page in (c.get("/settings").text, c.get("/").text):
         assert COOKIE not in page and "SECRETCOOKIE" not in page and "PASSKEY123" not in page and "QBITPASS" not in page
-    assert "cookie saved" in c.get("/settings").text and "empornium" in c.get("/settings").text
-    c.post("/settings/tracker", data={"name": "emp", "announce": "", "private": "1", "site": "empornium", "base_url": "https://tr.example/", "cookie": "", "category": "3", "auto_publish": "1"})
+    assert "credentials saved" in c.get("/settings").text and "HappyFappy" in c.get("/settings").text
+    c.post("/settings/tracker", data={"name": "emp", "announce": "", "private": "1", "site": "happyfappy", "base_url": "https://tr.example/", "cookie": "", "category": "3", "auto_publish": "1"})
     t = config_mod.load(cfg_path).trackers["emp"]
     assert t.cookie == COOKIE and t.announce == [PASSKEY] and t.category == "3" and t.auto_publish and t.base_url == "https://tr.example"
     c.post("/settings/qbit", data={"url": "http://qb2/", "username": "u", "password": "", "start": "1", "path_map": "/a=/b\nnonsense"})
@@ -62,7 +63,7 @@ def test_tracker_test_and_fetch_announce(tmp_path):
     c, cfg_path, _ = setup(tmp_path)
     r = c.post("/settings/tracker/emp/test").json()
     assert r["ok"] and ["1", "Amateur"] in r["categories"]
-    config_mod.save(config_mod.Config(trackers={"emp": Tracker([], site="empornium", base_url="https://tr.example", cookie=COOKIE)}), cfg_path)
+    config_mod.save(config_mod.Config(trackers={"emp": Tracker([], site="happyfappy", base_url="https://tr.example", cookie=COOKIE)}), cfg_path)
     assert c.post("/settings/tracker/emp/announce", follow_redirects=False).status_code == 303
     assert config_mod.load(cfg_path).trackers["emp"].announce == ["https://tr.example/PASS123/announce"]
 
@@ -113,7 +114,7 @@ def test_edit_data_has_no_secrets(tmp_path):
     c, _, _ = setup(tmp_path)
     page = c.get("/settings").text
     data = json.loads(page.split('id="tracker-data" type="application/json">')[1].split("</script>")[0])
-    assert data["emp"]["site"] == "empornium" and data["emp"]["category"] == "2" and data["emp"]["base_url"] == "https://tr.example"
+    assert data["emp"]["site"] == "happyfappy" and data["emp"]["category"] == "2" and data["emp"]["base_url"] == "https://tr.example"
     assert "cookie" not in data["emp"] and "announce" not in data["emp"] and "SECRETCOOKIE" not in page and "PASSKEY123" not in page
 
 
@@ -131,7 +132,7 @@ def test_seed_again_route(tmp_path):
     posts = []
     # a published bake with a real torrent the tracker serves
     cfg_path = tmp_path / "config.toml"
-    config_mod.save(Config(trackers={"emp": Tracker([PASSKEY], site="empornium", base_url="https://tr.example", cookie="session=abc", category="2")},
+    config_mod.save(Config(trackers={"emp": Tracker([PASSKEY], site="happyfappy", base_url="https://tr.example", cookie="session=abc", category="2")},
                            qbit=QbitCfg("http://qb")), cfg_path)
     import test_publish as tp
     from torf import Torrent
@@ -165,7 +166,7 @@ def test_seed_again_route(tmp_path):
 
 def test_category_dropdown_data_uses_form_values_and_saved_cookie(tmp_path):
     c, _, _ = setup(tmp_path)
-    r = c.post("/settings/tracker/categories", data={"name": "emp", "site": "empornium", "base_url": "https://tr.example", "cookie": ""}).json()
+    r = c.post("/settings/tracker/categories", data={"name": "emp", "site": "happyfappy", "base_url": "https://tr.example", "cookie": ""}).json()
     assert r["ok"] and r["categories"] == [["1", "Amateur"], ["2", "Studio"]]  # the saved cookie was used (the mock transport only answers the page either way)
     assert COOKIE not in json.dumps(r)
     assert not c.post("/settings/tracker/categories", data={"name": "new", "site": "", "base_url": ""}).json()["ok"]
@@ -193,7 +194,7 @@ def test_cli_category_by_name(tmp_path, monkeypatch):
     r = runner.invoke(app, ["tracker", "set", "bp", "--site", "bitporn", "--url", "https://bp.example", "--cookie", "T"])
     assert r.exit_code == 0, r.output
     import torrentbakery.trackers.unit3d as u
-    monkeypatch.setattr(u.Unit3dPublisher, "fetch_form", lambda self: u.UploadForm(categories=[(str(i), n) for i, n in u.UNIT3D_SITES["bitporn"]["categories"].items()]))
+    monkeypatch.setattr(u.Unit3dPublisher, "fetch_form", lambda self: u.UploadForm(categories=[(str(i), n) for i, n in get_template("bitporn").unit3d["categories"].items()]))
     assert runner.invoke(app, ["tracker", "set", "bp", "--category", "amateur"]).exit_code == 0
     assert config_mod.load(cfg_path).trackers["bp"].category == "4"
     bad = runner.invoke(app, ["tracker", "set", "bp", "--category", "Nope"])
@@ -212,7 +213,7 @@ def test_web_bake_stops_for_review_and_the_post_can_be_edited(tmp_path):
         published.update(kw)
         return {"torrent_url": "https://tr.example/torrents.php?id=1", "torrent_id": "1"}
     cfg_path = tmp_path / "config.toml"
-    config_mod.save(Config(trackers={"emp": Tracker([PASSKEY], site="empornium", base_url="https://tr.example", cookie=COOKIE, category="", auto_publish=True)}), cfg_path)
+    config_mod.save(Config(trackers={"emp": Tracker([PASSKEY], site="happyfappy", base_url="https://tr.example", cookie=COOKIE, category="", auto_publish=True)}), cfg_path)
     tr = httpx.MockTransport(lambda r: httpx.Response(200, text=UPLOAD_PAGE))
     c = TestClient(create_app(manager=JobManager(tmp_path / "out", cfg_path, runner, publisher=publisher), config_path=cfg_path, transport=tr))
     jid = c.post("/jobs", data={"source": "1", "tracker": "emp", "publish": "yes"}, follow_redirects=False).headers["location"].rsplit("/", 1)[-1]

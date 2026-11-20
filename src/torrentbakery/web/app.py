@@ -17,15 +17,16 @@ from fastapi.templating import Jinja2Templates
 
 from .. import config as config_mod
 from ..clients import QbitError, QBittorrent
-from ..config import SITE_SOURCES, StashBoxCfg, Tracker
-from ..hosts import API_KEY_HOSTS, HOST_NAMES
+from ..config import StashBoxCfg, Tracker
+from ..hosts import API_KEY_HOSTS, HOST_NAMES, HOST_SITES
 from ..media.files import is_video
 from ..publish import prepare, seed, set_artwork
 from ..render.post import release_tags
 from ..sources import stashbox as stashbox_source
 from ..sources.gql import gql
 from ..tags import TagMap, load_user_map, save_user_map
-from ..trackers import SITES, UNIT3D_SITES, TrackerError, get_publisher
+from ..trackers import TrackerError, get_publisher, load_templates
+from ..trackers.template import user_dir as user_template_dir
 from . import auth as auth_mod
 from .jobs import JobManager
 from .login import install as install_login
@@ -73,7 +74,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     @app.get("/")
     def index(request: Request):
         c = cfg()
-        return templates.TemplateResponse(request, "index.html", {"default_host": c.default_host, "cover_source": c.cover_source, "cover_format": c.cover_format, "last": c.last_used, "trackers": list(c.trackers), "tracker_sites": {n: t.site for n, t in c.trackers.items()}, "publishable": [n for n, t in c.trackers.items() if t.site], "hosts": HOST_NAMES, "stash": bool(c.stash.url), "has_boxes": bool(c.stashboxes), "roots": c.web_media_roots, "jobs": jobs.recent(), "total_jobs": len(jobs.jobs)})
+        return templates.TemplateResponse(request, "index.html", {"default_host": c.default_host, "cover_source": c.cover_source, "cover_format": c.cover_format, "last": c.last_used, "trackers": list(c.trackers), "tracker_hosts": {n: {"site": t.site, "hosts": list(t.template.image_hosts) if t.template else []} for n, t in c.trackers.items()}, "host_sites": HOST_SITES, "publishable": [n for n, t in c.trackers.items() if t.site], "hosts": HOST_NAMES, "stash": bool(c.stash.url), "has_boxes": bool(c.stashboxes), "roots": c.web_media_roots, "jobs": jobs.recent(), "total_jobs": len(jobs.jobs)})
 
     @app.get("/history")
     def history(request: Request):
@@ -251,7 +252,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         except (TrackerError, ValueError, KeyError, OSError) as e:
             return {"ok": False, "message": str(e)}
         warning = ""
-        shown = UNIT3D_SITES.get(c.trackers[tracker].site, {}).get("image_hosts")
+        shown = c.trackers[tracker].template.image_hosts if c.trackers[tracker].template else ()
         if shown and p.meta.get("image_host") not in shown:
             warning = (f"The images of this bake are on {p.meta.get('image_host') or 'no host'}, which {tracker} does not show (it blocks other hosts through a proxy). "
                        f"Bake again with {' or '.join(shown)} as the image host, or the post will show broken images.")
@@ -330,7 +331,11 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         um = load_user_map(tags_file())
         flash, login_state.flash = login_state.flash, None
         setup = login_state.setup_secret()
-        return templates.TemplateResponse(request, "settings.html", {"c": c, "hosts": HOST_NAMES, "host_keys": {h: bool(c.hosts.get(h, {}).get("api_key")) for h in API_KEY_HOSTS}, "sites": SITES,
+        tpls, tpl_errors = load_templates()
+        return templates.TemplateResponse(request, "settings.html", {"c": c, "hosts": HOST_NAMES, "host_keys": {h: bool(c.hosts.get(h, {}).get("api_key")) for h in API_KEY_HOSTS},
+                                                                    "tpls": tpls, "tpl_errors": tpl_errors, "tpl_dir": str(user_template_dir()),
+                                                                    "tpl_data": {i: {"name": t.name, "engine": t.engine, "description": t.description, "base_url": t.base_url, "origin": t.origin, "image_hosts": list(t.image_hosts),
+                                                                                     "credentials": [{"field": x.field, "label": x.label, "required": x.required, "help": x.help} for x in t.credentials]} for i, t in tpls.items()},
                                                                     # what the Edit button puts into the form: everything except the secrets (announce URL with passkey, cookie)
                                                                     "tracker_data": {n: {"source": t.source, "private": t.private, "site": t.site, "base_url": t.base_url, "category": t.category, "anonymous": t.anonymous,
                                                                                          "auto_publish": t.auto_publish, "title_template": t.title_template} for n, t in c.trackers.items()},
@@ -347,10 +352,11 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         name = name.strip()
         old = c.trackers.get(name, Tracker())
         urls = [u.strip() for u in announce.splitlines() if u.strip()] or old.announce  # blank keeps the saved ones (they hold the passkey)
-        if not name or not (urls or (site and base_url.strip())):
-            raise HTTPException(400, "name and an announce URL required (or a site address and cookie, to fetch it)")
-        if site and site not in SITE_SOURCES:
-            raise HTTPException(400, "unknown site type")
+        tpls = load_templates()[0]
+        if site and site not in tpls:
+            raise HTTPException(400, "unknown tracker template")
+        if not name or not (urls or (site and (base_url.strip() or tpls[site].base_url))):
+            raise HTTPException(400, "name and an announce URL required (or a tracker template and cookie, to fetch it)")
         c.trackers[name] = replace(old, announce=urls, source=source.strip(), private=bool(private), site=site, base_url=base_url.strip().rstrip("/"),
                                    cookie=cookie.strip() or old.cookie, session_cookie=session_cookie.strip() or old.session_cookie, category=category.strip(), anonymous=bool(anonymous), auto_publish=bool(auto_publish and site),
                                    title_template=title_template.strip())
@@ -362,8 +368,9 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         c = cfg()
         old = c.trackers.get(name.strip(), Tracker())
         probe = replace(old, site=site, base_url=base_url.strip().rstrip("/"), cookie=cookie.strip() or old.cookie)
+        probe = replace(probe, base_url=probe.effective_base_url)
         if not site or not probe.base_url:
-            return {"ok": False, "message": "pick a site type and enter the site address first"}
+            return {"ok": False, "message": "pick a tracker template (and enter the site address if the template has none) first"}
         try:
             form = get_publisher("_probe", replace(c, trackers={**c.trackers, "_probe": probe}), transport).fetch_form()
         except (TrackerError, ValueError, KeyError) as e:

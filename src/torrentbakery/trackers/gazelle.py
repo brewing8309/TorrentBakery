@@ -1,4 +1,4 @@
-"""Publisher for Gazelle-style trackers (Empornium, HappyFappy, FemdomCult, Enthralled).
+"""Publisher for Gazelle-style trackers (HappyFappy).
 
 It does what stash-empornium's userscript does in the browser, from the server: read upload.php with the session
 cookie, fill the form `upload_table` (title, description, tags, cover, category, anonymity) and post it with the
@@ -16,12 +16,12 @@ import httpx
 
 from ..config import Tracker
 from .base import LoginError, PublishRequest, PublishResult, TrackerError, UploadForm
+from .template import get_template
 
 UA = "Mozilla/5.0 (X11; Linux x86_64) TorrentBakery"
 
-# element id of each form field per site (stash-empornium: #title #desc #image, tags in #taginput, FemdomCult #tags)
+# element id of each form field (stash-empornium: #title #desc #image, tags in #taginput); a template can override them in [gazelle] field_ids
 FIELD_IDS = {"title": "title", "desc": "desc", "image": "image", "tags": "taginput"}
-SITE_FIELD_IDS = {"femdomcult": {"tags": "tags"}}
 CATEGORY_IDS = ("categories", "category", "type")
 
 
@@ -88,7 +88,8 @@ class GazellePublisher:
         if not tracker.base_url or not tracker.cookie:
             raise ValueError(f"tracker {name!r} needs a base URL and a session cookie to publish (tb tracker set {name} --url … --cookie …)")
         self.name, self.tracker, self.transport = name, tracker, transport
-        self.ids = {**FIELD_IDS, **SITE_FIELD_IDS.get(tracker.site, {})}
+        tpl = get_template(tracker.site)
+        self.ids = {**FIELD_IDS, **(tpl.gazelle.get("field_ids", {}) if tpl else {})}
         self._form: dict | None = None
 
     def _client(self) -> httpx.Client:

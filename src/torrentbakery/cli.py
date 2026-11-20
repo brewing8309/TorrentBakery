@@ -8,7 +8,8 @@ import typer
 
 from . import __version__
 from . import config as config_mod
-from .config import SITE_SOURCES, StashBoxCfg, Tracker
+from .config import StashBoxCfg, Tracker
+from .trackers.template import template_ids
 from .hosts import HOST_NAMES
 from .service import bake_source
 
@@ -130,7 +131,7 @@ def _category_id(cfg: config_mod.Config, name: str, t: Tracker, category: str | 
     from dataclasses import replace
 
     from .trackers import TrackerError, get_publisher
-    probe = replace(t, site=site or t.site, base_url=(url or t.base_url).rstrip("/"), cookie=cookie or t.cookie)
+    probe = replace(t, site=site or t.site, base_url=(url or t.effective_base_url).rstrip("/"), cookie=cookie or t.cookie)
     try:
         cats = get_publisher("_probe", replace(cfg, trackers={**cfg.trackers, "_probe": probe})).fetch_form().categories
     except (TrackerError, ValueError, KeyError) as e:
@@ -144,8 +145,8 @@ def _category_id(cfg: config_mod.Config, name: str, t: Tracker, category: str | 
 @tracker_app.command("set")
 def tracker_set(
     name: str,
-    site: str = typer.Option(None, "--site", help=f"Site type: {', '.join(SITE_SOURCES)}"),
-    url: str = typer.Option(None, "--url", help="Site address, e.g. https://www.empornium.sx"),
+    site: str = typer.Option(None, "--site", help=f"Tracker template: {', '.join(template_ids())}"),
+    url: str = typer.Option(None, "--url", help="Site address (default: the template's)"),
     cookie: str = typer.Option(None, "--cookie", help="Session cookie, e.g. 'session=abc; other=def' (copy from your logged-in browser); API token for UNIT3D sites"),
     session_cookie: str = typer.Option(None, "--session-cookie", help="UNIT3D only: browser session cookies, used to set the list cover and banner (the API cannot)"),
     category: str = typer.Option(None, "--category", help="Default upload category: its name (e.g. Amateur) or id (see `tb tracker test`)"),
@@ -156,8 +157,8 @@ def tracker_set(
     """Set the publishing options of a tracker profile (create it first with `tb tracker add`)."""
     cfg = config_mod.load()
     t = _tracker(cfg, name)
-    if site is not None and site not in SITE_SOURCES:
-        raise typer.BadParameter(f"site must be one of: {', '.join(SITE_SOURCES)}")
+    if site is not None and site not in template_ids():
+        raise typer.BadParameter(f"site must be one of: {', '.join(template_ids())}")
     category = _category_id(cfg, name, t, category, site, url, cookie)
     for k, v in (("site", site), ("base_url", url.rstrip("/") if url else url), ("cookie", cookie), ("session_cookie", session_cookie), ("category", category), ("anonymous", anonymous),
                  ("title_template", title_template), ("auto_publish", auto_publish)):

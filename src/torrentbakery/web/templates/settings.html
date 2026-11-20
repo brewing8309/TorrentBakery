@@ -55,10 +55,10 @@
 
 <section role="tabpanel" id="tracker" class="sheet">
   <div class="sheet-head"><h2>Tracker profiles <span class="badge req">needed for torrents</span></h2>
-  <p class="lead">A profile bundles what your tracker (or forum) requires for the torrent. You pick a profile when baking; without one the torrent has no announce URL, which no tracker accepts. You can create as many as you like, e.g. one per tracker. A profile with a <b>site type</b> and session cookie can also upload the finished release to the tracker.</p></div>
+  <p class="lead">A profile bundles what your tracker (or forum) requires for the torrent. You pick a profile when baking; without one the torrent has no announce URL, which no tracker accepts. You can create as many as you like, e.g. one per tracker. A profile with a <b>tracker template</b> and your credentials can also upload the finished release to the tracker.</p></div>
   <table class="stack">{% for name, t in c.trackers.items() %}
     <tr><td><b>{{ name }}</b><br><span class="mute">{{ t.announce | map("urlhost") | join(", ") or "no announce URL yet" }} · source "{{ t.effective_source or "–" }}" · {{ "private" if t.private else "public" }}
-        {% if t.site %}<br>publishes to {{ t.site }} ({{ t.base_url | urlhost }}) · cookie {{ "saved" if cookies[name] else "missing" }}{% if t.auto_publish %} · automatic after baking{% endif %}{% endif %}</span>
+        {% if t.site %}<br>publishes to {{ tpls[t.site].name if t.site in tpls else t.site ~ " (template missing!)" }} ({{ t.effective_base_url | urlhost }}) · credentials {{ "saved" if cookies[name] else "missing" }}{% if t.auto_publish %} · automatic after baking{% endif %}{% endif %}</span>
         <span id="tt-{{ loop.index0 }}" class="mute"></span></td>
         <td class="act">
           {% if t.site %}<button type="button" class="ghost" onclick="testTracker({{ name | tojson | forceescape }}, 'tt-{{ loop.index0 }}')">Test login</button>
@@ -72,7 +72,7 @@
       <div><label for="t-name">Name</label><input type="text" id="t-name" name="name" required placeholder="MyTracker">
         <p class="help">Free to choose; it appears in the dropdown on the start page. The same name replaces the profile; blank announce URL and cookie keep the saved ones.</p></div>
       <div><label for="t-source">Source tag <span class="badge">optional</span></label><input type="text" id="t-source" name="source" placeholder="ABC">
-        <p class="help">Some private trackers require a "source" field in the torrent (see their upload rules). For a site type below it defaults to the right one (Emp, HF, FDC, Ent).</p></div>
+        <p class="help">Some private trackers require a "source" field in the torrent (see their upload rules). With a tracker template it defaults to the template's value.</p></div>
     </div>
     <label for="t-announce">Announce URL</label>
     <textarea id="t-announce" name="announce" rows="2" placeholder="https://tracker.example/abc123passkey/announce"></textarea>
@@ -81,18 +81,20 @@
     <p class="help">Turns off DHT and peer exchange. Keep it on for private trackers, switch it off only for public ones.</p>
     <details>
       <summary><b>Publishing</b> <span class="badge">optional</span></summary>
-      <p class="help">Lets TorrentBakery fill in and send the tracker's upload form for you, like the stash-empornium userscript does in the browser. It uses the session cookie of your logged-in account.</p>
+      <p class="help">Lets TorrentBakery fill in and send the tracker's upload form for you. A <b>tracker template</b> describes the site (which login it needs, which image hosts work, its categories); the secrets are saved in the config file (readable only by the service user) and never shown again.</p>
       <div class="row">
-        <div><label for="t-site">Site type</label>
-          <select id="t-site" name="site"><option value="">none (torrent only)</option>{% for x in sites %}<option>{{ x }}</option>{% endfor %}</select></div>
-        <div><label for="t-url">Site address</label><input type="text" id="t-url" name="base_url" placeholder="https://www.empornium.sx"></div>
+        <div><label for="t-site">Tracker template</label>
+          <select id="t-site" name="site"><option value="">none (torrent only)</option>{% for i, x in tpls.items() %}<option value="{{ i }}">{{ x.name }}{% if x.origin != "built-in" %} (community){% endif %}</option>{% endfor %}</select></div>
+        <div><label for="t-url">Site address <span class="badge">optional</span></label><input type="text" id="t-url" name="base_url" placeholder="the template's address">
+          <p class="help">Only needed for a mirror or another domain of the same tracker.</p></div>
       </div>
-      <label for="t-cookie">Session cookie or API token</label>
-      <input type="password" id="t-cookie" name="cookie" autocomplete="off" placeholder="session=…; other=…">
-      <p class="help">In your browser, logged in to the tracker: developer tools → Application/Storage → Cookies; copy the cookies as <code>name=value; name2=value2</code>. It is saved in the config file (readable only by the service user) and never shown again. When it expires, "Test login" says so; paste a fresh one. <b>UNIT3D sites (bitporn):</b> no cookie, paste your API token instead (account settings → Security → API token); it does not expire.</p>
-      <label for="t-session">Web session cookie <span class="badge">UNIT3D only, optional</span></label>
-      <input type="password" id="t-session" name="session_cookie" autocomplete="off" placeholder="bitporn_session=…">
-      <p class="help">UNIT3D's API cannot set the list cover and banner of a torrent, only its web form can. With the cookies of your logged-in browser session (developer tools → Application/Storage → Cookies) TorrentBakery sets both right after the upload: it cuts them from the release's promo image, uploads them to the bake's image host and enters the URLs in the torrent's edit form. Without it uploads still work, the list just shows no cover. Saved like the token and never shown again; when it expires, "Test login" says so.</p>
+      <p class="help" id="t-tpl-info" hidden></p>
+      <div id="t-cred-main" hidden><label for="t-cookie" id="t-cookie-label">Session cookie or API token</label>
+        <input type="password" id="t-cookie" name="cookie" autocomplete="off" placeholder="session=…; other=…">
+        <p class="help" id="t-cookie-help"></p></div>
+      <div id="t-cred-session" hidden><label for="t-session" id="t-session-label">Web session cookie</label>
+        <input type="password" id="t-session" name="session_cookie" autocomplete="off">
+        <p class="help" id="t-session-help"></p></div>
       <div class="row">
         <div><label for="t-cat">Default category</label>
           <select id="t-cat" name="category"><option value="">(none: pick one for each upload)</option></select>
@@ -107,6 +109,9 @@
     </details>
     <p class="actions"><button>Save profile</button> <button type="button" class="ghost" id="tracker-cancel" hidden>Cancel editing</button></p>
   </form>
+  <h3 class="form-title">Tracker templates</h3>
+  <p class="help">{% for i, x in tpls.items() %}<b>{{ x.name }}</b> ({{ x.engine }}, {{ x.origin }}){% if not loop.last %} · {% endif %}{% endfor %}. Add more by putting a template file (<code>*.toml</code>) into <code>{{ tpl_dir }}</code> and reloading this page; see docs/tracker-templates.md for the format.</p>
+  {% for f, e in tpl_errors.items() %}<p class="err">{{ f }}: {{ e }}</p>{% endfor %}
 </section>
 
 <section role="tabpanel" id="cover" class="sheet">
@@ -325,7 +330,24 @@
 <script id="tracker-data" type="application/json">{{ tracker_data | tojson }}</script>
 <script>
 const trackerData = JSON.parse(document.getElementById("tracker-data").textContent);
+const tplData = {{ tpl_data | tojson }};
 const tform = document.getElementById("tracker-form"), tcancel = document.getElementById("tracker-cancel"), ttitle = document.getElementById("tracker-form-title");
+// the template decides which credential fields the form shows, how they are called and what to tell the user
+function syncTemplate() {
+  const f = tform.elements, t = tplData[f.site.value];
+  const info = document.getElementById("t-tpl-info");
+  info.hidden = !t; info.textContent = t ? t.description + (t.image_hosts.length ? " Image hosts that work: " + t.image_hosts.join(", ") + "." : " Any image host works.") : "";
+  f.base_url.placeholder = t && t.base_url ? t.base_url : "https://tracker.example";
+  for (const [field, box, label, help] of [["cookie", "t-cred-main", "t-cookie-label", "t-cookie-help"], ["session_cookie", "t-cred-session", "t-session-label", "t-session-help"]]) {
+    const c = t && t.credentials.find(x => x.field === field);
+    document.getElementById(box).hidden = !c;
+    if (c) { document.getElementById(label).innerHTML = ""; document.getElementById(label).append(c.label + " ");
+      const b = document.createElement("span"); b.className = "badge" + (c.required ? " req" : ""); b.textContent = c.required ? "required" : "optional"; document.getElementById(label).append(b);
+      document.getElementById(help).textContent = c.help; }
+  }
+}
+syncTemplate();
+tform.elements.site.addEventListener("change", () => { syncTemplate(); if (tform.elements.site.value) loadCategories(); });
 function editTracker(name) {
   const t = trackerData[name], f = tform.elements;
   tform.reset();
@@ -333,14 +355,15 @@ function editTracker(name) {
   f.source.value = t.source; f.private.checked = t.private; f.site.value = t.site; f.base_url.value = t.base_url; setCategory(t.category);
   f.title_template.value = t.title_template; f.anonymous.checked = t.anonymous; f.auto_publish.checked = t.auto_publish;
   f.announce.placeholder = "saved; leave empty to keep it (a new URL replaces it)"; f.cookie.placeholder = "saved; leave empty to keep it";
+  syncTemplate();
   tform.querySelector("details").open = true;
   if (t.site) loadCategories(t.category);
   ttitle.textContent = "Edit profile " + name; tcancel.hidden = false;
   tform.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start"});
 }
 tcancel.addEventListener("click", () => {
-  tform.reset(); setCategory(""); tform.elements.name.readOnly = false; tcancel.hidden = true; ttitle.textContent = "Add or replace a profile";
-  tform.elements.announce.placeholder = "https://tracker.example/abc123passkey/announce"; tform.elements.cookie.placeholder = "session=…; other=…";
+  tform.reset(); syncTemplate(); setCategory(""); tform.elements.name.readOnly = false; tcancel.hidden = true; ttitle.textContent = "Add or replace a profile";
+  tform.elements.announce.placeholder = "https://tracker.example/abc123passkey/announce"; tform.elements.cookie.placeholder = "session=…; other=…"; syncTemplate();
 });
 function setCategory(value, cats) {  // keeps the saved id selectable even before the list is loaded
   const sel = tform.elements.category, keep = value === undefined ? sel.value : value;

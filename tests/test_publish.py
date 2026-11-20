@@ -26,7 +26,7 @@ UPLOAD_PAGE = """<html><body>
 
 
 def tracker(**kw):
-    return Tracker(["https://tr.example/PASS123/announce"], "", True, site="empornium", base_url="https://tr.example", cookie="session=abc", category="2", **kw)
+    return Tracker(["https://tr.example/PASS123/announce"], "", True, site="happyfappy", base_url="https://tr.example", cookie="session=abc", category="2", **kw)
 
 
 def req(tmp_path, **kw):
@@ -74,16 +74,6 @@ def test_dry_run_sends_nothing_and_hides_auth(tmp_path):
     posts = []
     res = get_publisher("emp", Config(trackers={"emp": tracker()}), transport(posts)).publish(req(tmp_path), dry_run=True)
     assert posts == [] and res.dry_run and res.sent["title"] == "Title" and "auth" not in res.sent and res.sent["file_input"] == "x.torrent"
-
-
-def test_femdomcult_tags_field(tmp_path):
-    page = UPLOAD_PAGE.replace('id="taginput" name="taglist"', 'id="tags" name="tags"')
-    t = tracker()
-    t.site = "femdomcult"
-    posts = []
-    get_publisher("fc", Config(trackers={"fc": t}), transport(posts, page)).publish(req(tmp_path))
-    assert b'name="tags"' in posts[0].content
-
 
 def test_login_page_and_redirect(tmp_path):
     def h(r):
@@ -158,7 +148,7 @@ def test_prepare_rebuilds_torrent_for_tracker(baked):
     cfg = Config(trackers={"emp": tracker()})
     p = prepare(cfg, baked, "emp", tagmap=TagMap.load(baked / "none.toml"))
     t = Torrent.read(p.torrent)
-    assert p.torrent.name == "Scene.tracker.emp.torrent" and t.source == "Emp" and t.private and t.trackers[0][0].endswith("/PASS123/announce")
+    assert p.torrent.name == "Scene.tracker.emp.torrent" and t.source == "HF" and t.private and t.trackers[0][0].endswith("/PASS123/announce")
     assert p.title.startswith("[Studio]") and p.tags == ["jane.doe", "eve", "blowjob"] and p.image == "https://img/c.jpg"
     assert Torrent.read(baked / "Scene.torrent").infohash != t.infohash  # the source flag changes the hash, so the base torrent stays untouched
 

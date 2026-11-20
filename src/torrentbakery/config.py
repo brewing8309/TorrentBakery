@@ -10,8 +10,6 @@ import tomli_w
 CONFIG_PATH = Path(os.environ.get("TB_CONFIG", Path.home() / ".config/torrentbakery/config.toml"))
 
 
-# Sites we can publish to, with the source flag their torrents carry. The first four are Gazelle (session cookie), bitporn is UNIT3D (API token).
-SITE_SOURCES = {"empornium": "Emp", "happyfappy": "HF", "femdomcult": "FDC", "enthralled": "Ent", "bitporn": ""}
 
 
 @dataclass
@@ -20,8 +18,8 @@ class Tracker:
     source: str = ""
     private: bool = True
     # publishing (all optional: a profile without `site` only controls what goes into the .torrent)
-    site: str = ""  # key of SITE_SOURCES
-    base_url: str = ""  # e.g. https://www.empornium.sx
+    site: str = ""  # id of a tracker template (trackers/templates, docs/tracker-templates.md)
+    base_url: str = ""  # empty = the template's address
     session_cookie: str = ""  # UNIT3D only: browser session (cookie string) for what the API cannot do, the list cover and banner; a secret
     cookie: str = ""  # session cookie string ("name=value; name2=value2"), for UNIT3D sites the API token; a secret
     category: str = ""  # default category id of the upload form
@@ -31,7 +29,16 @@ class Tracker:
 
     @property
     def effective_source(self) -> str:
-        return self.source or SITE_SOURCES.get(self.site, "")
+        return self.source or (self.template.source if self.template else "")
+
+    @property
+    def template(self):
+        from .trackers.template import get_template
+        return get_template(self.site) if self.site else None
+
+    @property
+    def effective_base_url(self) -> str:
+        return (self.base_url or (self.template.base_url if self.template else "")).rstrip("/")
 
 
 @dataclass

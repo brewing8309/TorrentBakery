@@ -10,10 +10,11 @@ from torrentbakery.config import Config, QbitCfg, Tracker
 from torrentbakery.publish import prepare, publish
 from torrentbakery.tags import TagMap
 from torrentbakery.trackers import LoginError, PublishRequest, TrackerError, get_publisher
-from torrentbakery.trackers.unit3d import UNIT3D_SITES, resolution_id
+from torrentbakery.trackers import get_template
+from torrentbakery.trackers.unit3d import resolution_id
 
 TOKEN = "SECRETTOKEN123"
-SITE = UNIT3D_SITES["bitporn"]
+SITE = get_template("bitporn").unit3d
 
 
 def tracker(**kw):

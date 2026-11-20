@@ -16,30 +16,9 @@ from ..config import Tracker
 from .base import LoginError, PublishRequest, PublishResult, TrackerError, UploadForm
 from .gazelle import _error_text as _page_error
 from .gazelle import _FormParser
+from .template import get_template
 
 UA = "Mozilla/5.0 (X11; Linux x86_64) TorrentBakery"
-
-# ids are specific to each installation and the API has no lookup endpoint, so they are listed here per site
-UNIT3D_SITES: dict[str, dict] = {
-    "bitporn": {
-        # UNIT3D shows images of non-whitelisted hosts through wsrv.nl, which blocks adult hosts (pixhost: "Domain or TLD blocked by policy")
-        "image_hosts": ("bitporn.eu", "imghost.dev"),
-        "type_id": 1,  # "None"; 4 is WEB-DL
-        "categories": {
-            4: "Amateur", 5: "Anal", 6: "Asian", 7: "BBW", 8: "BDSM", 9: "Big Ass", 10: "Big Tits", 11: "Black", 12: "Cartoon", 13: "Casting",
-            14: "Classic", 15: "Collection", 16: "Creampie", 17: "Oral / Cumshot", 18: "Deepthroat", 19: "Extreme", 20: "Fansite", 21: "Family",
-            22: "Feature", 23: "Fetish", 24: "Fisting", 25: "Gangbang/Group sex", 26: "Game", 27: "Gay / Bi", 28: "Hair", 29: "Hardcore",
-            30: "HiddenCam", 31: "Homemade", 32: "Interracial", 33: "Lesbian", 34: "Magyar", 35: "Masturbation", 36: "Mature", 37: "Milf",
-            38: "Old and Young", 39: "Parody", 40: "Pictures", 41: "Pissing", 42: "POV", 43: "Pregnant", 44: "Public", 45: "Shemale", 46: "Softcore",
-            47: "Squirt", 48: "Scat", 49: "Teen", 50: "Threesome", 51: "VR", 52: "Uncategorized", 53: "Movie", 54: "Ai Generated", 55: "PMV",
-        },
-        "resolutions": {
-            11: "Other", 12: "SD", 13: "1080p(FHD)", 14: "2048p (2K)", 15: "3160p (6K)", 16: "4320p (8K)", 17: "720p(WXGA)", 18: "2160p (4K)",
-            19: "1600p", 20: "1440p(QHD)", 21: "3072p (VR)",
-        },
-    },
-}
-
 
 def resolution_id(table: dict[int, str], height: int) -> int:
     """The id of the largest listed resolution (names like "1080p(FHD)") that fits `height`; SD or Other below/without a match."""
@@ -64,7 +43,7 @@ class Unit3dPublisher:
         if not tracker.base_url or not tracker.cookie:
             raise ValueError(f"tracker {name!r} needs a base URL and an API token to publish (tb tracker set {name} --url … --cookie <token>)")
         self.name, self.tracker, self.transport = name, tracker, transport
-        self.site = UNIT3D_SITES[tracker.site]
+        self.site = get_template(tracker.site).unit3d
 
     def _client(self) -> httpx.Client:
         return httpx.Client(transport=self.transport, timeout=120, follow_redirects=True,

@@ -205,7 +205,7 @@ def test_bake_form_remembers_last_choices(tmp_path, cfg_path):
 
     from torrentbakery.config import Tracker
     from torrentbakery.web.jobs import JobManager
-    config_mod.save(Config(trackers={"a": Tracker(["http://x/announce"]), "b": Tracker(["http://y/announce"], site="empornium", base_url="http://y")}, default_host="pixhost.cc"), cfg_path)
+    config_mod.save(Config(trackers={"a": Tracker(["http://x/announce"]), "b": Tracker(["http://y/announce"], site="happyfappy", base_url="http://y")}, default_host="pixhost.cc"), cfg_path)
     c = TestClient(create_app(manager=JobManager(tmp_path / "out", cfg_path, lambda cfg, source, out, **kw: out), config_path=cfg_path))
     page = c.get("/").text
     assert '<option selected>pixhost.cc</option>' in page and "<option selected>a</option>" not in page  # first visit: the default host, no tracker
@@ -217,7 +217,7 @@ def test_bake_form_remembers_last_choices(tmp_path, cfg_path):
     c.post("/jobs", data={"source": "2", "tracker": "", "upload": ""}, follow_redirects=False)  # choosing "none" is remembered as well
     page = c.get("/").text
     assert not re.search(r"<option selected>(a|b)</option>", page) and "<option selected>imgbox</option>" not in page and "<option selected>pixhost.cc</option>" not in page
-    assert config_mod.load(cfg_path).last_used["upload"] == "" and config_mod.load(cfg_path).trackers["b"].site == "empornium"
+    assert config_mod.load(cfg_path).last_used["upload"] == "" and config_mod.load(cfg_path).trackers["b"].site == "happyfappy"
 
 
 def test_pages_link_only_existing_static_assets(tmp_path, cfg_path):
