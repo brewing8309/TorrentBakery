@@ -70,6 +70,8 @@ class Unit3dPublisher:
             try:
                 self._web_get(f"")
                 note = "Web session for cover and banner works."
+                if "remember_web_" not in self.tracker.session_cookie:
+                    note += " But it has no remember_web_… cookie, so it will expire within hours: log in again with \"Remember me\" ticked and paste both cookies."
             except LoginError:
                 note = "The web session cookie is expired or wrong: cover and banner cannot be set until you paste a fresh one."
             except (TrackerError, httpx.HTTPError):
