@@ -201,13 +201,14 @@ src.addEventListener("input", () => {
     try {
       const rows = await (await fetch("/search?q=" + encodeURIComponent(q))).json();
       box.innerHTML = "";
+      if (rows.length) { const h = document.createElement("p"); h.className = "help"; h.textContent = "In your Stash (click one to bake that scene):"; box.append(h); }
       for (const r of rows) {
         const b = document.createElement("button");
         b.type = "button"; b.className = "ghost scene-hit";
         const img = document.createElement("img");
         img.src = "/stash-thumb/" + r.id; img.width = 80; img.loading = "lazy"; img.alt = "";
         const t = document.createElement("span");
-        t.textContent = [r.title, r.studio, r.date].filter(Boolean).join(" · ") + "  (#" + r.id + ")";
+        t.textContent = [r.title, r.studio, r.date].filter(Boolean).join(" · ") + "  (your Stash #" + r.id + ")";
         b.append(img, t);
         b.onclick = () => {
           src.value = [r.title, r.studio].filter(Boolean).join(" · ");
