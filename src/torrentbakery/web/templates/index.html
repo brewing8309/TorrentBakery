@@ -17,6 +17,7 @@
         </div>
         <input type="hidden" name="source" id="source-value">
         <input type="hidden" name="label" id="label-value">
+        <input type="hidden" name="stashbox" id="stashbox">
         <p class="help">{% if stash %}Type 3+ letters of a title to get matching Stash scenes to click. A scene's number is in Stash's address bar (<code>…/scenes/1234</code>).{% endif %}
           <b>Browse…</b> picks a video file (torrent of that file) or a whole folder (torrent of the folder; its largest video provides the screenshots and cover). Browsing is limited to the permitted <a href="/settings#roots">media folders</a>.</p>
         <div id="results"></div>
@@ -33,6 +34,8 @@
         <div><label for="upload">Image host</label>
           <select id="upload" name="upload"><option value="">none (images as files only)</option>{% set chosen_host = last["upload"] if "upload" in last else default_host %}{% for h in hosts %}<option{% if h == chosen_host %} selected{% endif %}>{{ h }}</option>{% endfor %}</select>
           <p class="help">Uploads the cover and the screenshot sheet and puts the host links into the post. Without a host the post only contains file names and you upload the images yourself. Set a default host in <a href="/settings#hosts">Settings</a>.</p></div>
+        <div><label class="check"><input type="checkbox" name="sfw" value="1"{% if last.get("sfw") %} checked{% endif %}> Mark images as family safe</label>
+          <p class="help">The default is "adult content". This only affects the upload at the image hosts.</p></div>
       </div>
     </div>
     <div class="group">
@@ -44,16 +47,6 @@
         <div><label for="cover_format">Animated cover: format</label>
           <select id="cover_format" name="cover_format"><option value="webp"{% if (last.get("cover_format") or cover_format) == "webp" %} selected{% endif %}>WebP (small)</option><option value="gif"{% if (last.get("cover_format") or cover_format) == "gif" %} selected{% endif %}>GIF (plays everywhere)</option></select>
           <p class="help">WebP is much smaller at the same quality. Hosts that do not take WebP (imgbox, imagebam) automatically get a GIF.</p></div>
-      </div>
-    </div>
-    <div class="group">
-      <h2 class="group-title">Extras</h2>
-      <div class="group-body">
-        <label for="stashbox">Stash-box scene address <span class="badge">optional</span></label>
-        <input type="text" id="stashbox" name="stashbox" placeholder="https://stashdb.org/scenes/…">
-        <p class="help">Plain files only: fetches title, performers and links from this StashDB page. Not needed for Stash scenes.{% if has_boxes %} Picking a file searches your stash-boxes by its name; click a match there and this field is filled in.{% endif %} The key for it is in <a href="/settings#stashbox">Settings</a>.</p>
-        <label class="check"><input type="checkbox" name="sfw" value="1"{% if last.get("sfw") %} checked{% endif %}> Mark images as family safe</label>
-        <p class="help">The default is "adult content". This only affects the upload at the image hosts.</p>
       </div>
     </div>
     <p class="bake-submit"><button type="submit" class="btn-lg">Bake</button></p>
@@ -91,16 +84,16 @@ const boxBox = document.getElementById("box-results"), boxField = document.getEl
 const pick = path => { src.value = path; srcValue.value = path; labelValue.value = ""; box.innerHTML = ""; dlg.close(); boxSearch(path); };
 
 // ---- a picked file: look it up by name in every configured stash-box; choosing a match is up to the user
-async function boxSearch(path) {
+async function boxSearch(path, manual) {
   boxBox.innerHTML = ""; boxField.value = "";
   {% if has_boxes %}
   const note = document.createElement("p"); note.className = "searching"; note.setAttribute("role", "status");
   const spin = document.createElement("span"); spin.className = "spinner"; spin.setAttribute("aria-hidden", "true");
   note.append(spin, "Searching your stash-boxes for this file name…"); boxBox.append(note);
   let d;
-  try { d = await (await fetch("/stashbox/search?name=" + encodeURIComponent(path))).json(); }
-  catch (e) { note.className = "err"; note.textContent = "The stash-box search failed."; return; }
-  if (src.value !== path) return;  // another source was picked meanwhile
+  try { d = await (await fetch("/stashbox/search?name=" + encodeURIComponent(path) + (manual ? "&manual=true" : ""))).json(); }
+  catch (e) { note.className = "err"; note.textContent = "The stash-box search failed."; manualRow(path); return; }
+  if (!manual && src.value !== path) return;  // another source was picked meanwhile
   boxBox.innerHTML = "";
   const head = document.createElement("p"); head.className = "help";
   head.textContent = "Stash-box matches for “" + d.term + "” (optional, click one to take its metadata):";
@@ -124,8 +117,22 @@ async function boxSearch(path) {
       boxBox.append(btn);
     }
   }
-  if (!any && !d.boxes.some(b => b.error)) head.textContent = "No stash-box match for “" + d.term + "”. You can paste a scene address below.";
+  if (!any && !d.boxes.some(b => b.error)) head.textContent = "No stash-box match for “" + d.term + "”. Search by hand below.";
+  manualRow(path);
   {% endif %}
+}
+// fallback: own search term, or paste a stash-box scene address directly
+function manualRow(path) {
+  const row = document.createElement("div"); row.className = "row-input";
+  const inp = document.createElement("input"); inp.type = "text"; inp.placeholder = "Search stash-boxes by title, or paste a scene address (https://stashdb.org/scenes/…)"; inp.setAttribute("aria-label", "Manual stash-box search");
+  const go = document.createElement("button"); go.type = "button"; go.className = "ghost"; go.textContent = "Search";
+  const run = () => {
+    const v = inp.value.trim(); if (!v) return;
+    if (/^https?:\/\//.test(v)) { boxField.value = v; for (const o of boxBox.querySelectorAll(".scene-hit")) o.classList.remove("chosen"); go.textContent = "Address set ✓"; return; }
+    boxSearch(v, true);
+  };
+  go.onclick = run; inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); run(); } });
+  row.append(inp, go); boxBox.append(row);
 }
 function item(kind, text, size, onclick) {
   const b = document.createElement("button");

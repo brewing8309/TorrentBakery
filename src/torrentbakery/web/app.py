@@ -145,10 +145,10 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         ]
 
     @app.get("/stashbox/search")
-    def stashbox_search(name: str):
+    def stashbox_search(name: str, manual: bool = False):
         """Scene candidates for a picked file, from every configured stash-box; the user makes the final choice."""
         c = cfg()
-        terms, date = stashbox_source.search_terms(name)
+        terms, date = stashbox_source.search_terms(name) if not manual else ([name.strip()] if name.strip() else [], "")
 
         def one(item):
             box_name, box = item
