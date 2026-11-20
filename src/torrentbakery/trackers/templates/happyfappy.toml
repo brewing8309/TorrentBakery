@@ -9,9 +9,13 @@ private = true
 
 [[auth.credentials]]
 field = "cookie"
-label = "Session cookie"
+label = "Login cookies"
 required = true
-help = "Your logged-in browser (developer tools -> Application/Storage -> Cookies), copied as name=value; name2=value2. It expires; paste a fresh one when Test login says so."
+help = "Log in at happyfappy.org, then copy the values of these cookies (browser developer tools -> Application/Storage -> Cookies). They expire; paste fresh ones when Test login says so."
+cookies = [
+  { name = "cid", label = "Account id" },
+  { name = "sid", label = "Session" },
+]
 
 [images]
 # empty = any host works (the tracker hotlinks the cover and the post's images)

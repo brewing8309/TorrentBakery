@@ -89,12 +89,7 @@
           <p class="help">Only needed for a mirror or another domain of the same tracker.</p></div>
       </div>
       <p class="help" id="t-tpl-info" hidden></p>
-      <div id="t-cred-main" hidden><label for="t-cookie" id="t-cookie-label">Session cookie or API token</label>
-        <input type="password" id="t-cookie" name="cookie" autocomplete="off" placeholder="session=…; other=…">
-        <p class="help" id="t-cookie-help"></p></div>
-      <div id="t-cred-session" hidden><label for="t-session" id="t-session-label">Web session cookie</label>
-        <input type="password" id="t-session" name="session_cookie" autocomplete="off">
-        <p class="help" id="t-session-help"></p></div>
+      <div id="t-creds"></div>
       <div class="row">
         <div><label for="t-cat">Default category</label>
           <select id="t-cat" name="category"><option value="">(none: pick one for each upload)</option></select>
@@ -333,17 +328,38 @@ const trackerData = JSON.parse(document.getElementById("tracker-data").textConte
 const tplData = {{ tpl_data | tojson }};
 const tform = document.getElementById("tracker-form"), tcancel = document.getElementById("tracker-cancel"), ttitle = document.getElementById("tracker-form-title");
 // the template decides which credential fields the form shows, how they are called and what to tell the user
-function syncTemplate() {
+function syncTemplate(savedFor) {
   const f = tform.elements, t = tplData[f.site.value];
   const info = document.getElementById("t-tpl-info");
   info.hidden = !t; info.textContent = t ? t.description + (t.image_hosts.length ? " Image hosts that work: " + t.image_hosts.join(", ") + "." : " Any image host works.") : "";
   f.base_url.placeholder = t && t.base_url ? t.base_url : "https://tracker.example";
-  for (const [field, box, label, help] of [["cookie", "t-cred-main", "t-cookie-label", "t-cookie-help"], ["session_cookie", "t-cred-session", "t-session-label", "t-session-help"]]) {
-    const c = t && t.credentials.find(x => x.field === field);
-    document.getElementById(box).hidden = !c;
-    if (c) { document.getElementById(label).innerHTML = ""; document.getElementById(label).append(c.label + " ");
-      const b = document.createElement("span"); b.className = "badge" + (c.required ? " req" : ""); b.textContent = c.required ? "required" : "optional"; document.getElementById(label).append(b);
-      document.getElementById(help).textContent = c.help; }
+  renderCreds(t, savedFor);
+}
+// one input per credential: a token, or one value-only input per named cookie (the names come from the template)
+function renderCreds(t, saved) {
+  const box = document.getElementById("t-creds"); box.replaceChildren();
+  if (!t) return;
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const badge = (text, cls) => el("span", "badge" + (cls ? " " + cls : ""), text);
+  for (const c of t.credentials) {
+    const s = (saved || {})[c.field] || {set: false, names: []}, g = el("fieldset", "cred");
+    const lg = el("legend", "", c.label + " "); lg.append(badge(c.required ? "required" : "optional", c.required ? "req" : ""));
+    g.append(lg, el("p", "help", c.help));
+    if (!c.cookies.length) {
+      const i = el("input"); i.type = "password"; i.name = c.field; i.autocomplete = "off"; i.setAttribute("aria-label", c.label);
+      i.placeholder = s.set ? "saved; leave empty to keep it" : "paste the value"; g.append(i);
+    }
+    for (const k of c.cookies) {
+      const row = el("div", "cookie-row"), id = "ck-" + c.field + "-" + k.name;
+      const lab = el("label"); lab.htmlFor = id; const code = el("code", "", k.name); lab.append(code);
+      if (k.level !== "required") lab.append(badge(k.level, k.level === "recommended" ? "req" : ""));
+      const i = el("input"); i.type = "password"; i.id = id; i.name = "ck:" + c.field + ":" + k.name; i.autocomplete = "off";
+      i.placeholder = s.names.includes(k.name) ? "saved; leave empty to keep it" : "paste the value only";
+      row.append(lab, i);
+      if (k.label || k.help) row.append(el("p", "help", [k.label, k.help].filter(Boolean).join(" — ")));
+      g.append(row);
+    }
+    box.append(g);
   }
 }
 syncTemplate();
@@ -354,8 +370,8 @@ function editTracker(name) {
   f.name.value = name; f.name.readOnly = true;  // a different name would create a second profile
   f.source.value = t.source; f.private.checked = t.private; f.site.value = t.site; f.base_url.value = t.base_url; setCategory(t.category);
   f.title_template.value = t.title_template; f.anonymous.checked = t.anonymous; f.auto_publish.checked = t.auto_publish;
-  f.announce.placeholder = "saved; leave empty to keep it (a new URL replaces it)"; f.cookie.placeholder = "saved; leave empty to keep it";
-  syncTemplate();
+  f.announce.placeholder = "saved; leave empty to keep it (a new URL replaces it)";
+  syncTemplate(t.saved);
   tform.querySelector("details").open = true;
   if (t.site) loadCategories(t.category);
   ttitle.textContent = "Edit profile " + name; tcancel.hidden = false;
@@ -363,7 +379,7 @@ function editTracker(name) {
 }
 tcancel.addEventListener("click", () => {
   tform.reset(); syncTemplate(); setCategory(""); tform.elements.name.readOnly = false; tcancel.hidden = true; ttitle.textContent = "Add or replace a profile";
-  tform.elements.announce.placeholder = "https://tracker.example/abc123passkey/announce"; tform.elements.cookie.placeholder = "session=…; other=…"; syncTemplate();
+  tform.elements.announce.placeholder = "https://tracker.example/abc123passkey/announce"; syncTemplate();
 });
 function setCategory(value, cats) {  // keeps the saved id selectable even before the list is loaded
   const sel = tform.elements.category, keep = value === undefined ? sel.value : value;
@@ -376,7 +392,7 @@ async function loadCategories(selected) {
   const msg = document.getElementById("t-cat-msg"), f = tform.elements;
   msg.className = "mute"; msg.textContent = "Loading …";
   try {
-    const r = await (await fetch("/settings/tracker/categories", { method: "POST", body: new URLSearchParams({ name: f.name.value, site: f.site.value, base_url: f.base_url.value, cookie: f.cookie.value }) })).json();
+    const r = await (await fetch("/settings/tracker/categories", { method: "POST", body: new URLSearchParams(new FormData(tform)) })).json();
     msg.className = r.ok ? "ok" : "err"; msg.textContent = r.message;
     if (r.ok) setCategory(typeof selected === "string" ? selected : undefined, r.categories);
   } catch (e) { msg.className = "err"; msg.textContent = "Could not load."; }

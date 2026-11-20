@@ -551,3 +551,11 @@ dialog h2 { font-size: var(--text-xl); }
 @media (max-width: 47.99rem) {
   .bake-summary { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-mask: linear-gradient(90deg, #000 80%, transparent); mask: linear-gradient(90deg, #000 80%, transparent); }
 }
+
+/* ---- tracker profile: the credentials a template asks for ---- */
+fieldset.cred { margin: var(--sp-4) 0 0; padding: var(--sp-3) var(--sp-4) var(--sp-4); border: var(--line-field) solid var(--rule); border-radius: var(--radius-loaf-sm); min-width: 0; }
+fieldset.cred legend { padding: 0 var(--sp-2); font-weight: 700; font-size: var(--text-sm); }
+.cookie-row { margin-top: var(--sp-3); }
+.cookie-row label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-2); margin: 0 0 var(--sp-1); }
+.cookie-row label code { font-size: var(--text-sm); font-weight: 700; }
+.cookie-row .help { margin-top: var(--sp-1); }

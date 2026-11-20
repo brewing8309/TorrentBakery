@@ -22,11 +22,21 @@ class TemplateError(ValueError):
 
 
 @dataclass(frozen=True)
+class CookieSpec:
+    """One named cookie the user has to supply: the name is fixed by the site, the user only pastes the value."""
+    name: str
+    label: str = ""
+    level: str = "required"  # required | recommended | optional
+    help: str = ""
+
+
+@dataclass(frozen=True)
 class Credential:
     field: str
     label: str
     required: bool = True
     help: str = ""
+    cookies: tuple[CookieSpec, ...] = ()  # empty = a single secret value (API token); else the profile stores "name=value; name2=value2"
 
 
 @dataclass(frozen=True)
@@ -67,7 +77,14 @@ def parse(data: dict, origin: str = "built-in") -> TrackerTemplate:
     for c in data.get("auth", {}).get("credentials", []):
         if c.get("field") not in CREDENTIAL_FIELDS:
             raise TemplateError(f"credential field must be one of: {', '.join(CREDENTIAL_FIELDS)}")
-        creds.append(Credential(c["field"], c.get("label", c["field"]), bool(c.get("required", True)), c.get("help", "")))
+        specs = []
+        for k in c.get("cookies", []):
+            if not isinstance(k.get("name"), str) or not k["name"].strip() or "=" in k["name"] or ";" in k["name"]:
+                raise TemplateError("every cookie needs a plain name (no = or ;)")
+            if k.get("level", "required") not in ("required", "recommended", "optional"):
+                raise TemplateError("cookie level must be required, recommended or optional")
+            specs.append(CookieSpec(k["name"].strip(), k.get("label", ""), k.get("level", "required"), k.get("help", "")))
+        creds.append(Credential(c["field"], c.get("label", c["field"]), bool(c.get("required", True)), c.get("help", ""), tuple(specs)))
     if not any(c.field == "cookie" for c in creds):
         raise TemplateError("auth.credentials needs an entry with field = \"cookie\" (the main secret)")
     u = dict(data.get("unit3d", {}))
@@ -104,3 +121,34 @@ def get_template(site: str) -> TrackerTemplate | None:
 
 def template_ids() -> list[str]:
     return list(load_templates()[0])
+
+
+def parse_cookie_string(s: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for part in (s or "").split(";"):
+        k, sep, v = part.strip().partition("=")
+        if sep and k.strip():
+            out[k.strip()] = v.strip()
+    return out
+
+
+def compose_credentials(tpl: TrackerTemplate | None, form, old: dict[str, str]) -> dict[str, str]:
+    """The profile's secret fields from the form: one input per named cookie (value only) or one for a plain token. A blank input keeps what is
+    saved. `old` maps field -> saved string; the result maps every credential field of the template to its new string."""
+    out = dict(old)
+    for cred in (tpl.credentials if tpl else ()):
+        if not cred.cookies:
+            out[cred.field] = (form.get(cred.field) or "").strip() or old.get(cred.field, "")
+            continue
+        saved = parse_cookie_string(old.get(cred.field, ""))
+        pairs = []
+        for spec in cred.cookies:
+            v = (form.get(f"ck:{cred.field}:{spec.name}") or "").strip()
+            if v.startswith(spec.name + "="):  # somebody pasted "name=value"
+                v = v[len(spec.name) + 1:]
+            v = v.rstrip(";").strip() or saved.get(spec.name, "")
+            if v:
+                pairs.append(f"{spec.name}={v}")
+        pairs += [f"{k}={v}" for k, v in saved.items() if k not in {s.name for s in cred.cookies}]  # cookies saved earlier that the template does not list stay
+        out[cred.field] = "; ".join(pairs)
+    return out

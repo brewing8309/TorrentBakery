@@ -26,6 +26,7 @@ from ..sources import stashbox as stashbox_source
 from ..sources.gql import gql
 from ..tags import TagMap, load_user_map, save_user_map
 from ..trackers import TrackerError, get_publisher, load_templates
+from ..trackers.template import compose_credentials, parse_cookie_string
 from ..trackers.template import user_dir as user_template_dir
 from . import auth as auth_mod
 from .jobs import STEPS, JobManager
@@ -354,19 +355,21 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         return templates.TemplateResponse(request, "settings.html", {"c": c, "hosts": HOST_NAMES, "host_keys": {h: bool(c.hosts.get(h, {}).get("api_key")) for h in API_KEY_HOSTS},
                                                                     "tpls": tpls, "tpl_errors": tpl_errors, "tpl_dir": str(user_template_dir()),
                                                                     "tpl_data": {i: {"name": t.name, "engine": t.engine, "description": t.description, "base_url": t.base_url, "origin": t.origin, "image_hosts": list(t.image_hosts),
-                                                                                     "credentials": [{"field": x.field, "label": x.label, "required": x.required, "help": x.help} for x in t.credentials]} for i, t in tpls.items()},
+                                                                                     "credentials": [{"field": x.field, "label": x.label, "required": x.required, "help": x.help, "cookies": [{"name": k.name, "label": k.label, "level": k.level, "help": k.help} for k in x.cookies]} for x in t.credentials]} for i, t in tpls.items()},
                                                                     # what the Edit button puts into the form: everything except the secrets (announce URL with passkey, cookie)
                                                                     "tracker_data": {n: {"source": t.source, "private": t.private, "site": t.site, "base_url": t.base_url, "category": t.category, "anonymous": t.anonymous,
-                                                                                         "auto_publish": t.auto_publish, "title_template": t.title_template} for n, t in c.trackers.items()},
+                                                                                         "auto_publish": t.auto_publish, "title_template": t.title_template,
+                                                                                         # which secrets exist (names only, never values): the form shows "saved" per cookie
+                                                                                         "saved": {"cookie": {"set": bool(t.cookie), "names": sorted(parse_cookie_string(t.cookie))}, "session_cookie": {"set": bool(t.session_cookie), "names": sorted(parse_cookie_string(t.session_cookie))}}} for n, t in c.trackers.items()},
                                                                     "qbit_password": bool(c.qbit.password), "cookies": {n: bool(t.cookie) for n, t in c.trackers.items()},
                                                                     "tag_default": um.get("tags", {}), "tag_tracker": um.get("tracker", {}), "tag_ignored": um.get("ignored", []),
                                                                     "auth_flash": flash, "setup_secret": setup and auth_mod.group(setup), "setup_uri": setup and auth_mod.totp_uri(setup, c.auth.username),
                                                                     "recovery_left": len(c.auth.recovery), "min_password": auth_mod.MIN_PASSWORD})
 
     @app.post("/settings/tracker")
-    def tracker_add(name: str = Form(...), announce: str = Form(""), source: str = Form(""), private: str = Form(""), site: str = Form(""), base_url: str = Form(""),
-                    cookie: str = Form(""), category: str = Form(""), anonymous: str = Form(""), auto_publish: str = Form(""), title_template: str = Form(""),
-                    session_cookie: str = Form("")):
+    async def tracker_add(request: Request, name: str = Form(...), announce: str = Form(""), source: str = Form(""), private: str = Form(""), site: str = Form(""), base_url: str = Form(""),
+                          category: str = Form(""), anonymous: str = Form(""), auto_publish: str = Form(""), title_template: str = Form("")):
+        form = await request.form()
         c = cfg()
         name = name.strip()
         old = c.trackers.get(name, Tracker())
@@ -376,17 +379,19 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
             raise HTTPException(400, "unknown tracker template")
         if not name or not (urls or (site and (base_url.strip() or tpls[site].base_url))):
             raise HTTPException(400, "name and an announce URL required (or a tracker template and cookie, to fetch it)")
+        creds = compose_credentials(tpls.get(site), form, {"cookie": old.cookie, "session_cookie": old.session_cookie})
         c.trackers[name] = replace(old, announce=urls, source=source.strip(), private=bool(private), site=site, base_url=base_url.strip().rstrip("/"),
-                                   cookie=cookie.strip() or old.cookie, session_cookie=session_cookie.strip() or old.session_cookie, category=category.strip(), anonymous=bool(anonymous), auto_publish=bool(auto_publish and site),
+                                   **creds, category=category.strip(), anonymous=bool(anonymous), auto_publish=bool(auto_publish and site),
                                    title_template=title_template.strip())
         return save(c)
 
     @app.post("/settings/tracker/categories")
-    def tracker_categories(name: str = Form(""), site: str = Form(""), base_url: str = Form(""), cookie: str = Form("")):
+    async def tracker_categories(request: Request, name: str = Form(""), site: str = Form(""), base_url: str = Form("")):
         """The category names of the tracker as the form is filled in right now (a blank cookie means the saved one), so a profile can be set up before it is saved."""
         c = cfg()
         old = c.trackers.get(name.strip(), Tracker())
-        probe = replace(old, site=site, base_url=base_url.strip().rstrip("/"), cookie=cookie.strip() or old.cookie)
+        creds = compose_credentials(load_templates()[0].get(site), await request.form(), {"cookie": old.cookie, "session_cookie": old.session_cookie})
+        probe = replace(old, site=site, base_url=base_url.strip().rstrip("/"), **creds)
         probe = replace(probe, base_url=probe.effective_base_url)
         if not site or not probe.base_url:
             return {"ok": False, "message": "pick a tracker template (and enter the site address if the template has none) first"}

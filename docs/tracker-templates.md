@@ -17,13 +17,27 @@ What a site needs depends on the engine. A template lists the credentials the us
 
 Both fields are stored in the config file (0600) and never shown again. No username/password login, no 2FA handling: a site that needs this is out of scope (use the cookie).
 
+A credential is either a single value (an API token) or a list of **named cookies**. For cookies the template fixes the names and the user pastes only the values, one input per cookie, so nobody has to assemble `name=value; name2=value2` by hand:
+
 ```toml
 [[auth.credentials]]
 field    = "cookie"            # "cookie" (main secret, required) or "session_cookie"
 label    = "API token"
 required = true
 help     = "Account settings -> Security -> API token."
+
+[[auth.credentials]]
+field    = "session_cookie"
+label    = "Web session"
+required = false
+help     = "Log in with \"Remember me\" ticked, then copy the values of these cookies."
+cookies  = [
+  { name = "bitporn_session", label = "Session", level = "required" },
+  { name = "remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d", label = "Remember me", level = "recommended" },   # level: required | recommended | optional
+]
 ```
+
+The profile stores the composed string; a blank input keeps the saved value, and cookies saved earlier that the template does not list are kept. (Laravel sites such as UNIT3D always name the remember cookie `remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d`.)
 
 ## 2. Image hosts
 

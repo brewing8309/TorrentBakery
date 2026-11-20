@@ -52,3 +52,14 @@ def test_template_validation(patch, msg):
     data = {**tomllib.loads(COMMUNITY), **patch}
     with pytest.raises(TemplateError, match=msg):
         parse(data)
+
+
+def test_cookie_inputs_are_composed_from_names_and_values():
+    from torrentbakery.trackers import get_template
+    from torrentbakery.trackers.template import compose_credentials
+    tpl = get_template("bitporn")
+    form = {"cookie": "", "ck:session_cookie:bitporn_session": "bitporn_session=ABC;", "ck:session_cookie:remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d": "REM"}
+    out = compose_credentials(tpl, form, {"cookie": "TOKEN", "session_cookie": ""})
+    assert out["cookie"] == "TOKEN" and out["session_cookie"] == "bitporn_session=ABC; remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d=REM"
+    again = compose_credentials(tpl, {"ck:session_cookie:bitporn_session": "NEW"}, out)  # blank remember value keeps the saved one
+    assert again["session_cookie"] == "bitporn_session=NEW; remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d=REM"

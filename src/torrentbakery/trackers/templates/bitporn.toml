@@ -15,9 +15,13 @@ help = "Account settings -> Security -> API token. It does not expire."
 
 [[auth.credentials]]
 field = "session_cookie"
-label = "Web session cookie"
+label = "Web session"
 required = false
-help = "Only needed to set the list cover/banner and to use the bitporn.eu image host. Log in with \"Remember me\" ticked, then copy BOTH cookies (developer tools -> Application/Storage -> Cookies) as bitporn_session=...; remember_web_...=... . Without the remember_web cookie the session dies after about two hours; with it the site renews the session by itself for months."
+help = "Only needed to set the list cover/banner and to use the bitporn.eu image host. Log in at bitporn.eu with \"Remember me\" ticked, then copy the values of these cookies (browser developer tools -> Application/Storage -> Cookies)."
+cookies = [
+  { name = "bitporn_session", label = "Session", level = "required", help = "Dies after about two hours on its own." },
+  { name = "remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d", label = "Remember me", level = "recommended", help = "Lets the site renew the session by itself for months. Only present if you ticked \"Remember me\"." },
+]
 
 [images]
 # bitporn shows images of other hosts through the proxy wsrv.nl, which blocks adult hosts (pixhost: "Domain or TLD blocked by policy"),
