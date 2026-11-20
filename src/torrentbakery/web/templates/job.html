@@ -337,7 +337,6 @@
         <label for="pub-title">Torrent title</label><input type="text" id="pub-title" name="title">
         <label for="pub-desc">Post (BBCode)</label><textarea id="pub-desc" name="description" rows="10"></textarea>
         <label for="pub-tags">Tags</label><textarea id="pub-tags" name="tags" rows="2"></textarea>
-        <div id="pub-suggest"></div>
         <p id="pub-msg" class="mute"></p>
         <p class="actions"><button id="pub-go" class="btn-lg"{% if not has_image_host %} disabled{% endif %}>{{ ic("upload") }}Publish</button>
            <button type="button" class="ghost" id="pub-preview">{{ ic("refresh") }}Load preview</button></p>
@@ -345,10 +344,6 @@
       <script>
         const $ = id => document.getElementById(id), jobId = "{{ job.id }}";
         const msg = (t, cls) => { $("pub-msg").textContent = t; $("pub-msg").className = cls || "mute"; };
-        async function teach(row, body) {
-          const r = await fetch(`/jobs/${jobId}/tags`, {method: "POST", body: new URLSearchParams(body)});
-          if (r.ok) { row.remove(); tbToast("Tag mapping saved"); }
-        }
         async function preview() {
           msg("Reading the tracker's upload form…");
           const r = await (await fetch(`/jobs/${jobId}/publish/preview?tracker=` + encodeURIComponent($("pub-tracker").value))).json();
@@ -356,25 +351,8 @@
           $("pub-title").value = r.title; $("pub-tags").value = r.tags; $("pub-desc").value = r.description;
           const sel = $("pub-category"), keep = sel.value || r.category; sel.replaceChildren(new Option("(choose a category)", ""));
           for (const [v, l] of r.categories) sel.add(new Option(l, v, false, v === keep));
-          const box = $("pub-suggest"); box.replaceChildren(); box.className = "";
-          const unknown = Object.entries(r.suggestions);
-          if (unknown.length) {
-            box.className = "suggest";
-            box.append(Object.assign(document.createElement("p"), {className: "suggest-head", textContent: unknown.length + " Stash tag" + (unknown.length === 1 ? "" : "s") + " the mapping does not know"}));
-          }
-          for (const [tag, proposed] of unknown) {
-            const row = document.createElement("div"), inp = document.createElement("input"), act = document.createElement("span");
-            row.className = "suggest-row"; act.className = "act";
-            inp.type = "text"; inp.value = proposed; inp.setAttribute("aria-label", "Tracker tags for " + tag);
-            row.append(Object.assign(document.createElement("b"), {textContent: tag}), inp, act);
-            const ok = Object.assign(document.createElement("button"), {type: "button", textContent: "Remember", className: "sm"});
-            const no = Object.assign(document.createElement("button"), {type: "button", textContent: "Never send", className: "ghost sm"});
-            ok.onclick = () => teach(row, {stash_tag: tag, tracker_tags: inp.value, tracker: $("pub-tracker").value});
-            no.onclick = () => teach(row, {stash_tag: tag, ignore: "1"});
-            act.append(ok, no); box.append(row);
-          }
           if (r.warning) return msg(r.warning, "err");
-          msg(r.suggestions && Object.keys(r.suggestions).length ? "Tags the mapping does not know are sent in their dotted form; remember or drop them." : "Ready.", "ok");
+          msg("Ready.", "ok");
         }
         $("pub-preview").onclick = preview; $("pub-tracker").onchange = preview;
         $("pub-form").onsubmit = e => { if (!$("pub-category").value) { e.preventDefault(); return msg("Choose a category first.", "err"); } if (!confirm("Upload to " + $("pub-tracker").value + " now? The upload is public.")) e.preventDefault(); };

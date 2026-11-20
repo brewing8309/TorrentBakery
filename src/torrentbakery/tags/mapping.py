@@ -1,5 +1,5 @@
-"""Stash tag -> tracker tag mapping. The default list and `empify` come from stash-empornium (Unlicense,
-https://github.com/bdbenim/stash-empornium); user edits live in a small TOML file next to the config."""
+"""Stash tag -> tracker tag: lowercase, dot-separated. The list of ignored housekeeping tags comes from stash-empornium (Unlicense,
+https://github.com/bdbenim/stash-empornium); the user's own ignored tags live in a small TOML file next to the config."""
 from __future__ import annotations
 
 import os
@@ -15,58 +15,39 @@ USER_MAP_NAME = "tags.toml"
 
 
 def empify(tag: str) -> str:
-    """A tracker-compatible tag: lowercase, whitespace and . _ - become one '.', other special characters vanish, max 32 characters."""
-    t = re.sub(r"[^\w\s._-]", "", tag).lower()
+    """A tracker-compatible tag: lowercase, (parenthesised notes) dropped, whitespace and . _ - become one '.', other special characters vanish, max 32 characters."""
+    t = re.sub(r"\([^)]*\)", " ", tag)
+    t = re.sub(r"[^\w\s._-]", "", t).lower()
     return re.sub(r"[\s._-]+", ".", t).strip(".")[:32]
 
 
-def _default() -> dict:
+def _builtin_ignored() -> set[str]:
     with resources.files("torrentbakery.tags").joinpath("default-tags.toml").open("rb") as f:
-        e = tomllib.load(f).get("empornium", {})
-    return {"tags": e.get("tags", {}), "ignored": e.get("ignored_tags", [])}
+        return {t.lower() for t in tomllib.load(f).get("ignored_tags", [])}
 
 
 @dataclass
 class TagMap:
-    """`default` maps a lowercase stash tag to a list of tracker tags; `per_tracker[tracker]` overrides single entries."""
+    """Trackers write their tags lowercase and dot-separated, so every Stash tag is simply converted that way; `ignored` tags (Stash housekeeping
+    like "4K Available", plus the user's own) are left out."""
 
-    default: dict[str, list[str]] = field(default_factory=dict)
-    per_tracker: dict[str, dict[str, list[str]]] = field(default_factory=dict)
     ignored: set[str] = field(default_factory=set)
 
     @classmethod
     def load(cls, user_file: Path | None = None) -> "TagMap":
-        d = _default()
-        m = cls({k.lower(): v.split() for k, v in d["tags"].items()}, {}, {t.lower() for t in d["ignored"]})
         u = load_user_map(user_file)
-        for k, v in u.get("tags", {}).items():
-            m.default[k.lower()] = v.split()
-        for tr, entries in u.get("tracker", {}).items():
-            m.per_tracker[tr] = {k.lower(): v.split() for k, v in entries.items()}
-        m.ignored |= {t.lower() for t in u.get("ignored", [])}
-        m.ignored -= {t.lower() for t in u.get("unignored", [])}
-        return m
+        return cls((_builtin_ignored() | {t.lower() for t in u.get("ignored", [])}) - {t.lower() for t in u.get("unignored", [])})
 
-    def map_tag(self, tag: str, tracker: str = "") -> tuple[list[str], bool]:
-        """(tracker tags, known). Ignored tags give ([], True); unknown ones give the empified tag and False so the UI can offer a suggestion."""
-        key = tag.lower()
-        if key in self.ignored:
-            return [], True
-        mapped = self.per_tracker.get(tracker, {}).get(key) or self.default.get(key)
-        if mapped:
-            return list(mapped), True
+    def map_tag(self, tag: str) -> list[str]:
+        """The tracker tag for one Stash tag, or [] when it is ignored."""
+        if tag.lower() in self.ignored:
+            return []
         e = empify(tag)
-        return ([e] if e else []), False
+        return [e] if e else []
 
-    def map_tags(self, tags: list[str], tracker: str = "") -> tuple[list[str], dict[str, str]]:
-        """Final tag list (deduplicated, order kept) plus the suggestions {stash tag: proposed tracker tag} for unknown tags."""
-        out, suggestions = [], {}
-        for t in tags:
-            mapped, known = self.map_tag(t, tracker)
-            if not known and mapped:
-                suggestions[t] = mapped[0]
-            out += mapped
-        return list(dict.fromkeys(out)), suggestions
+    def map_tags(self, tags: list[str]) -> list[str]:
+        """The final tag list: deduplicated, order kept."""
+        return list(dict.fromkeys(e for t in tags for e in self.map_tag(t)))
 
 
 def load_user_map(path: Path | None = None) -> dict:

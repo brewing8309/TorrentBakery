@@ -34,7 +34,6 @@ class Prepared:
     category: str
     image: str
     torrent: Path
-    suggestions: dict[str, str] = field(default_factory=dict)  # unknown stash tag -> proposed tracker tag
     meta: dict = field(default_factory=dict)
 
 
@@ -106,10 +105,8 @@ def prepare(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, 
         t = replace(t, announce=[t.effective_base_url + "/announce"])  # UNIT3D rewrites the announce with your passkey on upload; any URL will do
     meta = _read_meta(out_dir)
     release, media = meta["release"], meta["media"]
-    suggestions: dict[str, str] = {}
     if tags is None:
-        mapped, suggestions = (tagmap or TagMap.load()).map_tags(release.get("tags", []), name)
-        tags = mapped
+        tags = (tagmap or TagMap.load()).map_tags(release.get("tags", []))
     tags = list(dict.fromkeys(performer_tags(release) + tags))  # performers are always tagged, first, also when the tag field was edited by hand
     base = next(iter(sorted(out_dir.glob("*.torrent"), key=lambda p: ".tracker." in p.name)), None)
     if base is None:
@@ -124,7 +121,7 @@ def prepare(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, 
             make_torrent(_content_path(out_dir, meta, base), torrent, Tracker(t.announce, t.effective_source, t.private), progress)
     image = (meta.get("uploads", {}).get("cover") or {}).get("direct_url", "")
     return Prepared(name, title or render_title(t.title_template, release, media), description or (out_dir / "post.bbcode").read_text(), tags, category or t.category,
-                    image, torrent, suggestions, meta)
+                    image, torrent, meta)
 
 
 def _seed(cfg: Config, out_dir: Path, name: str, torrent_id: str, local: Path, meta: dict, pub, qbit_transport, step) -> tuple[dict, dict]:
@@ -219,7 +216,7 @@ def publish(cfg: Config, out_dir: Path, name: str, *, title: str | None = None, 
     res = pub.publish(PublishRequest(p.torrent, p.title, p.description, p.tags, p.image, p.category, cfg.trackers[name].anonymous, mediainfo=_mediainfo(out_dir),
                                     resolution=int(_resolution(p.meta["media"]).rstrip("p") or 0)), dry_run=dry_run)
     out = {"tracker": name, "dry_run": dry_run, "title": p.title, "tags": p.tags, "category": p.category, "torrent": p.torrent.name,
-           "torrent_url": res.torrent_url, "torrent_id": res.torrent_id, "sent": res.sent, "suggestions": p.suggestions, "qbit": None, "time": time.time()}
+           "torrent_url": res.torrent_url, "torrent_id": res.torrent_id, "sent": res.sent, "qbit": None, "time": time.time()}
     if dry_run:
         return out
     # the upload is public from here on: a problem with cover/banner or qBittorrent is reported, never raised

@@ -229,8 +229,6 @@ def publish_cmd(
         typer.echo(f"qBittorrent: {out['qbit']['message']}")
         if not out["qbit"]["ok"]:
             typer.echo("(retry with `tb seed` once it is fixed)")
-    if out["suggestions"]:
-        typer.echo("Unknown tags (sent as-is): " + ", ".join(f"{k} -> {v}" for k, v in out["suggestions"].items()) + "  (teach them with `tb tags map`)")
 
 
 @app.command("seed")
@@ -250,7 +248,7 @@ def seed_cmd(folder: Path = typer.Argument(..., help="A published bake folder"),
 
 
 qbit_app = typer.Typer(help="qBittorrent connection for seeding published torrents.", no_args_is_help=True)
-tags_app = typer.Typer(help="Stash tag -> tracker tag mapping.", no_args_is_help=True)
+tags_app = typer.Typer(help="Tags sent to trackers (lowercase, dotted).", no_args_is_help=True)
 app.add_typer(qbit_app, name="qbit")
 app.add_typer(tags_app, name="tags")
 
@@ -285,17 +283,6 @@ def qbit_test() -> None:
         raise typer.Exit(typer.echo(f"FAILED: {e}", err=True) or 1)
 
 
-@tags_app.command("map")
-def tags_map(stash_tag: str, tracker_tags: str, tracker: str = typer.Option("", "--tracker", "-t", help="Only for this tracker profile")) -> None:
-    """Map a Stash tag to space-separated tracker tags, e.g. `tb tags map "Big Tits" "big.tits boobs"`."""
-    from .tags import load_user_map, save_user_map
-
-    data = load_user_map()
-    (data.setdefault("tracker", {}).setdefault(tracker, {}) if tracker else data.setdefault("tags", {}))[stash_tag] = tracker_tags
-    save_user_map(data)
-    typer.echo(f"{stash_tag} -> {tracker_tags}" + (f" (for {tracker})" if tracker else ""))
-
-
 @tags_app.command("ignore")
 def tags_ignore(stash_tag: str) -> None:
     """Never send this Stash tag."""
@@ -308,11 +295,11 @@ def tags_ignore(stash_tag: str) -> None:
 
 
 @tags_app.command("show")
-def tags_show(stash_tag: str, tracker: str = typer.Option("", "--tracker", "-t")) -> None:
+def tags_show(stash_tag: str) -> None:
+    """How a Stash tag is sent to a tracker."""
     from .tags import TagMap
 
-    mapped, known = TagMap.load().map_tag(stash_tag, tracker)
-    typer.echo((" ".join(mapped) or "(ignored)") + ("" if known else "  [unknown: suggestion]"))
+    typer.echo(" ".join(TagMap.load().map_tag(stash_tag)) or "(ignored)")
 
 
 host_app = typer.Typer(help="Image host settings.", no_args_is_help=True)

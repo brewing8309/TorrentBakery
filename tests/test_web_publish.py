@@ -78,7 +78,7 @@ def test_preview_and_manual_publish(tmp_path):
 
     c, cfg_path, jid = setup(tmp_path, publisher)
     pv = c.get(f"/jobs/{jid}/publish/preview", params={"tracker": "emp"}).json()
-    assert pv["ok"] and pv["title"] == "Scene [1080p]" and "blowjob" in pv["tags"] and pv["suggestions"] == {"Zork Thing": "zork.thing"} and ["2", "Studio"] in pv["categories"]
+    assert pv["ok"] and pv["title"] == "Scene [1080p]" and "blowjob" in pv["tags"] and ["2", "Studio"] in pv["categories"]
     assert 'id="pub-form"' in c.get(f"/jobs/{jid}").text
     assert c.post(f"/jobs/{jid}/publish", data={"tracker": "emp", "title": "T", "category": "2", "tags": "a b"}, follow_redirects=False).status_code == 303
     for _ in range(100):
@@ -89,15 +89,14 @@ def test_preview_and_manual_publish(tmp_path):
     assert c.post(f"/jobs/{jid}/publish", data={"tracker": "nope"}).status_code == 400
 
 
-def test_teaching_a_tag_changes_the_next_preview(tmp_path):
+def test_ignoring_a_tag_changes_the_next_preview(tmp_path):
     c, cfg_path, jid = setup(tmp_path)
-    assert c.post(f"/jobs/{jid}/tags", data={"stash_tag": "Zork Thing", "tracker_tags": "zork", "tracker": "emp"}).json()["ok"]
-    pv = c.get(f"/jobs/{jid}/publish/preview", params={"tracker": "emp"}).json()
-    assert "zork" in pv["tags"].split() and pv["suggestions"] == {}
-    c.post(f"/jobs/{jid}/tags", data={"stash_tag": "Blowjob", "ignore": "1"})
+    assert "zork.thing" in c.get(f"/jobs/{jid}/publish/preview", params={"tracker": "emp"}).json()["tags"].split()
+    c.post("/settings/tags/ignore", data={"stash_tag": "Blowjob"})
     assert "blowjob" not in c.get(f"/jobs/{jid}/publish/preview", params={"tracker": "emp"}).json()["tags"].split()
-    assert "Zork Thing" in c.get("/settings").text and "never sent" in c.get("/settings").text
-
+    assert "Blowjob" in c.get("/settings").text and "never sent" in c.get("/settings").text
+    c.post("/settings/tags/delete", data={"stash_tag": "Blowjob"})
+    assert "blowjob" in c.get(f"/jobs/{jid}/publish/preview", params={"tracker": "emp"}).json()["tags"].split()
 
 def test_publish_failure_is_shown_and_auto_publish_error_file(tmp_path):
     def boom(cfg, out_dir, progress=None, **kw):

@@ -15,7 +15,7 @@
   <a role="tab" href="#hosts">{{ mark(c.default_host or host_keys.values() | select | list) }}Image hosts</a>
   <a role="tab" href="#stashbox">{{ mark(c.stashboxes) }}Stash-box</a>
   <a role="tab" href="#qbit">{{ mark(c.qbit.url) }}qBittorrent</a>
-  <a role="tab" href="#tags">{{ mark(tag_default or tag_tracker or tag_ignored) }}Tag mapping</a>
+  <a role="tab" href="#tags">{{ mark(tag_ignored) }}Tags</a>
   <a role="tab" href="#auth">{{ mark(c.auth.enabled) }}Login</a>
 </nav>
 <p class="help tabs-note"><span class="mark on" aria-hidden="true"></span> set up · changes apply to the next bake · saved keys are never shown again.</p>
@@ -207,27 +207,16 @@
 </section>
 
 <section role="tabpanel" id="tags" class="sheet">
-  <div class="sheet-head"><h2>Tag mapping <span class="badge">optional</span></h2>
-  <p class="lead">When publishing, Stash tags are translated into the tracker's tags. The built-in list (from <a href="https://github.com/bdbenim/stash-empornium" target="_blank" rel="noopener">stash-empornium</a>) covers about 1000 tags; add your own here, optionally for one tracker only. The publish preview offers to remember or drop tags the list does not know.</p></div>
-  <details>
-    <summary>Own tag mapping (Stash tag → tracker tags), optionally for one tracker only</summary>
-    <p class="help">Entries here win over the built-in list. Tags the list does not know are sent in dotted form (<code>face.fuck</code>).</p>
-    <table class="stack">
-      {% for st, tt in tag_default.items() %}<tr><td><code>{{ st }}</code> → <code>{{ tt }}</code> <span class="mute">all trackers</span></td><td class="act"><form class="inline" method="post" action="/settings/tags/delete"><input type="hidden" name="kind" value="map"><input type="hidden" name="stash_tag" value="{{ st }}"><button class="ghost danger">Remove</button></form></td></tr>{% endfor %}
-      {% for tn, m in tag_tracker.items() %}{% for st, tt in m.items() %}<tr><td><code>{{ st }}</code> → <code>{{ tt }}</code> <span class="mute">only {{ tn }}</span></td><td class="act"><form class="inline" method="post" action="/settings/tags/delete"><input type="hidden" name="kind" value="map"><input type="hidden" name="tracker" value="{{ tn }}"><input type="hidden" name="stash_tag" value="{{ st }}"><button class="ghost danger">Remove</button></form></td></tr>{% endfor %}{% endfor %}
-      {% for st in tag_ignored %}<tr><td><code>{{ st }}</code> <span class="mute">never sent</span></td><td class="act"><form class="inline" method="post" action="/settings/tags/delete"><input type="hidden" name="kind" value="ignored"><input type="hidden" name="stash_tag" value="{{ st }}"><button class="ghost danger">Remove</button></form></td></tr>{% endfor %}
-    </table>
-    <form method="post" action="/settings/tags" class="row">
-      <div><label>Stash tag</label><input type="text" name="stash_tag" placeholder="Big Tits" required></div>
-      <div><label>Tracker tags</label><input type="text" name="tracker_tags" placeholder="big.tits boobs" required></div>
-      <div><label>Only for</label><select name="tracker"><option value="">all trackers</option>{% for n in c.trackers %}<option>{{ n }}</option>{% endfor %}</select></div>
-      <div class="row-end"><button>Add</button></div>
-    </form>
-    <form method="post" action="/settings/tags/ignore" class="row">
-      <div><label>Never send this Stash tag</label><input type="text" name="stash_tag" required></div>
-      <div class="row-end"><button class="ghost">Ignore</button></div>
-    </form>
-  </details>
+  <div class="sheet-head"><h2>Tags <span class="badge">optional</span></h2>
+  <p class="lead">When publishing, every Stash tag is sent the way trackers write tags: lowercase, words separated by dots (<code>Anal Sex</code> → <code>anal.sex</code>, a note in brackets like <code>(DP)</code> is dropped). Stash housekeeping tags such as "4K Available" or "Missing Performer" are never sent. Add your own tags that should never be sent:</p></div>
+  <table class="stack">
+    {% for st in tag_ignored %}<tr><td><code>{{ st }}</code> <span class="mute">never sent</span></td><td class="act"><form class="inline" method="post" action="/settings/tags/delete"><input type="hidden" name="stash_tag" value="{{ st }}"><button class="ghost danger">Remove</button></form></td></tr>
+    {% else %}<tr><td class="mute">No tags of your own are blocked.</td></tr>{% endfor %}
+  </table>
+  <form method="post" action="/settings/tags/ignore" class="row">
+    <div><label for="tag-ignore">Never send this Stash tag</label><input type="text" id="tag-ignore" name="stash_tag" required placeholder="Favorite"></div>
+    <div class="row-end"><button>Add</button></div>
+  </form>
 </section>
 
 <section role="tabpanel" id="auth" class="sheet">

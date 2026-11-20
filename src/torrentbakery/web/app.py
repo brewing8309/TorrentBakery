@@ -276,7 +276,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         if shown and p.meta.get("image_host") not in shown:
             warning = (f"The images of this bake are on {p.meta.get('image_host') or 'no host'}, which {tracker} does not show (it blocks other hosts through a proxy). "
                        f"Bake again with {' or '.join(shown)} as the image host, or the post will show broken images.")
-        return {"ok": True, "warning": warning, "title": p.title, "tags": " ".join(p.tags), "category": p.category, "categories": form.categories, "description": p.description, "suggestions": p.suggestions,
+        return {"ok": True, "warning": warning, "title": p.title, "tags": " ".join(p.tags), "category": p.category, "categories": form.categories, "description": p.description,
                 "image": bool(p.image), "torrent": p.torrent.name}
 
     @app.post("/jobs/{job_id}/publish")
@@ -315,20 +315,6 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         return {"status": pub.get("status", ""), "stage": pub.get("stage", ""), "fraction": pub.get("fraction", 0.0), "error": pub.get("error", ""),
                 "torrent_url": r.get("torrent_url", ""), "qbit": r.get("qbit")}
 
-    @app.post("/jobs/{job_id}/tags")
-    def publish_tag_teach(job_id: str, stash_tag: str = Form(...), tracker_tags: str = Form(""), tracker: str = Form(""), ignore: str = Form("")):
-        """Accept (map) or ignore a suggestion from the publish preview. tracker "" = for every tracker."""
-        job_or_404(job_id)
-        data = load_user_map(tags_file())
-        if ignore:
-            data["ignored"] = sorted({*data.get("ignored", []), stash_tag})
-        elif tracker_tags.strip():
-            (data.setdefault("tracker", {}).setdefault(tracker, {}) if tracker else data.setdefault("tags", {}))[stash_tag] = tracker_tags.strip()
-        else:
-            raise HTTPException(400, "tracker tags required")
-        save_user_map(data, tags_file())
-        return {"ok": True}
-
     @app.get("/jobs/{job_id}/files/{name}")
     def job_file(job_id: str, name: str):
         job = job_or_404(job_id)
@@ -362,7 +348,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
                                                                                          # which secrets exist (names only, never values): the form shows "saved" per cookie
                                                                                          "saved": {"cookie": {"set": bool(t.cookie), "names": sorted(parse_cookie_string(t.cookie))}, "session_cookie": {"set": bool(t.session_cookie), "names": sorted(parse_cookie_string(t.session_cookie))}}} for n, t in c.trackers.items()},
                                                                     "qbit_password": bool(c.qbit.password), "cookies": {n: bool(t.cookie) for n, t in c.trackers.items()},
-                                                                    "tag_default": um.get("tags", {}), "tag_tracker": um.get("tracker", {}), "tag_ignored": um.get("ignored", []),
+                                                                    "tag_ignored": um.get("ignored", []),
                                                                     "auth_flash": flash, "setup_secret": setup and auth_mod.group(setup), "setup_uri": setup and auth_mod.totp_uri(setup, c.auth.username),
                                                                     "recovery_left": len(c.auth.recovery), "min_password": auth_mod.MIN_PASSWORD})
 
@@ -559,13 +545,6 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         except QbitError as e:
             return {"ok": False, "message": str(e)}
 
-    @app.post("/settings/tags")
-    def tags_add(stash_tag: str = Form(...), tracker_tags: str = Form(...), tracker: str = Form("")):
-        data = load_user_map(tags_file())
-        (data.setdefault("tracker", {}).setdefault(tracker, {}) if tracker else data.setdefault("tags", {}))[stash_tag.strip()] = tracker_tags.strip()
-        save_user_map(data, tags_file())
-        return RedirectResponse("/settings#tags", status_code=303)
-
     @app.post("/settings/tags/ignore")
     def tags_ignore(stash_tag: str = Form(...)):
         data = load_user_map(tags_file())
@@ -574,12 +553,9 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         return RedirectResponse("/settings#tags", status_code=303)
 
     @app.post("/settings/tags/delete")
-    def tags_delete(kind: str = Form(...), stash_tag: str = Form(...), tracker: str = Form("")):
+    def tags_delete(stash_tag: str = Form(...)):
         data = load_user_map(tags_file())
-        if kind == "ignored":
-            data["ignored"] = [t for t in data.get("ignored", []) if t != stash_tag]
-        elif kind == "map":
-            (data.get("tracker", {}).get(tracker, {}) if tracker else data.get("tags", {})).pop(stash_tag, None)
+        data["ignored"] = [t for t in data.get("ignored", []) if t != stash_tag]
         save_user_map(data, tags_file())
         return RedirectResponse("/settings#tags", status_code=303)
 

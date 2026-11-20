@@ -100,20 +100,17 @@ def test_bad_category_and_missing_cookie(tmp_path):
         get_publisher("emp", Config(trackers={"emp": t}))
 
 
-def test_tagmap(tmp_path):
+def test_tags_are_lowercase_dotted_and_housekeeping_is_dropped(tmp_path):
     m = TagMap.load(tmp_path / "none.toml")
-    assert empify("Face Fuck!") == "face.fuck"
-    tags, sugg = m.map_tags(["Blowjob", "Brown Hair", "60 FPS", "Zork Thing", "blowjob"], "emp")
-    assert tags[:3] == ["blowjob", "brunette", "brown.hair"] and "zork.thing" in tags and sugg == {"Zork Thing": "zork.thing"} and tags.count("blowjob") == 1
+    assert empify("Face Fuck!") == "face.fuck" and empify("Double Penetration (DP)") == "double.penetration"
+    assert m.map_tags(["Blowjob", "Brown Hair", "60 FPS", "Zork Thing", "blowjob"]) == ["blowjob", "brown.hair", "zork.thing"]
 
 
-def test_tagmap_user_overrides(tmp_path):
+def test_user_can_ignore_tags(tmp_path):
     from torrentbakery.tags import save_user_map
     f = tmp_path / "tags.toml"
-    save_user_map({"tags": {"Zork Thing": "zork"}, "tracker": {"emp": {"Blowjob": "bj"}}, "ignored": ["Anal"]}, f)
-    m = TagMap.load(f)
-    assert m.map_tag("Zork Thing") == (["zork"], True) and m.map_tag("Blowjob", "emp")[0] == ["bj"] and m.map_tag("Blowjob", "hf")[0] == ["blowjob"]
-    assert m.map_tag("Anal") == ([], True)
+    save_user_map({"ignored": ["Anal"]}, f)
+    assert TagMap.load(f).map_tag("Anal") == [] and TagMap.load(f).map_tag("Blowjob") == ["blowjob"]
 
 
 MEDIA = {"height": 1080, "width": 1920, "video_codec": "h264", "fps": 29.97, "duration": 60}
