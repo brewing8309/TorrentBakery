@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Security
-- Cross-site requests are refused even without a login. Without a login, the UI only answers to IP addresses, localhost, single-label names and `TB_ALLOWED_HOSTS` (DNS rebinding).
+- Cross-site requests are refused even without a login. Without a login, the UI only answers to IP addresses, localhost, single-label names and the names added under Settings → Login → Host names or in `TB_ALLOWED_HOSTS` (DNS rebinding).
 - Saved secrets (qBittorrent password, tracker cookies and tokens, Stash API key) only go to the address they were saved for. Redirects to other sites drop them.
 - Login throttling can no longer lock the owner out; IPv6 is counted per /64; `TB_TRUSTED_PROXIES` for the real client address behind a reverse proxy.
 - A two-factor code can no longer be used twice by parallel requests.

@@ -31,7 +31,7 @@ from ..trackers.template import compose_credentials, parse_cookie_string
 from ..trackers.template import user_dir as user_template_dir
 from . import auth as auth_mod
 from .jobs import STEPS, JobManager
-from .login import install as install_login
+from .login import allowed_hosts, install as install_login
 
 SEARCH_QUERY = """
 query Search($q: String!) {
@@ -360,7 +360,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
                                                                     "qbit_password": bool(c.qbit.password), "cookies": {n: bool(t.cookie) for n, t in c.trackers.items()},
                                                                     "tag_ignored": um.get("ignored", []),
                                                                     "auth_flash": flash, "setup_secret": setup and auth_mod.group(setup), "setup_uri": setup and auth_mod.totp_uri(setup, c.auth.username),
-                                                                    "recovery_left": len(c.auth.recovery), "min_password": auth_mod.MIN_PASSWORD})
+                                                                    "env_hosts": allowed_hosts(), "recovery_left": len(c.auth.recovery), "min_password": auth_mod.MIN_PASSWORD})
 
     @app.post("/settings/tracker")
     async def tracker_add(request: Request, name: str = Form(...), announce: str = Form(""), source: str = Form(""), private: str = Form(""), site: str = Form(""), base_url: str = Form(""),

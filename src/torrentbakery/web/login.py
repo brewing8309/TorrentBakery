@@ -4,6 +4,7 @@ from __future__ import annotations
 import ipaddress
 import logging
 import os
+import re
 import threading
 from pathlib import Path
 from urllib.parse import quote, urlparse
@@ -34,11 +35,32 @@ def client_key(host: str) -> str:
     return host
 
 
-def allowed_hosts() -> list[str]:
-    return [h.strip().lower() for h in os.environ.get("TB_ALLOWED_HOSTS", "").split(",") if h.strip()]
+HOST_NAME = re.compile(r"^(?=.{1,253}$)[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?)*$")
 
 
-def host_ok(host: str | None) -> bool:
+def allowed_hosts(extra: list[str] | None = None) -> list[str]:
+    """The names saved in the settings plus TB_ALLOWED_HOSTS."""
+    env = [h.strip().lower() for h in os.environ.get("TB_ALLOWED_HOSTS", "").split(",") if h.strip()]
+    return [*(extra or []), *env]
+
+
+def parse_hosts(text: str) -> list[str]:
+    """Host names from a free-form list (one per line or comma-separated). Scheme, port and path are dropped; ValueError for what is no name."""
+    names: list[str] = []
+    for raw in text.replace(",", "\n").splitlines():
+        raw = raw.strip().lower()
+        if not raw:
+            continue
+        name = urlparse(raw if "//" in raw else "//" + raw).hostname or ""
+        name = name.strip(".")
+        if not HOST_NAME.match(name) or "." not in name:
+            raise ValueError(f"{raw!r} is not a host name with a dot (for example bakery.example.org).")
+        if name not in names:
+            names.append(name)
+    return names
+
+
+def host_ok(host: str | None, extra: list[str] | None = None) -> bool:
     """Without a login, only names a DNS-rebinding page cannot take over: IP addresses, localhost, single-label LAN names and TB_ALLOWED_HOSTS."""
     name = (urlparse("//" + (host or "")).hostname or "").lower()
     if not name:
@@ -48,7 +70,7 @@ def host_ok(host: str | None) -> bool:
         return True
     except ValueError:
         pass
-    return name == "localhost" or "." not in name or any(name == a or name.endswith("." + a.lstrip(".")) for a in allowed_hosts())
+    return name == "localhost" or "." not in name or any(name == a or name.endswith("." + a.lstrip(".")) for a in allowed_hosts(extra))
 
 
 def cross_site(request: Request) -> bool:
@@ -81,9 +103,9 @@ def install(app: FastAPI, templates: Jinja2Templates, config_path: Path | None) 
         request.state.auth_on = a.enabled
         path = request.url.path
         resp: Response | None = None
-        if not a.enabled and not host_ok(request.headers.get("host")):
+        if not a.enabled and not host_ok(request.headers.get("host"), cfg().allowed_hosts):
             resp = Response(f"TorrentBakery does not answer to the name {request.headers.get('host')!r} while the login is off (DNS rebinding). "
-                            "Open it by its IP address, turn the login on, or add the name to TB_ALLOWED_HOSTS in /etc/default/torrentbakery.\n",
+                            "Open it by its IP address, turn the login on, or add the name under Settings > Login > Host names.\n",
                             status_code=421, media_type="text/plain")
         elif request.method not in ("GET", "HEAD", "OPTIONS") and cross_site(request):  # CSRF: with the login on top of SameSite=Strict
             resp = JSONResponse({"detail": "cross-site request refused"}, status_code=403)
@@ -208,6 +230,16 @@ def install(app: FastAPI, templates: Jinja2Templates, config_path: Path | None) 
         state.end_all()
         cookie(resp, request, auth.SESSION_COOKIE, state.start_session(), auth.SESSION_MAX)
         return resp
+
+    @app.post("/settings/hosts")
+    def hosts_set(hosts: str = Form("")):
+        c = cfg()
+        try:
+            c.allowed_hosts = parse_hosts(hosts)
+        except ValueError as e:
+            return back(str(e), False)
+        config_mod.save(c, config_path)
+        return back("Host names saved.", True)
 
     @app.post("/settings/auth/enable")
     def enable(request: Request, username: str = Form(...), password: str = Form(...), password2: str = Form(...)):

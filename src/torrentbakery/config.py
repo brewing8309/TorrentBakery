@@ -99,6 +99,7 @@ class Config:
     default_host: str = ""  # image host preselected in the web UI
     last_used: dict[str, str] = field(default_factory=dict)  # what the bake form had at the last bake (tracker, upload, publish, cover_source, cover_format, sfw)
     web_media_roots: list[str] = field(default_factory=list)  # dirs the web UI may bake plain files from
+    allowed_hosts: list[str] = field(default_factory=list)  # host names the UI answers to while the login is off (added to TB_ALLOWED_HOSTS)
     hosts: dict[str, dict[str, str]] = field(default_factory=dict)  # image host options, e.g. hamsterimg api_key
     # (stash path prefix, local path prefix): maps paths Stash reports to where the share is mounted here
     path_map: list[tuple[str, str]] = field(default_factory=list)
@@ -121,6 +122,7 @@ def load(path: Path | None = None) -> Config:
         path_map=[(m["from"], m["to"]) for m in data.get("path_map", [])],
         hosts={n: dict(o) for n, o in data.get("host", {}).items()},
         web_media_roots=list(data.get("web", {}).get("media_roots", [])),
+        allowed_hosts=list(data.get("web", {}).get("allowed_hosts", [])),
         default_host=data.get("default_host", ""),
         last_used={k: str(v) for k, v in data.get("last_used", {}).items()},
         cover_source=data.get("cover", {}).get("source", "own"),
@@ -180,7 +182,7 @@ def save(cfg: Config, path: Path | None = None) -> None:
                         "start": cfg.qbit.start, "path_map": [{"from": a, "to": b} for a, b in cfg.qbit.path_map]},
         "stashbox": {n: {"endpoint": b.endpoint, "api_key": b.api_key} for n, b in cfg.stashboxes.items()},
         "host": cfg.hosts,
-        "web": {"media_roots": cfg.web_media_roots},
+        "web": {"media_roots": cfg.web_media_roots, "allowed_hosts": cfg.allowed_hosts},
         "path_map": [{"from": a, "to": b} for a, b in cfg.path_map],
     }
     if cfg.auth.enabled:

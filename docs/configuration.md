@@ -92,7 +92,7 @@ media_roots = ["/media/share"]
 | `TB_OUT` | `/var/lib/torrentbakery/out` | where releases are written |
 | `TB_HOST` | `0.0.0.0` | bind address of the web UI |
 | `TB_PORT` | `8080` | port of the web UI |
-| `TB_ALLOWED_HOSTS` | – | extra host names the UI answers to while the login is off, comma-separated (`bakery.lan,bakery.example.org`; a name also covers its subdomains). IP addresses, `localhost` and single-label names always work |
+| `TB_ALLOWED_HOSTS` | – | extra host names the UI answers to while the login is off, comma-separated (`bakery.lan,bakery.example.org`; a name also covers its subdomains). Can also be set in the web UI under *Settings → Login → Host names*; both lists count. IP addresses, `localhost` and single-label names always work |
 | `TB_TRUSTED_PROXIES` | `127.0.0.1` | reverse proxies whose `X-Forwarded-For`/`-Proto` are believed, comma-separated (`*` = any) |
 
 Set them in `/etc/default/torrentbakery` and restart the service.

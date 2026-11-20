@@ -224,6 +224,16 @@
   <p class="lead">Without a login anybody who can reach this address can bake, publish and read the settings. With a login every page asks for a password, and a second factor (a code from an authenticator app on your phone) makes a stolen or guessed password useless. Passwords are stored only as a salted scrypt hash; sessions last at most 12 hours (2 hours idle) and end when you log out or change the password.</p></div>
   {% if auth_flash %}<p class="{{ 'ok' if auth_flash[1] else 'err' }}" role="status">{{ auth_flash[0] }}</p>{% endif %}
 
+  <details{% if c.allowed_hosts %} open{% endif %}>
+    <summary>Host names (reverse proxy)</summary>
+    <form method="post" action="/settings/hosts">
+      <label for="a-hosts">Names this interface may be opened by</label>
+      <textarea id="a-hosts" name="hosts" rows="2" placeholder="bakery.example.org">{{ c.allowed_hosts | join("\n") }}</textarea>
+      <p class="help">One name per line. Needed when you open TorrentBakery by a name with a dot (for example through a reverse proxy) <b>while the login is off</b>; otherwise it answers with error 421. A name also covers its subdomains. IP addresses, <code>localhost</code> and names without a dot always work, and with the login on this list is not used. Names from <code>TB_ALLOWED_HOSTS</code> in <code>/etc/default/torrentbakery</code> count too{% if env_hosts %}: <code>{{ env_hosts | join(", ") }}</code>{% endif %}.</p>
+      <p class="actions"><button>Save</button></p>
+    </form>
+  </details>
+
   {% if not c.auth.enabled %}
   <form method="post" action="/settings/auth/enable">
     <div class="row">

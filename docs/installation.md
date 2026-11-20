@@ -52,7 +52,7 @@ Download and unpack the new version, run `sudo ./install.sh` again. Settings, hi
 `sudo /opt/torrentbakery/uninstall.sh` removes program and service; `--purge` also deletes `/var/lib/torrentbakery` (settings and releases).
 
 ## Behind a reverse proxy (https)
-Any proxy works (nginx, Caddy, Traefik, Nginx Proxy Manager). Forward to `http://<host>:8080` and pass the original `Host` header (Caddy and NPM do; nginx needs `proxy_set_header Host $host;`). Turn on the [login](security.md) when it is reachable from outside your network. In `/etc/default/torrentbakery`, set `TB_TRUSTED_PROXIES=<proxy address>` so failed logins are counted per real client, not per proxy. While the login is off, also add the proxy's host name to `TB_ALLOWED_HOSTS`. Example for Caddy:
+Any proxy works (nginx, Caddy, Traefik, Nginx Proxy Manager). Forward to `http://<host>:8080` and pass the original `Host` header (Caddy and NPM do; nginx needs `proxy_set_header Host $host;`). Turn on the [login](security.md) when it is reachable from outside your network. In `/etc/default/torrentbakery`, set `TB_TRUSTED_PROXIES=<proxy address>` so failed logins are counted per real client, not per proxy. While the login is off, also add the proxy's host name under *Settings → Login → Host names* (or in `TB_ALLOWED_HOSTS`). Example for Caddy:
 ```
 bakery.example.org {
   reverse_proxy 10.0.0.16:8080

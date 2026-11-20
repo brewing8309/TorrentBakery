@@ -54,6 +54,18 @@ def test_dns_rebinding_names_refused_without_login(setup):
         assert c.get("/busy", headers={"Host": ok}).status_code == 200, ok
 
 
+def test_allowed_hosts_set_in_settings(setup):
+    c, _, path = setup
+    assert c.get("/busy", headers={"Host": "bakery.example.org"}).status_code == 421
+    r = c.post("/settings/hosts", data={"hosts": "https://Bakery.Example.org:8443/x\nfoo.lan, foo.lan"})
+    assert r.status_code == 303 and config_mod.load(path).allowed_hosts == ["bakery.example.org", "foo.lan"]
+    assert c.get("/busy", headers={"Host": "bakery.example.org"}).status_code == 200
+    assert c.get("/busy", headers={"Host": "sub.foo.lan"}).status_code == 200
+    assert c.get("/busy", headers={"Host": "evil.example"}).status_code == 421
+    c.post("/settings/hosts", data={"hosts": "not a name"})
+    assert config_mod.load(path).allowed_hosts == ["bakery.example.org", "foo.lan"]
+
+
 def test_saved_secrets_only_go_to_their_own_address(setup):
     c, rec, path = setup
     c.post("/settings/qbit/test", data={"url": "http://evil.example", "username": "admin"})
