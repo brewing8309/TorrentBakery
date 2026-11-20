@@ -54,7 +54,7 @@ def _run(cmd: list[str], what: str) -> None:
 
 
 def make_animated_cover(video: Path, duration: float, dest_dir: Path, fmt: str = "webp", clips: int = 0, clip: float = CLIP_SECONDS,
-                        width: int = 480, max_bytes: int = 9_000_000) -> Path:
+                        width: int = 480, max_bytes: int = 9_000_000, on_progress=None) -> Path:
     """Short animation of the whole video: `clips` pieces of `clip` seconds spread over the runtime, written to dest_dir/cover.<fmt>.
     Retries with smaller width/frame rate/quality until the file fits `max_bytes` (image hosts cap uploads at about 10 MB)."""
     if fmt not in LADDER:
@@ -69,8 +69,12 @@ def make_animated_cover(video: Path, duration: float, dest_dir: Path, fmt: str =
         pieces = []
         for i, st in enumerate(starts):
             piece = Path(tmp) / f"clip{i:02d}.mkv"
+            if on_progress:
+                on_progress(i / (len(starts) + 1), f"Clip {i + 1} of {len(starts)}")
             _run(_clip_command(video, st, clip, top_w, top_fps, piece), f"cutting clip {i + 1} of the animated cover")
             pieces.append(piece)
+        if on_progress:
+            on_progress(len(starts) / (len(starts) + 1), "Stitching the clips together")
         for w, fps, q in dict.fromkeys(steps):
             _run(_command(pieces, fmt, w, fps, q, dest), "building the animated cover")
             if dest.stat().st_size <= max_bytes:

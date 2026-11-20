@@ -212,3 +212,74 @@ button.scene-hit img { flex: none; display: block; border-radius: var(--radius-t
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes searching-pulse { 50% { opacity: .65; } }
 @media (prefers-reduced-motion: reduce) { .searching { animation: none; } }
+
+/* ---- the bake screen: the oven ---- */
+.eyebrow { margin: 0 0 var(--sp-2); font: 500 var(--text-xs)/1.6 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--petrol); }
+.err-eyebrow { color: var(--ember); } .ok-eyebrow { color: var(--ok); }
+.bake-head h1 { font-size: var(--text-2xl); text-transform: none; overflow-wrap: anywhere; }
+.bake-sub { margin: var(--sp-2) 0 0; color: var(--muted); }
+
+.oven { margin: var(--sp-5) 0 var(--sp-6); padding: var(--sp-4) var(--sp-5) var(--sp-3); background: var(--surface); border: var(--line-field) solid var(--rule); border-top: var(--line-heavy) solid var(--accent); border-radius: var(--radius-loaf); }
+.oven-top { display: flex; align-items: flex-end; gap: var(--sp-5); }
+.oven-pct { flex: none; font: 800 var(--text-3xl)/.9 var(--font-display); font-variant-numeric: tabular-nums; min-width: 2.6ch; text-align: right; }
+.oven-pct small { margin-left: .1em; font-size: .45em; font-weight: 700; color: var(--muted); }
+.oven-now { min-width: 0; padding-bottom: .2rem; font-size: var(--text-lg); line-height: 1.25; }
+.oven-now b { font: 700 var(--text-xl)/1.1 var(--font-display); text-transform: uppercase; letter-spacing: .02em; }
+.bar--lg { height: 1.375rem; margin: var(--sp-4) 0 var(--sp-2); -webkit-mask: repeating-linear-gradient(90deg, #000 0 .625rem, transparent .625rem .8125rem); mask: repeating-linear-gradient(90deg, #000 0 .625rem, transparent .625rem .8125rem); }
+.bar.is-running > div { animation: heat 1.8s ease-in-out infinite; }
+@keyframes heat { 50% { opacity: .62; } }
+
+.bake-grid { display: grid; gap: var(--sp-6); grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 62rem) { .bake-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); } .tray { position: sticky; top: var(--sp-4); } }
+
+/* the recipe: one row per step */
+.steps { list-style: none; margin: 0; padding: 0; border-top: var(--line-heavy) solid var(--rule-strong); }
+.step { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; gap: var(--sp-3); align-items: start; padding: var(--sp-3) var(--sp-2); border-bottom: var(--line-thin) solid var(--rule); border-left: var(--line-heavy) solid transparent; transition: background-color var(--dur-med) var(--ease); }
+.step-mark { display: grid; place-content: center; width: 1.75rem; height: 1.75rem; border: var(--line-field) solid var(--field-line); border-radius: 50%; font: 600 var(--text-xs)/1 var(--font-mono); color: var(--muted); }
+.step-title { display: block; font: 700 var(--text-lg)/1.15 var(--font-display); text-transform: uppercase; letter-spacing: .02em; }
+.step-flavour { display: block; margin-top: .1rem; font-size: var(--text-sm); color: var(--muted); overflow-wrap: anywhere; }
+.step-meta { max-width: 13ch; font: 500 var(--text-sm)/1.4 var(--font-mono); color: var(--muted); text-align: right; overflow-wrap: anywhere; }
+.step-bar { display: none; height: .25rem; margin-top: var(--sp-2); background: var(--piece-open); }
+.step-bar i { display: block; height: 100%; width: 0; background: var(--piece-done); transition: width var(--dur-med) var(--ease); }
+.step[data-state="pending"] { opacity: .55; }
+.step[data-state="running"] { background: var(--sunken); border-left-color: var(--accent); }
+.step[data-state="running"] .step-mark { border-color: var(--accent); background: var(--accent); color: var(--on-accent); animation: pulse 1.4s ease-in-out infinite; }
+.step[data-state="running"] .step-bar { display: block; }
+.step[data-state="running"] .step-meta { color: var(--text); }
+.step[data-state="done"] .step-mark { border-color: var(--petrol); background: var(--petrol); }
+.step[data-state="done"] .step-mark::before { content: ""; width: .85rem; height: .85rem; background: var(--bg); -webkit-mask: var(--i-check) center/contain no-repeat; mask: var(--i-check) center/contain no-repeat; }
+.step[data-state="skipped"] { opacity: .45; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 .4rem transparent; } 0% { box-shadow: 0 0 0 0 var(--accent); } }
+
+/* the tray: what is on the baking sheet right now */
+.tray { display: grid; gap: var(--sp-4); min-width: 0; }
+.card { margin: 0; padding: var(--sp-4); background: var(--surface); border: var(--line-thin) solid var(--rule); border-radius: var(--radius-loaf); min-width: 0; }
+.card h3 { margin-bottom: var(--sp-3); font-size: var(--text-md); font-weight: 700; letter-spacing: .04em; color: var(--muted); }
+.card.poster { padding: 0; overflow: hidden; }
+.poster img { display: block; width: 100%; max-height: 22rem; object-fit: cover; }
+.poster figcaption { padding: var(--sp-2) var(--sp-4); font: 500 var(--text-xs)/1.6 var(--font-mono); color: var(--muted); }
+.poster figcaption:empty { display: none; }
+.facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-1) var(--sp-4); margin: 0; font-size: var(--text-sm); }
+.facts dt { font: 500 var(--text-xs)/1.9 var(--font-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.recipe-line { margin: 0 0 var(--sp-2); font-weight: 700; }
+.recipe-desc { margin: var(--sp-3) 0 0; font-size: var(--text-sm); }
+.chips { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin: var(--sp-2) 0 0; }
+.chip { padding: .1rem .55rem; border: var(--line-field) solid var(--accent-edge); border-radius: var(--radius-loaf-sm); background: var(--accent); color: var(--on-accent); font-size: var(--text-sm); font-weight: 700; }
+.chips--quiet .chip { background: transparent; border-color: var(--field-line); color: var(--muted); font-weight: 500; font-size: var(--text-xs); }
+
+/* the screenshot sheet builds up frame by frame */
+.frames { display: grid; grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr)); gap: 3px; }
+.tile { aspect-ratio: var(--aspect, 16 / 9); background: var(--sunken); outline: var(--line-thin) dashed var(--rule); outline-offset: -1px; overflow: hidden; }
+.tile img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transform: scale(1.12); transition: opacity var(--dur-med) var(--ease), transform var(--dur-med) var(--ease); }
+.tile.on { outline: 0; } .tile.on img { opacity: 1; transform: none; }
+#b-sheet-link, .slot { display: block; }
+#b-sheet-link img, .slot img { display: block; width: 100%; height: auto; max-height: 30rem; object-fit: contain; border-radius: var(--radius-tin); opacity: 0; transition: opacity var(--dur-med) var(--ease); }
+#b-sheet-link.on img, .slot img.on { opacity: 1; }
+.slot { display: grid; place-items: center; min-height: 7rem; background: var(--sunken); border: var(--line-field) dashed var(--rule); border-radius: var(--radius-tin); }
+.slot:has(img) { display: block; border: 0; min-height: 0; background: none; }
+
+.note--err { border-left-color: var(--ember); }
+.errtext { margin: var(--sp-2) 0 0; font: var(--text-sm)/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ember); }
+@media (prefers-reduced-motion: reduce) { .bar.is-running > div, .step[data-state="running"] .step-mark { animation: none; } .tile img { transform: none; } }
+.card h3 .badge:empty { display: none; }

@@ -1,40 +1,174 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="page-head release-head">
-  <h1>{{ title }}</h1>
-  {% if job.status in ("queued", "running") %}
-    <p id="stage" class="mute">{{ job.stage or job.status }}</p>
-    <div class="bar"><div id="bar"></div></div>
-    <script>
-      const bar = document.getElementById("bar"), stage = document.getElementById("stage");
-      async function poll() {
-        try {
-          const r = await fetch("/jobs/{{ job.id }}/state");
-          if (r.status === 404) {  // jobs live in memory: a restart of the server (update) loses a running bake
-            stage.textContent = "This bake is gone: the server was restarted while it was running. Start it again."; stage.className = "err"; bar.parentElement.hidden = true;
-            return;
-          }
-          const s = await r.json();
-          if (s.status === "done" || s.status === "error") return location.reload();
-          stage.textContent = s.stage || s.status;
-          bar.style.width = Math.round(s.fraction * 100) + "%";
-        } catch (e) {}
-        setTimeout(poll, 1000);
-      }
-      poll();
-    </script>
-  {% elif job.status == "error" %}
-    <p class="err">{{ job.error }}</p>
-    <p class="actions"><a class="btn ghost" href="/">Back</a></p>
-  {% else %}
-    <p class="ok">Done.</p>
-    <p class="actions">
-      <a class="btn{% if publishable %} ghost{% endif %}" href="/jobs/{{ job.id }}/zip">Download everything as ZIP</a>
-      {% for f in files if f.endswith(".torrent") %}<a class="btn ghost" href="/jobs/{{ job.id }}/files/{{ f | urlencode }}">{{ f }}</a>{% endfor %}
-      {% if publishable %}<a class="btn" href="#publish">Next: review &amp; publish ↓</a>{% endif %}
-    </p>
-  {% endif %}
+{% if job.status in ("queued", "running") %}
+<div class="bake" id="bake">
+  <header class="bake-head">
+    <p class="eyebrow"><span id="b-eyebrow">In the oven</span> · <span id="b-elapsed">0:00</span></p>
+    <h1>{{ title }}</h1>
+    <p class="bake-sub" id="b-sub" hidden></p>
+  </header>
+
+  <section class="oven" aria-label="Progress">
+    <div class="oven-top">
+      <div class="oven-pct" aria-hidden="true"><span id="b-pct">0</span><small>%</small></div>
+      <div class="oven-now" role="status" aria-live="polite"><b id="b-stage">{{ job.stage or "Heating up" }}</b><span id="b-detail" class="mute"></span></div>
+    </div>
+    <div class="bar bar--lg" id="b-bar"><div id="bar"></div></div>
+  </section>
+
+  <div class="bake-grid">
+    <ol class="steps" id="b-steps" aria-label="Steps"></ol>
+    <div class="tray">
+      <figure class="card poster" id="b-poster" hidden><img id="b-poster-img" alt="" referrerpolicy="no-referrer"><figcaption id="b-poster-cap"></figcaption></figure>
+      <section class="card" id="b-facts-card" hidden><h3>On the scale</h3><dl class="facts" id="b-facts"></dl></section>
+      <section class="card" id="b-recipe" hidden><h3>The recipe</h3><div id="b-recipe-body"></div></section>
+      <section class="card" id="b-sheet-card"><h3>Screenshot sheet <span class="badge" id="b-sheet-badge"></span></h3><div class="frames" id="b-frames" aria-hidden="true"></div><a id="b-sheet-link" target="_blank" rel="noopener" hidden><img id="b-sheet-img" alt="Finished screenshot sheet"></a></section>
+      <section class="card" id="b-cover-card" hidden><h3>Animated cover <span class="badge" id="b-cover-badge"></span></h3><div class="slot" id="b-cover-slot"><span class="mute" id="b-cover-wait">Not baked yet</span></div></section>
+    </div>
+  </div>
 </div>
+<script>
+(() => {
+  const jobId = {{ job.id | tojson }}, $ = id => document.getElementById(id);
+  const stepEls = {}, tiles = [];
+  let offset = 0, started = 0, finished = 0, aspect = 16 / 9, framesBuilt = false, polling = true;
+  const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+
+  function buildSteps(steps) {
+    const ol = $("b-steps");
+    for (const s of steps) {
+      if (stepEls[s.key]) continue;
+      const li = el("li", "step"), mark = el("span", "step-mark"), body = el("div", "step-body"), meta = el("span", "step-meta");
+      const t = el("b", "step-title", s.label), f = el("span", "step-flavour", s.flavour), bar = el("span", "step-bar"), fill = el("i");
+      bar.append(fill); body.append(t, f, bar); li.append(mark, body, meta); ol.append(li);
+      stepEls[s.key] = {li, mark, meta, fill, flavour: f};
+    }
+  }
+  function paintSteps(steps) {
+    steps.forEach((s, i) => {
+      const e = stepEls[s.key]; if (!e) return;
+      e.li.dataset.state = s.state;
+      e.mark.textContent = s.state === "done" ? "" : s.state === "skipped" ? "–" : String(i + 1);
+      e.meta.textContent = s.state === "running" ? (s.detail || "") : s.state === "done" ? fmt(s.took) : s.state === "skipped" ? "not needed" : "";
+      if (s.state === "done" && s.detail) e.flavour.textContent = s.detail;
+      e.fill.style.width = Math.round(s.fraction * 100) + "%";
+    });
+  }
+  function buildFrames(f) {
+    if (framesBuilt || !f) return;
+    framesBuilt = true;
+    const g = $("b-frames"); g.style.setProperty("--cols", f.cols);
+    for (let i = 0; i < f.total; i++) { const t = el("span", "tile"); g.append(t); tiles.push(t); }
+  }
+  function paintFrames(f) {
+    if (!f) return;
+    buildFrames(f);
+    for (let i = 0; i < f.done && i < tiles.length; i++) {
+      if (tiles[i].firstChild) continue;
+      const img = new Image(); img.alt = ""; img.src = "/jobs/" + jobId + "/live/frame-" + String(i).padStart(2, "0") + ".jpg";
+      img.onload = () => tiles[i].classList.add("on"); tiles[i].append(img);
+    }
+    $("b-sheet-badge").textContent = f.done + " / " + f.total;
+  }
+  function paintInfo(s) {
+    if (s.facts) {
+      aspect = s.facts.aspect || aspect; $("b-frames").style.setProperty("--aspect", aspect);
+      const dl = $("b-facts"); if (!dl.childElementCount) {
+        for (const [k, v] of [["File", s.facts.file], ["Picture", s.facts.resolution + " · " + s.facts.codec], ["Runtime", s.facts.duration], ["Size", s.facts.size], ["Frame rate", s.facts.fps]]) { dl.append(el("dt", "", k), el("dd", "", v)); }
+        $("b-facts-card").hidden = false;
+      }
+    }
+    if (s.release && !$("b-recipe-body").childElementCount) {
+      const r = s.release, body = $("b-recipe-body");
+      const line = [r.studio, r.date].filter(Boolean).join(" · ");
+      if (line) { const sub = $("b-sub"); sub.textContent = line + (r.performers.length ? " — " + r.performers.join(", ") : ""); sub.hidden = false; }
+      if (r.studio || r.date) body.append(el("p", "recipe-line", [r.studio, r.date].filter(Boolean).join(" · ")));
+      if (r.performers.length) { const c = el("p", "chips"); for (const p of r.performers) c.append(el("span", "chip", p)); body.append(c); }
+      if (r.tag_sample.length) { const c = el("p", "chips chips--quiet"); for (const t of r.tag_sample) c.append(el("span", "chip", t)); if (r.tags > r.tag_sample.length) c.append(el("span", "chip", "+" + (r.tags - r.tag_sample.length))); body.append(c); }
+      if (r.description) body.append(el("p", "recipe-desc mute", r.description + (r.description.length >= 280 ? "…" : "")));
+      $("b-recipe").hidden = false;
+    }
+    if (s.poster && !$("b-poster-img").src) {
+      const img = $("b-poster-img"); img.onload = () => $("b-poster").hidden = false; img.src = s.poster;
+    }
+  }
+  function paintPreviews(s) {
+    const sheet = s.steps.find(x => x.key === "sheet"), cover = s.steps.find(x => x.key === "cover");
+    if (sheet && sheet.state === "done" && sheet.file && $("b-sheet-link").hidden) {
+      const img = $("b-sheet-img"); img.onload = () => { $("b-frames").hidden = true; $("b-sheet-link").hidden = false; $("b-sheet-link").classList.add("on"); };
+      img.src = "/jobs/" + jobId + "/live/" + sheet.file; $("b-sheet-link").href = img.src; $("b-sheet-badge").textContent = "done";
+    }
+    if (cover) {
+      $("b-cover-card").hidden = false;
+      $("b-cover-badge").textContent = cover.state === "running" ? cover.detail : cover.state === "done" ? "done" : "";
+      if (cover.state === "done" && cover.file && !$("b-cover-slot").querySelector("img")) {
+        const img = new Image(); img.alt = "Animated cover"; img.src = "/jobs/" + jobId + "/live/" + cover.file;
+        img.onload = () => { $("b-cover-slot").replaceChildren(img); img.classList.add("on"); };
+      }
+    }
+  }
+  function paint(s) {
+    offset = s.now - Date.now() / 1000; started = s.started; finished = s.finished;
+    const pct = Math.round(s.fraction * 100);
+    $("b-pct").textContent = pct; $("bar").style.width = pct + "%";
+    $("b-bar").classList.toggle("is-running", s.status === "running");
+    const run = s.steps.find(x => x.state === "running");
+    if (s.status === "queued") {
+      $("b-eyebrow").textContent = "Waiting for a free oven";
+      $("b-stage").textContent = s.ahead ? (s.ahead === 1 ? "One bake is ahead of this one" : s.ahead + " bakes are ahead of this one") : "Starting";
+      $("b-detail").textContent = "";
+    } else {
+      $("b-eyebrow").textContent = "In the oven";
+      $("b-stage").textContent = run ? run.label : s.stage || "Heating up";
+      $("b-detail").textContent = run && run.detail ? " · " + run.detail : "";
+    }
+    buildSteps(s.steps); paintSteps(s.steps); paintInfo(s); paintFrames(s.frames); paintPreviews(s);
+    document.title = (s.status === "queued" ? "Waiting" : pct + " %") + " · " + document.title.replace(/^.*? · /, "");
+  }
+  setInterval(() => { if (started) $("b-elapsed").textContent = fmt(Date.now() / 1000 + offset - started); }, 1000);
+  async function poll() {
+    try {
+      const r = await fetch("/jobs/" + jobId + "/state");
+      if (r.status === 404) {  // jobs live in memory: a restart of the server (update) loses a running bake
+        $("b-eyebrow").textContent = "Lost"; $("b-stage").textContent = "This bake is gone: the server was restarted while it was running. Start it again.";
+        $("b-stage").className = "err"; $("b-detail").textContent = ""; return;
+      }
+      const s = await r.json();
+      if (s.status === "done" || s.status === "error") { paint(s); setTimeout(() => location.reload(), s.status === "done" ? 700 : 0); return; }
+      paint(s);
+    } catch (e) {}
+    setTimeout(poll, 800);
+  }
+  poll();
+})();
+</script>
+{% elif job.status == "error" %}
+<div class="page-head release-head">
+  <p class="eyebrow err-eyebrow">Burnt</p>
+  <h1>{{ title }}</h1>
+  <div class="note note--err">
+    <p><b>The bake failed{% if failed_label %} while “{{ failed_label }}”{% endif %}.</b></p>
+    <pre class="errtext">{{ job.error }}</pre>
+  </div>
+  <form class="actions" method="post" action="/jobs">
+    <input type="hidden" name="source" value="{{ job.source }}"><input type="hidden" name="label" value="{{ job.label }}">
+    {% for k, v in (("tracker", job.options.get("tracker") or ""), ("upload", job.options.get("upload") or ""), ("stashbox", job.options.get("stashbox") or ""), ("cover_source", job.options.get("cover_source") or ""), ("cover_format", job.options.get("cover_format") or "")) %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    {% if job.options.get("nsfw") is false %}<input type="hidden" name="sfw" value="1">{% endif %}
+    <button>Bake again</button> <a class="btn ghost" href="/">Back</a>
+  </form>
+</div>
+{% else %}
+<div class="page-head release-head">
+  <p class="eyebrow ok-eyebrow">Fresh out of the oven{% if job.started and job.finished %} · baked in {{ ((job.finished - job.started) // 60) | int }}:{{ "%02d" | format(((job.finished - job.started) % 60) | int) }}{% endif %}</p>
+  <h1>{{ title }}</h1>
+  <p class="actions">
+    <a class="btn{% if publishable %} ghost{% endif %}" href="/jobs/{{ job.id }}/zip">Download everything as ZIP</a>
+    {% for f in files if f.endswith(".torrent") %}<a class="btn ghost" href="/jobs/{{ job.id }}/files/{{ f | urlencode }}">{{ f }}</a>{% endfor %}
+    {% if publishable %}<a class="btn" href="#publish">Next: review &amp; publish ↓</a>{% endif %}
+  </p>
+</div>
+{% endif %}
 {% if job.status not in ("queued", "running", "error") %}
 <section class="sheet sheet--rail">
   <div class="sheet-head"><h2>Title</h2></div>

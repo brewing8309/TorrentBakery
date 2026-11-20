@@ -28,7 +28,7 @@ from ..tags import TagMap, load_user_map, save_user_map
 from ..trackers import TrackerError, get_publisher, load_templates
 from ..trackers.template import user_dir as user_template_dir
 from . import auth as auth_mod
-from .jobs import JobManager
+from .jobs import STEPS, JobManager
 from .login import install as install_login
 
 SEARCH_QUERY = """
@@ -215,7 +215,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         if job.out_dir and (job.out_dir / "publish-error.txt").exists():
             pub_error = (job.out_dir / "publish-error.txt").read_text().strip()
         c = cfg()
-        return templates.TemplateResponse(request, "job.html", {"job": job, "title": title, "published": published, "pub_error": pub_error, "publishable": [n for n, t in c.trackers.items() if t.site],
+        return templates.TemplateResponse(request, "job.html", {"job": job, "title": title, "failed_label": STEPS[job.failed_step][0] if job.failed_step in STEPS else "", "published": published, "pub_error": pub_error, "publishable": [n for n, t in c.trackers.items() if t.site],
                        "job_tracker": job.options.get("tracker") or "", "has_image_host": bool(meta.get("uploads")), "files": job_files(job), "post": post, "uploads": meta.get("uploads", {}), "host": meta.get("image_host", ""), "cover_file": meta.get("cover_file", "cover.jpg"),
                        "folder_name": meta.get("folder_name", ""), "folder_path": meta.get("folder_path", ""),
                        "release_title": meta.get("release", {}).get("title") or title,
@@ -228,8 +228,14 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
 
     @app.get("/jobs/{job_id}/state")
     def job_state(job_id: str):
-        j = job_or_404(job_id)
-        return {"status": j.status, "stage": j.stage, "fraction": j.fraction, "error": j.error}
+        return jobs.state(job_or_404(job_id))
+
+    @app.get("/jobs/{job_id}/live/{name}")
+    def job_live(job_id: str, name: str):
+        f = jobs.live_file(job_or_404(job_id), name)
+        if f is None:
+            raise HTTPException(404)
+        return FileResponse(f, headers={"Cache-Control": "no-store"})
 
     # ---- publish ----
     def publishable_job(job_id: str, tracker: str):

@@ -34,7 +34,8 @@ def header_lines(info: MediaInfo) -> list[str]:
     ]
 
 
-def make_contact_sheet(video: Path, info: MediaInfo, dest: Path, cols: int = 5, rows: int = 7, thumb_width: int = 320) -> Path:
+def make_contact_sheet(video: Path, info: MediaInfo, dest: Path, cols: int = 5, rows: int = 7, thumb_width: int = 320, on_frame=None) -> Path:
+    """`on_frame(done, total, frame_file)` is called after each frame (the file lives in a temp folder: copy it to keep it)."""
     n = cols * rows
     ts = timestamps(info.duration, n)
     thumb_h = round(thumb_width * info.height / info.width)
@@ -58,5 +59,7 @@ def make_contact_sheet(video: Path, info: MediaInfo, dest: Path, cols: int = 5, 
             tw = draw.textlength(label, font=small)
             draw.rectangle((x + thumb_width - tw - 8, y + thumb_h - 22, x + thumb_width, y + thumb_h), fill=(0, 0, 0))
             draw.text((x + thumb_width - tw - 4, y + thumb_h - 20), label, fill=FG, font=small)
+            if on_frame:
+                on_frame(i + 1, n, Path(tmp) / f"{i}.jpg")
     sheet.save(dest, quality=90)
     return dest
