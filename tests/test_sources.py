@@ -96,3 +96,22 @@ def test_graphql_error_body_wins_over_http_status():
 def test_stash_query_uses_stash_field_names():
     # Stash calls it parent_studio; `parent` is stash-box's name and Stash rejects it (HTTP 400, seen live)
     assert "parent {" not in stash.SCENE_QUERY
+
+
+def test_clean_query_strips_release_noise():
+    assert stashbox.clean_query("/m/Studio.Name.Some.Title.XXX.1080p.MP4-GRP.mp4") == "Studio Name Some Title"
+    assert stashbox.clean_query("Studio - Some Title [1080p].mkv") == "Studio - Some Title"
+    assert stashbox.clean_query("/x/My_Scene_Title_2160p_x265.mp4") == "My Scene Title"
+    assert stashbox.clean_query("/media/Folder Name/") == "Folder Name"
+
+
+def test_stashbox_search_maps_rows():
+    def h(req: httpx.Request) -> httpx.Response:
+        body = json.loads(req.content)
+        assert req.headers["ApiKey"] == "boxkey" and body["variables"]["input"]["text"] == "some title"
+        return httpx.Response(200, json={"data": {"queryScenes": {"scenes": [
+            {"id": "abc", "title": "Box Title", "release_date": "2025-05-06", "studio": {"name": "Studio X"},
+             "performers": [{"as": "Alias", "performer": {"name": "Real"}}], "images": SCENE["images"]}]}}})
+    rows = stashbox.search(BOX, "boxkey", "some title", transport=httpx.MockTransport(h))
+    assert rows == [{"id": "abc", "url": "https://box.example/scenes/abc", "title": "Box Title", "date": "2025-05-06", "studio": "Studio X",
+                     "image": "https://img.example/wide.jpg", "performers": ["Alias"]}]

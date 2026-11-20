@@ -20,6 +20,7 @@
         <p class="help">{% if stash %}Type 3+ letters of a title to get matching Stash scenes to click. A scene's number is in Stash's address bar (<code>…/scenes/1234</code>).{% endif %}
           <b>Browse…</b> picks a video file (torrent of that file) or a whole folder (torrent of the folder; its largest video provides the screenshots and cover). Browsing is limited to the permitted <a href="/settings#roots">media folders</a>.</p>
         <div id="results"></div>
+        <div id="box-results"></div>
         {% if not stash and not roots %}<p class="note">There is no source yet: connect Stash or permit a media folder in <a href="/settings">Settings</a>.</p>{% endif %}
       </div>
     </div>
@@ -50,7 +51,7 @@
       <div class="group-body">
         <label for="stashbox">Stash-box scene address <span class="badge">optional</span></label>
         <input type="text" id="stashbox" name="stashbox" placeholder="https://stashdb.org/scenes/…">
-        <p class="help">Plain files only: fetches title, performers and links from this StashDB page. Not needed for Stash scenes. The key for it is in <a href="/settings#stashbox">Settings</a>.</p>
+        <p class="help">Plain files only: fetches title, performers and links from this StashDB page. Not needed for Stash scenes.{% if has_boxes %} Picking a file searches your stash-boxes by its name; click a match there and this field is filled in.{% endif %} The key for it is in <a href="/settings#stashbox">Settings</a>.</p>
         <label class="check"><input type="checkbox" name="sfw" value="1"{% if last.get("sfw") %} checked{% endif %}> Mark images as family safe</label>
         <p class="help">The default is "adult content". This only affects the upload at the image hosts.</p>
       </div>
@@ -86,7 +87,44 @@ const dlg = document.getElementById("browser"), blist = document.getElementById(
 const chooseBtn = document.getElementById("choose-folder"), bnote = document.getElementById("browse-note");
 let here = "";
 const human = n => n >= 2**30 ? (n / 2**30).toFixed(2) + " GiB" : (n / 2**20).toFixed(1) + " MiB";
-const pick = path => { src.value = path; srcValue.value = path; labelValue.value = ""; box.innerHTML = ""; dlg.close(); };
+const boxBox = document.getElementById("box-results"), boxField = document.getElementById("stashbox");
+const pick = path => { src.value = path; srcValue.value = path; labelValue.value = ""; box.innerHTML = ""; dlg.close(); boxSearch(path); };
+
+// ---- a picked file: look it up by name in every configured stash-box; choosing a match is up to the user
+async function boxSearch(path) {
+  boxBox.innerHTML = ""; boxField.value = "";
+  {% if has_boxes %}
+  const note = document.createElement("p"); note.className = "help"; note.textContent = "Searching your stash-boxes for this file name…"; boxBox.append(note);
+  let d;
+  try { d = await (await fetch("/stashbox/search?name=" + encodeURIComponent(path))).json(); }
+  catch (e) { note.textContent = "The stash-box search failed."; return; }
+  if (src.value !== path) return;  // another source was picked meanwhile
+  boxBox.innerHTML = "";
+  const head = document.createElement("p"); head.className = "help";
+  head.textContent = "Stash-box matches for “" + d.term + "” (optional, click one to take its metadata):";
+  boxBox.append(head);
+  let any = false;
+  for (const b of d.boxes) {
+    if (b.error) { const e = document.createElement("p"); e.className = "err"; e.textContent = b.name + ": " + b.error; boxBox.append(e); }
+    for (const r of b.scenes) {
+      any = true;
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "ghost scene-hit";
+      if (r.image) { const img = document.createElement("img"); img.src = r.image; img.width = 80; img.loading = "lazy"; img.alt = ""; img.referrerPolicy = "no-referrer"; btn.append(img); }
+      const t = document.createElement("span");
+      t.textContent = [r.title, r.studio, r.date, r.performers.join(", ")].filter(Boolean).join(" · ") + "  (" + b.name + ")";
+      btn.append(t);
+      btn.onclick = () => {
+        boxField.value = r.url;
+        for (const o of boxBox.querySelectorAll(".scene-hit")) o.classList.remove("chosen");
+        btn.classList.add("chosen");
+      };
+      boxBox.append(btn);
+    }
+  }
+  if (!any && !d.boxes.some(b => b.error)) head.textContent = "No stash-box match for “" + d.term + "”. You can paste a scene address below.";
+  {% endif %}
+}
 function item(kind, text, size, onclick) {
   const b = document.createElement("button");
   b.type = "button"; b.className = "item";
@@ -125,7 +163,7 @@ let timer;
 src.addEventListener("input", () => {
   clearTimeout(timer);
   const q = src.value.trim();
-  srcValue.value = q; labelValue.value = "";
+  srcValue.value = q; labelValue.value = ""; boxBox.innerHTML = "";
   if (q.length < 3 || /^(stash:)?\d+$/.test(q) || q.startsWith("/")) { box.innerHTML = ""; return; }
   timer = setTimeout(async () => {
     try {

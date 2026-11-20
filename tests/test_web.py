@@ -230,3 +230,21 @@ def test_pages_link_only_existing_static_assets(tmp_path, cfg_path):
         assert all(c.get(a).status_code == 200 for a in assets)
     css = c.get("/static/css/tokens.css").text
     assert all(c.get("/static/fonts/" + f).status_code == 200 for f in re.findall(r'\.\./fonts/([\w.-]+)', css))
+
+
+def test_stashbox_search_over_all_boxes_and_reports_errors(tmp_path, cfg_path):
+    def h(req: httpx.Request) -> httpx.Response:
+        if req.url.host == "bad.example":
+            return httpx.Response(200, json={"errors": [{"message": "invalid api key"}]})
+        return httpx.Response(200, json={"data": {"queryScenes": {"scenes": [
+            {"id": "1", "title": "T", "release_date": "2025-01-02", "studio": None, "performers": [], "images": []}]}}})
+    c = Config()
+    c.stashboxes["good"] = config_mod.StashBoxCfg("https://good.example/graphql", "k")
+    c.stashboxes["bad"] = config_mod.StashBoxCfg("https://bad.example/graphql", "k")
+    config_mod.save(c, cfg_path)
+    client = TestClient(create_app(tmp_path / "out", cfg_path, transport=httpx.MockTransport(h)))
+    d = client.get("/stashbox/search", params={"name": "/media/Studio.Some.Title.1080p.mp4"}).json()
+    assert d["term"] == "Studio Some Title"
+    good, bad = d["boxes"]
+    assert good["scenes"][0]["url"] == "https://good.example/scenes/1" and not good["error"]
+    assert bad["scenes"] == [] and bad["error"] == "invalid api key"

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+from pathlib import PurePath
 from urllib.parse import urlparse
 
 import httpx
@@ -50,3 +52,45 @@ def fetch(endpoint: str, api_key: str, scene_id: str, transport: httpx.BaseTrans
         cover_url=pick_cover(scene["images"]),
         source_ids={endpoint: scene_id},
     )
+
+
+SEARCH_QUERY = """
+query Search($input: SceneQueryInput!) {
+  queryScenes(input: $input) {
+    scenes {
+      id title release_date
+      studio { name }
+      performers { as performer { name } }
+      images { url width height }
+    }
+  }
+}
+"""
+
+# what release names carry around the actual title: resolution/codec/source tags, the dash-separated release group
+_NOISE = re.compile(r"\b(?:\d{3,4}p|\d{3,4}x\d{3,4}|[24]k|uhd|hd|sd|fhd|hevc|[xh]\.?26[45]|av1|mp4|aac|web-?dl|web-?rip|webrip|bluray|bdrip|hdtv|xxx|mp\d|\d+fps|\d+mbps|kbps)\b", re.I)
+
+
+def clean_query(name: str) -> str:
+    """Release/file name → search words: no extension, no resolution/codec tags, separators as spaces."""
+    stem = PurePath(name.rstrip("/")).name
+    stem = re.sub(r"\.(?:mp4|mkv|avi|wmv|mov|m4v|ts|webm|flv|mpg|mpeg)$", "", stem, flags=re.I)
+    stem = re.sub(r"\[[^\]]*\]|\([^)]*\)", " ", stem)  # [group] and (year/source) brackets
+    stem = re.sub(r"[._]+", " ", stem)
+    stem = re.sub(rf"({_NOISE.pattern})-[A-Za-z0-9]+$", r"\1", stem, flags=re.I)  # '1080p-GROUP': the group goes
+    stem = _NOISE.sub(" ", stem)
+    return re.sub(r"\s+", " ", stem).strip(" -")
+
+
+def search(endpoint: str, api_key: str, term: str, limit: int = 8, transport: httpx.BaseTransport | None = None) -> list[dict]:
+    """Scenes of one stash-box matching a free-text term, as short rows for the user to pick from."""
+    data = gql(endpoint, SEARCH_QUERY, {"input": {"text": term, "per_page": limit, "page": 1, "sort": "DATE", "direction": "DESC"}}, api_key, transport)
+    rows = []
+    for s in data["queryScenes"]["scenes"]:
+        image = pick_cover(s["images"])
+        rows.append({
+            "id": s["id"], "url": page_url(endpoint, s["id"]), "title": s["title"] or "", "date": s["release_date"] or "",
+            "studio": s["studio"]["name"] if s["studio"] else "", "image": image,
+            "performers": [a["as"] or a["performer"]["name"] for a in s["performers"]][:4],
+        })
+    return rows
