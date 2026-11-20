@@ -32,7 +32,7 @@
           <select id="tracker" name="tracker"><option value="">none (torrent without announce URL)</option>{% for t in trackers %}<option{% if t == last.get("tracker") %} selected{% endif %}>{{ t }}</option>{% endfor %}</select>
           <p class="help">Sets announce URL, source tag and private/public. After the bake you review the result and upload it to this tracker yourself.{% if not trackers %} <a href="/settings#tracker">Create a profile</a>{% endif %}</p></div>
         <div><label for="upload">Image host</label>
-          <select id="upload" name="upload"><option value="">none (images as files only)</option>{% set chosen_host = last["upload"] if "upload" in last else default_host %}{% for h in hosts %}<option{% if h == chosen_host %} selected{% endif %}>{{ h }}</option>{% endfor %}</select>
+          <select id="upload" name="upload"><option value="">none (images as files only)</option>{% set chosen_host = last["upload"] if "upload" in last else default_host %}{% for h in hosts %}<option{% if h == chosen_host %} selected{% endif %}{% if h == "bitporn.eu" %} data-site="bitporn"{% endif %}>{{ h }}</option>{% endfor %}</select>
           <p class="help">Uploads the cover and the screenshot sheet and puts the host links into the post. Without a host the post only contains file names and you upload the images yourself. Set a default host in <a href="/settings#hosts">Settings</a>.</p></div>
         <div><label class="check"><input type="checkbox" name="sfw" value="1"{% if last.get("sfw") %} checked{% endif %}> Mark images as family safe</label>
           <p class="help">The default is "adult content". This only affects the upload at the image hosts.</p></div>
@@ -81,7 +81,7 @@ const chooseBtn = document.getElementById("choose-folder"), bnote = document.get
 let here = "";
 const human = n => n >= 2**30 ? (n / 2**30).toFixed(2) + " GiB" : (n / 2**20).toFixed(1) + " MiB";
 const boxBox = document.getElementById("box-results"), boxField = document.getElementById("stashbox");
-const pick = path => { src.value = path; srcValue.value = path; labelValue.value = ""; box.innerHTML = ""; dlg.close(); boxSearch(path); };
+const pick = path => { src.value = path; srcValue.value = path; labelValue.value = ""; box.innerHTML = ""; dlg.close(); syncOptions(); boxSearch(path); };
 
 // ---- a picked file: look it up by name in every configured stash-box; choosing a match is up to the user
 async function boxSearch(path, manual) {
@@ -168,6 +168,26 @@ document.getElementById("browse-btn").onclick = () => {
 chooseBtn.onclick = () => pick(here);
 document.getElementById("browse-cancel").onclick = () => dlg.close();
 
+// options that only make sense in some contexts: Stash's preview needs a Stash scene, the bitporn.eu host needs the bitporn tracker
+const trackerSites = {{ tracker_sites | tojson }};
+function limitOptions(sel, allowed, optionFilter) {
+  for (const o of sel.options) { const ok = optionFilter(o); o.hidden = o.disabled = !ok; }
+  if (sel.selectedOptions[0] && sel.selectedOptions[0].hidden) sel.selectedIndex = [...sel.options].findIndex(o => !o.hidden);
+}
+const coverSel = document.getElementById("cover_source"), hostSel = document.getElementById("upload"), trackerSel = document.getElementById("tracker");
+let coverWanted = coverSel.value;  // restored when the source is a Stash scene again
+function syncOptions() {
+  const isScene = /^(stash:)?\d+$/.test(srcValue.value.trim());
+  limitOptions(coverSel, isScene, o => o.value !== "stash" || isScene);
+  if (isScene && coverWanted === "stash") coverSel.value = "stash";
+  limitOptions(hostSel, 0, o => o.dataset.site === undefined || trackerSites[trackerSel.value] === o.dataset.site);
+}
+trackerSel.addEventListener("change", syncOptions);
+coverSel.addEventListener("change", () => { if (/^(stash:)?\d+$/.test(srcValue.value.trim())) coverWanted = coverSel.value; });
+src.addEventListener("input", () => setTimeout(syncOptions, 0));
+dlg.addEventListener("close", syncOptions);
+syncOptions();
+
 let timer;
 src.addEventListener("input", () => {
   clearTimeout(timer);
@@ -188,7 +208,7 @@ src.addEventListener("input", () => {
         b.append(img, t);
         b.onclick = () => {
           src.value = [r.title, r.studio].filter(Boolean).join(" · ");
-          srcValue.value = "stash:" + r.id; labelValue.value = src.value; box.innerHTML = "";
+          srcValue.value = "stash:" + r.id; labelValue.value = src.value; box.innerHTML = ""; syncOptions();
         };
         box.append(b);
       }

@@ -73,7 +73,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     @app.get("/")
     def index(request: Request):
         c = cfg()
-        return templates.TemplateResponse(request, "index.html", {"default_host": c.default_host, "cover_source": c.cover_source, "cover_format": c.cover_format, "last": c.last_used, "trackers": list(c.trackers), "publishable": [n for n, t in c.trackers.items() if t.site], "hosts": HOST_NAMES, "stash": bool(c.stash.url), "has_boxes": bool(c.stashboxes), "roots": c.web_media_roots, "jobs": jobs.recent(), "total_jobs": len(jobs.jobs)})
+        return templates.TemplateResponse(request, "index.html", {"default_host": c.default_host, "cover_source": c.cover_source, "cover_format": c.cover_format, "last": c.last_used, "trackers": list(c.trackers), "tracker_sites": {n: t.site for n, t in c.trackers.items()}, "publishable": [n for n, t in c.trackers.items() if t.site], "hosts": HOST_NAMES, "stash": bool(c.stash.url), "has_boxes": bool(c.stashboxes), "roots": c.web_media_roots, "jobs": jobs.recent(), "total_jobs": len(jobs.jobs)})
 
     @app.get("/history")
     def history(request: Request):
