@@ -23,6 +23,9 @@
 
 It runs as a small web app on your own server (an LXC container is ideal), next to your media, and has a full command line (`tb`) as well.
 
+> [!NOTE]
+> **100 % vibe-coded.** Every line of TorrentBakery (code, tests, design and these docs) was written by an AI ([Claude Code](https://claude.com/claude-code)) from plain-language instructions; no line was typed by hand. It has automated tests, but read the code before you trust it with your tracker accounts.
+
 ## 🍞 What comes out of the oven
 
 | | |
