@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import replace
 from pathlib import Path
 
@@ -371,4 +372,5 @@ def serve(
 
     from .web.app import create_app
 
-    uvicorn.run(create_app(out_root=out), host=host, port=port)
+    # X-Forwarded-For/-Proto are believed only from these proxies (comma-separated), so the login throttle sees the real client address
+    uvicorn.run(create_app(out_root=out), host=host, port=port, proxy_headers=True, forwarded_allow_ips=os.environ.get("TB_TRUSTED_PROXIES", "127.0.0.1"), server_header=False)

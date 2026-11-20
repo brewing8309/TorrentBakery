@@ -12,6 +12,7 @@ New here? Start with the [Quick start](../README.md#-quick-start) in the main RE
 | 📤 [Publishing to trackers](publishing.md) | Gazelle and UNIT3D, cookies and tokens, review step, seeding |
 | 🧩 [Add your own tracker](tracker-templates.md) | Step-by-step guide and full reference for tracker templates |
 | 🔐 [Login & 2FA](security.md) | Optional login, TOTP, recovery codes, what is protected and what not |
+| 🛡️ [Security audit](../SECURITY-AUDIT.md) | Scope, method and results of the security review |
 | ⌨️ [Command line](cli.md) | Every `tb` command with examples |
 
 ## Words used in these pages

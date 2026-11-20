@@ -6,6 +6,7 @@ from pathlib import Path
 import httpx
 
 from ..config import Config
+from ..net import keep_on_site
 from .base import Uploaded
 
 UA = "Mozilla/5.0 (X11; Linux x86_64) TorrentBakery"
@@ -26,7 +27,7 @@ class BitpornLocal:
         self.base, self.cookie, self.transport = t.effective_base_url, t.session_cookie, transport
 
     def upload(self, path: Path, nsfw: bool = True) -> Uploaded:
-        with httpx.Client(transport=self.transport, timeout=120, follow_redirects=True, headers={"Cookie": self.cookie, "User-Agent": UA}) as c:
+        with httpx.Client(transport=self.transport, timeout=120, follow_redirects=True, headers={"Cookie": self.cookie, "User-Agent": UA}, event_hooks=keep_on_site(self.base, "Cookie")) as c:
             page = c.get(f"{self.base}/torrents/create")
             if "login" in page.url.path:
                 raise ValueError("bitporn: the web session cookie is expired; log in with 'Remember me' ticked and paste both cookies (bitporn_session and remember_web_...) in the tracker profile, then it renews itself")

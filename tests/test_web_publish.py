@@ -50,7 +50,10 @@ def test_secrets_never_rendered_and_blank_keeps(tmp_path):
     assert t.cookie == COOKIE and t.announce == [PASSKEY] and t.category == "3" and t.auto_publish and t.base_url == "https://tr.example"
     c.post("/settings/qbit", data={"url": "http://qb2/", "username": "u", "password": "", "start": "1", "path_map": "/a=/b\nnonsense"})
     q = config_mod.load(cfg_path).qbit
-    assert q.password == "QBITPASS" and q.url == "http://qb2" and q.path_map == [("/a", "/b")]
+    assert q.password == "" and q.url == "http://qb2" and q.path_map == [("/a", "/b")]  # a new address does not inherit the old password
+    c.post("/settings/qbit", data={"url": "http://qb2/", "username": "u", "password": "QBITPASS", "start": "1"})
+    c.post("/settings/qbit", data={"url": "http://qb2", "username": "u", "password": "", "start": "1"})
+    assert config_mod.load(cfg_path).qbit.password == "QBITPASS"  # blank keeps it for the same address
     c.post("/settings/qbit/map", data={"local_path": " /x ", "qbit_path": "/y"})
     c.post("/settings/qbit", data={"url": "http://qb2/", "start": "1"})  # saving the connection keeps the table
     assert config_mod.load(cfg_path).qbit.path_map == [("/a", "/b"), ("/x", "/y")]

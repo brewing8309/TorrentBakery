@@ -20,7 +20,8 @@ LIVE_DIR = ".live"
 
 
 def slug(name: str) -> str:
-    return re.sub(r"[^\w.\-]+", "_", name).strip("_") or "release"
+    s = re.sub(r"[^\w.\-]+", "_", name).strip("_")
+    return s if s.strip(".") else "release"  # "." and ".." would put the output into the output root or above it
 
 
 def bake(source: Path, out_root: Path, cfg: Config, release: Release | None = None, tracker: str | None = None, cover: Path | None = None, cover_format: str | None = None, uploader: Uploader | None = None, nsfw: bool = True, progress=None, torrent_path: Path | None = None) -> Path:
@@ -36,6 +37,8 @@ def bake(source: Path, out_root: Path, cfg: Config, release: Release | None = No
     name = target.name if target.is_dir() else target.stem
     release = release or Release(title=name)
     out = out_root / slug(name)
+    if out.resolve().parent != out_root.resolve():
+        raise ValueError(f"refusing to write outside {out_root}: {out}")
     out.mkdir(parents=True, exist_ok=True)
     step("Reading media info", 1.0, key="probe", detail=f"{info.width}×{info.height} · {fmt_codec(info.video_codec)} · {fmt_duration(info.duration)}",
          facts={"resolution": f"{info.width}×{info.height}", "codec": fmt_codec(info.video_codec), "duration": fmt_duration(info.duration), "size": fmt_size(info.size),

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Security
+- Cross-site requests are refused even without a login. Without a login, the UI only answers to IP addresses, localhost, single-label names and `TB_ALLOWED_HOSTS` (DNS rebinding).
+- Saved secrets (qBittorrent password, tracker cookies and tokens, Stash API key) only go to the address they were saved for. Redirects to other sites drop them.
+- Login throttling can no longer lock the owner out; IPv6 is counted per /64; `TB_TRUSTED_PROXIES` for the real client address behind a reverse proxy.
+- A two-factor code can no longer be used twice by parallel requests.
+- Output folder names can no longer point outside the output root. Stash scenes must lie inside the media folders too.
+- Content-Security-Policy, no API browser (`/docs`), no server banner, hardened systemd unit, SHA256SUMS next to the release tarball.
+- `SECURITY-AUDIT.md`: the audit review.
+
 ## 0.1.0 – 2026-11-20
 The first release: from a video file or a Stash scene to a finished, seeding tracker upload.
 

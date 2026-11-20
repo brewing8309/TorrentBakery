@@ -54,6 +54,8 @@ def bake_source(
             want = (cover_source or cfg.cover_source) == "stash" and (uploader is None or "webp" in uploader.formats)
             r = stash_source.resolve(cfg, source[6:], Path(tmp), want_preview=want)
             release, path, auto_cover = r.release, r.path, r.cover
+            if media_roots and not any(path.resolve().is_relative_to(Path(m).resolve()) for m in media_roots):
+                raise ValueError(f"Stash's file {path} lies outside the configured media roots (add its folder under Settings → Media folders)")
             _recipe_done(progress, release, "Found in Stash")
         else:
             path = Path(source).resolve()

@@ -13,6 +13,7 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 from ..config import Tracker
+from ..net import keep_on_site
 from .base import LoginError, PublishRequest, PublishResult, TrackerError, UploadForm
 from .gazelle import _error_text as _page_error
 from .gazelle import _FormParser
@@ -82,7 +83,8 @@ class Unit3dPublisher:
 
     # ---- what the API cannot do: the list cover and banner, only the web form takes them ----
     def _web(self) -> httpx.Client:
-        return httpx.Client(transport=self.transport, timeout=120, follow_redirects=False, headers={"Cookie": self.tracker.session_cookie, "User-Agent": UA})
+        return httpx.Client(transport=self.transport, timeout=120, follow_redirects=False, headers={"Cookie": self.tracker.session_cookie, "User-Agent": UA},
+                            event_hooks=keep_on_site(self._url(""), "Cookie"))
 
     def _web_get(self, path: str) -> tuple[httpx.Response, str]:
         """GET a page of the site with the browser session; a bounce to the login page means the session is dead."""

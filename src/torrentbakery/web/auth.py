@@ -219,7 +219,8 @@ class AuthState:
         with self.lock:
             self.setup = None
 
-    # throttling: per client 1 s doubling after 3 failures (cap 15 min); all clients together 20 failures per 15 min
+    # throttling: per client 1 s doubling after 3 failures (cap 15 min); beyond 20 failures per 15 min of all clients together, every client
+    # that has failed in that window waits too (a fresh client still gets its attempt, so nobody can lock the owner out)
     def wait_seconds(self, client: str) -> int:
         now = self.clock()
         with self.lock:
@@ -227,7 +228,7 @@ class AuthState:
             mine = [t for t in self.fails.get(client, []) if now - t < 900]
             self.fails[client] = mine
             wait = 0
-            if len(self.all_fails) >= 20:
+            if len(self.all_fails) >= 20 and mine:  # the global limit stops guessers, not somebody who has not failed: no lock-out from outside
                 wait = int(900 - (now - self.all_fails[0])) + 1
             if len(mine) >= 3:
                 wait = max(wait, int(min(900, 2 ** (len(mine) - 2)) - (now - mine[-1])) + 1)

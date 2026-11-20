@@ -98,6 +98,7 @@ At the bottom of the result page, review title, post, tags and category, then pr
 | [Publishing to trackers](docs/publishing.md) | Gazelle and UNIT3D, cookies and tokens, review step, seeding |
 | [Add your own tracker](docs/tracker-templates.md) | Step-by-step guide and full reference for tracker templates |
 | [Login & 2FA](docs/security.md) | Optional login, TOTP, recovery codes, what is protected and what not |
+| [Security audit](SECURITY-AUDIT.md) | Scope, method and results of the security review |
 | [Command line](docs/cli.md) | Every `tb` command with examples |
 
 ## 🧑‍🍳 Good to know

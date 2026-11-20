@@ -15,6 +15,7 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 from ..config import Tracker
+from ..net import keep_on_site
 from .base import LoginError, PublishRequest, PublishResult, TrackerError, UploadForm
 from .template import get_template
 
@@ -93,7 +94,8 @@ class GazellePublisher:
         self._form: dict | None = None
 
     def _client(self) -> httpx.Client:
-        return httpx.Client(transport=self.transport, timeout=60, headers={"Cookie": self.tracker.cookie, "User-Agent": UA}, follow_redirects=False)
+        return httpx.Client(transport=self.transport, timeout=60, headers={"Cookie": self.tracker.cookie, "User-Agent": UA}, follow_redirects=False,
+                            event_hooks=keep_on_site(self._url(""), "Cookie"))
 
     def _url(self, path: str) -> str:
         return urljoin(self.tracker.base_url.rstrip("/") + "/", path)

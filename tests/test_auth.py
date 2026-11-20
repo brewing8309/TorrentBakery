@@ -86,9 +86,10 @@ def test_throttling():
     assert s.wait_seconds("a") == 0  # delay doubles but ends
     for _ in range(20):
         s.failed(f"x{_}")
-    assert s.wait_seconds("fresh") > 0  # all clients together
+    assert s.wait_seconds("x0") > 0  # all clients together: whoever failed waits
+    assert s.wait_seconds("fresh") == 0  # ... but the owner cannot be locked out from outside
     now[0] += 901
-    assert s.wait_seconds("fresh") == 0
+    assert s.wait_seconds("x0") == 0
 
 
 def test_session_expiry():

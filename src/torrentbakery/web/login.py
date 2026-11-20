@@ -1,7 +1,10 @@
 """Login pages, the guard in front of every route and the security settings (see auth.py for the design)."""
 from __future__ import annotations
 
+import ipaddress
 import logging
+import os
+import threading
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
@@ -14,13 +17,54 @@ from . import auth
 
 log = logging.getLogger("torrentbakery.auth")
 PUBLIC = ("/login", "/static/")
-HEADERS = {"X-Frame-Options": "DENY", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "same-origin", "Cross-Origin-Opener-Policy": "same-origin"}
+HEADERS = {"X-Frame-Options": "DENY", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "same-origin", "Cross-Origin-Opener-Policy": "same-origin",
+           # the pages use inline scripts and styles; images come from the image hosts. No foreign scripts, no framing, forms only to us.
+           "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; "
+                                      "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"}
+
+
+def client_key(host: str) -> str:
+    """Whom failed logins are counted against: the address, for IPv6 its /64 (one machine easily holds a whole /64)."""
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return host
+    if ip.version == 6 and not ip.ipv4_mapped:
+        return str(ipaddress.ip_network(f"{host}/64", strict=False).network_address)
+    return host
+
+
+def allowed_hosts() -> list[str]:
+    return [h.strip().lower() for h in os.environ.get("TB_ALLOWED_HOSTS", "").split(",") if h.strip()]
+
+
+def host_ok(host: str | None) -> bool:
+    """Without a login, only names a DNS-rebinding page cannot take over: IP addresses, localhost, single-label LAN names and TB_ALLOWED_HOSTS."""
+    name = (urlparse("//" + (host or "")).hostname or "").lower()
+    if not name:
+        return False
+    try:
+        ipaddress.ip_address(name)
+        return True
+    except ValueError:
+        pass
+    return name == "localhost" or "." not in name or any(name == a or name.endswith("." + a.lstrip(".")) for a in allowed_hosts())
+
+
+def cross_site(request: Request) -> bool:
+    """A request another site made the browser send (CSRF). Refused for every changing method, login or not."""
+    site = request.headers.get("sec-fetch-site")
+    if site and site not in ("same-origin", "none"):
+        return True
+    origin = request.headers.get("origin")
+    return bool(origin) and urlparse(origin).netloc not in (request.headers.get("host"), request.headers.get("x-forwarded-host"))
 
 
 def install(app: FastAPI, templates: Jinja2Templates, config_path: Path | None) -> auth.AuthState:
     state = app.state.auth = auth.AuthState()
     cfg = lambda: config_mod.load(config_path)  # noqa: E731
-    client = lambda r: r.client.host if r.client else "?"  # noqa: E731
+    client = lambda r: client_key(r.client.host) if r.client else "?"  # noqa: E731
+    factor = threading.Lock()  # a code (or recovery code) is checked and marked as used in one go: two requests cannot both use it
 
     def cookie(resp: Response, request: Request, name: str, value: str, max_age: int) -> None:
         secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
@@ -37,11 +81,13 @@ def install(app: FastAPI, templates: Jinja2Templates, config_path: Path | None) 
         request.state.auth_on = a.enabled
         path = request.url.path
         resp: Response | None = None
+        if not a.enabled and not host_ok(request.headers.get("host")):
+            resp = Response(f"TorrentBakery does not answer to the name {request.headers.get('host')!r} while the login is off (DNS rebinding). "
+                            "Open it by its IP address, turn the login on, or add the name to TB_ALLOWED_HOSTS in /etc/default/torrentbakery.\n",
+                            status_code=421, media_type="text/plain")
+        elif request.method not in ("GET", "HEAD", "OPTIONS") and cross_site(request):  # CSRF: with the login on top of SameSite=Strict
+            resp = JSONResponse({"detail": "cross-site request refused"}, status_code=403)
         if a.enabled:
-            if request.method not in ("GET", "HEAD", "OPTIONS"):  # CSRF on top of SameSite=Strict
-                origin = request.headers.get("origin")
-                if origin and urlparse(origin).netloc != request.headers.get("host"):
-                    resp = JSONResponse({"detail": "cross-site request refused"}, status_code=403)
             if resp is None and not path.startswith(PUBLIC) and not state.valid(request.cookies.get(auth.SESSION_COOKIE)):
                 if request.method == "GET" and "text/html" in request.headers.get("accept", "text/html"):
                     resp = RedirectResponse("/login?next=" + quote(path + ("?" + request.url.query if request.url.query else ""), safe="/"), status_code=303)
@@ -109,20 +155,21 @@ def install(app: FastAPI, templates: Jinja2Templates, config_path: Path | None) 
         ctx = {"step": "code", "next": auth.safe_next(next)}
         if msg := throttled(request):
             return page(request, "login.html", {**ctx, "error": msg}, 429)
-        c = cfg()
-        step = auth.totp_match(c.auth.totp_secret, code, after_step=c.auth.totp_last_step)
-        if step:
-            c.auth.totp_last_step = step
-        elif len(code.replace("-", "").replace(" ", "")) > 6 and auth.use_recovery(c.auth, code[:64]):
-            log.warning("recovery code used from %s (%d left)", client(request), len(c.auth.recovery))
-        else:
-            state.failed(client(request))
-            state.pending_failed(pending)
-            log.warning("failed second factor from %s", client(request))
-            if not state.pending_valid(pending):
-                return RedirectResponse("/login", status_code=303)
-            return page(request, "login.html", {**ctx, "error": "That code is wrong or was already used."}, 401)
-        config_mod.save(c, config_path)
+        with factor:
+            c = cfg()
+            step = auth.totp_match(c.auth.totp_secret, code, after_step=c.auth.totp_last_step)
+            if step:
+                c.auth.totp_last_step = step
+            elif len(code.replace("-", "").replace(" ", "")) > 6 and auth.use_recovery(c.auth, code[:64]):
+                log.warning("recovery code used from %s (%d left)", client(request), len(c.auth.recovery))
+            else:
+                state.failed(client(request))
+                state.pending_failed(pending)
+                log.warning("failed second factor from %s", client(request))
+                if not state.pending_valid(pending):
+                    return RedirectResponse("/login", status_code=303)
+                return page(request, "login.html", {**ctx, "error": "That code is wrong or was already used."}, 401)
+            config_mod.save(c, config_path)
         return finish(request, next)
 
     @app.post("/logout")

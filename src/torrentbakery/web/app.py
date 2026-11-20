@@ -43,7 +43,7 @@ query Search($q: String!) {
 
 
 def create_app(out_root: Path = Path("out"), config_path: Path | None = None, manager: JobManager | None = None, transport: httpx.BaseTransport | None = None, qbit_transport: httpx.BaseTransport | None = None) -> FastAPI:
-    app = FastAPI(title="TorrentBakery")
+    app = FastAPI(title="TorrentBakery", docs_url=None, redoc_url=None, openapi_url=None)  # no API browser: the pages are the interface
     templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
     static_dir = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -60,6 +60,14 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     login_state = install_login(app, templates, config_path)
 
     tags_file = lambda: (config_path or config_mod.CONFIG_PATH).with_name("tags.toml")  # noqa: E731 - sits next to the config
+
+    def kept_secrets(old: Tracker, site: str, base_url: str, tpls: dict) -> dict:
+        """The saved cookie and token stay only with the site they were made for: a profile pointed at another address starts without them,
+        so nobody can send them elsewhere by editing (or probing) the address."""
+        new = (base_url.strip().rstrip("/") or (tpls[site].base_url if site in tpls else "")).rstrip("/")
+        if new == old.effective_base_url:
+            return {"cookie": old.cookie, "session_cookie": old.session_cookie}
+        return {"cookie": "", "session_cookie": ""}
 
     def save(c) -> RedirectResponse:
         config_mod.save(c, config_path)
@@ -367,7 +375,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
             raise HTTPException(400, "unknown tracker template")
         if not name or not (urls or (site and (base_url.strip() or tpls[site].base_url))):
             raise HTTPException(400, "name and an announce URL required (or a tracker template and cookie, to fetch it)")
-        creds = compose_credentials(tpls.get(site), form, {"cookie": old.cookie, "session_cookie": old.session_cookie})
+        creds = compose_credentials(tpls.get(site), form, kept_secrets(old, site, base_url, tpls))
         c.trackers[name] = replace(old, announce=urls, source=source.strip(), private=bool(private), site=site, base_url=base_url.strip().rstrip("/"),
                                    **creds, category=category.strip(), anonymous=bool(anonymous), auto_publish=bool(auto_publish and site),
                                    title_template=title_template.strip())
@@ -377,8 +385,8 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     async def tracker_categories(request: Request, name: str = Form(""), site: str = Form(""), base_url: str = Form("")):
         """The category names of the tracker as the form is filled in right now (a blank cookie means the saved one), so a profile can be set up before it is saved."""
         c = cfg()
-        old = c.trackers.get(name.strip(), Tracker())
-        creds = compose_credentials(load_templates()[0].get(site), await request.form(), {"cookie": old.cookie, "session_cookie": old.session_cookie})
+        old, tpls = c.trackers.get(name.strip(), Tracker()), load_templates()[0]
+        creds = compose_credentials(tpls.get(site), await request.form(), kept_secrets(old, site, base_url, tpls))
         probe = replace(old, site=site, base_url=base_url.strip().rstrip("/"), **creds)
         probe = replace(probe, base_url=probe.effective_base_url)
         if not site or not probe.base_url:
@@ -423,9 +431,12 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     @app.post("/settings/stash")
     def stash_set(url: str = Form(""), api_key: str = Form("")):
         c = cfg()
-        c.stash.url = url.strip().rstrip("/")
+        new = url.strip().rstrip("/")
         if api_key.strip():  # the key is never shown again, so blank means keep
             c.stash.api_key = api_key.strip()
+        elif new != c.stash.url:
+            c.stash.api_key = ""  # ... but only for the Stash it was made for
+        c.stash.url = new
         return save(c)
 
     @app.post("/settings/stash/test")
@@ -515,6 +526,8 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     def qbit_set(url: str = Form(""), username: str = Form(""), password: str = Form(""), category: str = Form(""), start: str = Form(""), path_map: str | None = Form(None)):
         c = cfg()
         q = c.qbit
+        if not password and url.strip().rstrip("/") != q.url:
+            q.password = ""  # the saved password belongs to the old address
         q.url, q.username, q.category, q.start = url.strip().rstrip("/"), username.strip(), category.strip(), bool(start)
         if password:  # never shown again, so blank means keep
             q.password = password
@@ -541,7 +554,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         saved = cfg().qbit
         tested = url.strip().rstrip("/") or saved.url
         q = replace(saved, url=tested, username=username.strip() if url.strip() else saved.username,
-                    password=password or saved.password)
+                    password=password or (saved.password if tested == saved.url else ""))  # the saved password only goes to the saved address
         try:
             return {"ok": True, "message": "Connected: " + QBittorrent(q, transport).test() + ("" if tested == saved.url else " (not saved yet: use Save)")}
         except QbitError as e:

@@ -26,7 +26,7 @@ What `install.sh` sets up:
 | `/var/lib/torrentbakery` | your data: `config.toml` (settings, keys, mode 0600), `out/` (baked releases, `history.jsonl`) |
 | `torrentbakery.service` | systemd service, user `torrentbakery`, port 8080 on all interfaces |
 | `/usr/local/bin/tb` | the command line, runs as the service user with the same settings |
-| `/etc/default/torrentbakery` | optional overrides (`TB_HOST`, `TB_PORT`, `TB_OUT`) |
+| `/etc/default/torrentbakery` | optional overrides (`TB_HOST`, `TB_PORT`, `TB_OUT`, `TB_ALLOWED_HOSTS`, `TB_TRUSTED_PROXIES`) |
 
 Another port: `sudo PORT=9000 ./install.sh`. Only local access: put `TB_HOST=127.0.0.1` into `/etc/default/torrentbakery` and restart the service.
 
@@ -52,7 +52,7 @@ Download and unpack the new version, run `sudo ./install.sh` again. Settings, hi
 `sudo /opt/torrentbakery/uninstall.sh` removes program and service; `--purge` also deletes `/var/lib/torrentbakery` (settings and releases).
 
 ## Behind a reverse proxy (https)
-Any proxy works (nginx, Caddy, Traefik, Nginx Proxy Manager). Forward to `http://<host>:8080`, nothing special needed. Turn on the [login](security.md) when it is reachable from outside your network. Example for Caddy:
+Any proxy works (nginx, Caddy, Traefik, Nginx Proxy Manager). Forward to `http://<host>:8080` and pass the original `Host` header (Caddy and NPM do; nginx needs `proxy_set_header Host $host;`). Turn on the [login](security.md) when it is reachable from outside your network. In `/etc/default/torrentbakery`, set `TB_TRUSTED_PROXIES=<proxy address>` so failed logins are counted per real client, not per proxy. While the login is off, also add the proxy's host name to `TB_ALLOWED_HOSTS`. Example for Caddy:
 ```
 bakery.example.org {
   reverse_proxy 10.0.0.16:8080
