@@ -94,10 +94,12 @@ const pick = path => { src.value = path; srcValue.value = path; labelValue.value
 async function boxSearch(path) {
   boxBox.innerHTML = ""; boxField.value = "";
   {% if has_boxes %}
-  const note = document.createElement("p"); note.className = "help"; note.textContent = "Searching your stash-boxes for this file name…"; boxBox.append(note);
+  const note = document.createElement("p"); note.className = "searching"; note.setAttribute("role", "status");
+  const spin = document.createElement("span"); spin.className = "spinner"; spin.setAttribute("aria-hidden", "true");
+  note.append(spin, "Searching your stash-boxes for this file name…"); boxBox.append(note);
   let d;
   try { d = await (await fetch("/stashbox/search?name=" + encodeURIComponent(path))).json(); }
-  catch (e) { note.textContent = "The stash-box search failed."; return; }
+  catch (e) { note.className = "err"; note.textContent = "The stash-box search failed."; return; }
   if (src.value !== path) return;  // another source was picked meanwhile
   boxBox.innerHTML = "";
   const head = document.createElement("p"); head.className = "help";

@@ -205,3 +205,10 @@ button.scene-hit img { flex: none; display: block; border-radius: var(--radius-t
 }
 
 .key { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .06em; user-select: all; overflow-wrap: anywhere; }
+
+/* running stash-box search */
+.searching { display: flex; align-items: center; gap: var(--sp-2); margin: var(--sp-2) 0; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--accent, currentColor); border-radius: 6px; font-weight: 600; animation: searching-pulse 1.4s ease-in-out infinite; }
+.spinner { width: 1.1em; height: 1.1em; flex: none; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes searching-pulse { 50% { opacity: .65; } }
+@media (prefers-reduced-motion: reduce) { .searching { animation: none; } }
