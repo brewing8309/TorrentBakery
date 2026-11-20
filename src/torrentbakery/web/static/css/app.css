@@ -52,7 +52,15 @@ b { font-weight: 700; }
 .theme-toggle .moon, :root[data-theme-now="dark"] .theme-toggle .sun { display: none; }
 :root[data-theme-now="dark"] .theme-toggle .moon { display: inline-block; }
 
-/* phones: the nav is a tab bar at the thumb */
+/* phones: the nav is a tab bar at the thumb (a backdrop filter on the bar would trap the fixed nav inside it) */
+@media (max-width: 47.99rem) {
+  .topbar { position: relative; background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .search #browse-btn span { display: none; }
+  .search #browse-btn { width: 2.75rem; padding: 0; }
+  .bake-summary { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-mask: linear-gradient(90deg, #000 85%, transparent); mask: linear-gradient(90deg, #000 85%, transparent); }
+  .bake-summary::-webkit-scrollbar { display: none; }
+  .bake-bar .btn-lg { padding-inline: var(--sp-5); }
+}
 .nav { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(3, 1fr); padding: var(--sp-1) var(--sp-2) calc(var(--sp-1) + env(safe-area-inset-bottom)); background: var(--chrome); -webkit-backdrop-filter: saturate(1.4) blur(14px); backdrop-filter: saturate(1.4) blur(14px); border-top: var(--line-thin) solid var(--rule); }
 .nav a { position: relative; display: flex; flex-direction: column; align-items: center; gap: .15rem; padding: var(--sp-1) 0; color: var(--muted); font: 700 .8125rem/1.1 var(--font-display); text-transform: uppercase; letter-spacing: .06em; text-decoration: none; }
 .nav a .ic { width: 3.5rem; height: 2rem; padding: .3rem 1rem; border-radius: var(--radius-pill); transition: background-color var(--dur-fast) var(--ease); }
@@ -74,7 +82,7 @@ b { font-weight: 700; }
 .panel--accent, .sheet--accent { border-top: var(--line-heavy) solid var(--accent); }
 .panel-head, .sheet-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-3); }
 .panel-head h2, .sheet-head h2 { font-size: var(--text-lg); }
-.panel-head .lead, .sheet-head .lead, .sheet-head .help { flex-basis: 100%; margin-top: 0; }
+.panel-head .lead, .panel-head .help, .sheet-head .lead, .sheet-head .help { flex-basis: 100%; margin-top: 0; }
 .panel-head .spacer { flex: 1; }
 .form-title { margin: var(--sp-6) 0 var(--sp-2); font-size: var(--text-md); font-weight: 700; letter-spacing: .04em; }
 
@@ -180,7 +188,10 @@ details[open] > summary { border-bottom: var(--line-thin) solid var(--rule); bor
 
 /* ---- status pills ---- */
 .pill { display: inline-flex; align-items: center; gap: .4rem; padding: .15rem .6rem .15rem .5rem; border-radius: var(--radius-pill); font: 600 .6875rem/1.6 var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: var(--sunken); white-space: nowrap; }
-.pill::before { content: ""; width: .45rem; height: .45rem; border-radius: 50%; background: currentColor; }
+.pill::before { content: ""; width: .45rem; height: .45rem; border-radius: 50%; background: var(--dot, currentColor); }
+/* on top of a picture the pill is a dark glass chip, the dot keeps the status colour */
+.bake-thumb .pill, .release-cover .pill { background: rgb(21 24 27 / .8); color: #F3F4F1; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.bake-thumb .pill--done, .release-cover .pill--done { --dot: #57C7BE; } .bake-thumb .pill--error { --dot: #FF8A75; } .bake-thumb .pill--running, .bake-thumb .pill--queued { --dot: #F5B301; }
 .pill--done { color: var(--ok); background: var(--petrol-soft); }
 .pill--error { color: var(--err); background: var(--ember-soft); }
 .pill--running, .pill--queued { color: var(--on-accent); background: var(--accent); }
