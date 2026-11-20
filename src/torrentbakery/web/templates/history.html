@@ -1,31 +1,60 @@
 {% extends "base.html" %}
+{% from "_icons.html" import ic %}
 {% block title %}History · TorrentBakery{% endblock %}
 {% block body %}
-<div class="page-head">
-  <h1>History</h1>
-  <p class="lead">Every bake, newest first. It is kept across restarts. Deleting an entry also deletes its files (torrent, images, post, ZIP) from the output folder for good.</p>
-  {% if jobs %}<form method="post" action="/history/clear" onsubmit="return confirm('Delete the ENTIRE history, including all baked files (torrents, images, ZIPs)? This cannot be undone.')"><p class="actions"><button class="ghost danger">Delete entire history</button></p></form>{% endif %}
+<div class="page-head head-row">
+  <div>
+    <h1>History</h1>
+    <p class="lead">Every bake, newest first, kept across restarts. Deleting an entry also deletes its files for good.</p>
+  </div>
+  {% if jobs %}<form method="post" action="/history/clear" onsubmit="return confirm('Delete the ENTIRE history, including all baked files (torrents, images, ZIPs)? This cannot be undone.')"><button class="ghost danger sm">{{ ic("trash") }}Delete entire history</button></form>{% endif %}
 </div>
-<section class="sheet">
-  {% if jobs %}
-  <ol class="bakes">
-    {% for j in jobs %}
-    <li class="bake-row">
-      <a class="bake-thumb" href="/jobs/{{ j.id }}" tabindex="-1" aria-hidden="true">{% if thumbs.get(j.id) %}<img src="{{ thumbs[j.id] }}" alt="" loading="lazy" referrerpolicy="no-referrer">{% endif %}</a>
-      <div class="bake-main">
-        <a class="bake-title" href="/jobs/{{ j.id }}">{{ j.label or j.title or j.source.rsplit("/", 1)[-1] }}</a>
-        <p class="bake-meta"><time>{{ j.created | datetime }}</time><span>{{ j.source.rsplit("/", 1)[-1] }}</span>{% if j.options.get("tracker") %}<span>{{ j.options.get("tracker") }}</span>{% endif %}{% if j.options.get("upload") %}<span>{{ j.options.get("upload") }}</span>{% endif %}</p>
-        {% if j.status == "error" %}<p class="bake-error">{{ j.error[:200] }}</p>{% endif %}
-        {% set pub = published.get(j.id, {}) %}{% if pub %}<p class="bake-pub">Published at {% for tn, r in pub.items() %}<a href="{{ r.torrent_url }}" target="_blank" rel="noopener">{{ tn }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
-      </div>
-      <div class="bake-side">
-        <span class="pill pill--{{ j.status }}">{{ j.status }}</span>
-        <form class="inline" method="post" action="/jobs/{{ j.id }}/delete"
-          onsubmit="return confirm('Delete this entry and all its files?{% if shared[j.id] %} {{ shared[j.id] }} other entr{{ "y" if shared[j.id] == 1 else "ies" }} for the same release folder will be removed too.{% endif %}')"><button class="ghost danger">Delete</button></form>
-      </div>
-    </li>
-    {% endfor %}
-  </ol>
-  {% else %}<p class="empty">Nothing baked yet.</p>{% endif %}
-</section>
+{% if jobs %}
+{% set counts = {"done": 0, "error": 0, "running": 0} %}
+{% for j in jobs %}{% set k = "running" if j.status in ("queued", "running") else j.status %}{% if k in counts %}{% set _ = counts.update({k: counts[k] + 1}) %}{% endif %}{% endfor %}
+<div class="toolbar">
+  <label class="sr-only" for="h-q">Filter</label>
+  <div class="search">{{ ic("search") }}<input type="search" id="h-q" placeholder="Filter by title, file, tracker…" autocomplete="off"></div>
+  <div class="seg" role="group" aria-label="Status">
+    <button type="button" aria-pressed="true" data-f="">All <span class="count">{{ jobs | length }}</span></button>
+    <button type="button" aria-pressed="false" data-f="done">Done <span class="count">{{ counts.done }}</span></button>
+    <button type="button" aria-pressed="false" data-f="error">Failed <span class="count">{{ counts.error }}</span></button>
+    {% if counts.running %}<button type="button" aria-pressed="false" data-f="running">Baking <span class="count">{{ counts.running }}</span></button>{% endif %}
+  </div>
+</div>
+<ol class="bakes" id="bakes">
+  {% for j in jobs %}
+  {% set name = j.label or j.title or j.source.rsplit("/", 1)[-1] %}
+  <li class="bake-card" data-status="{{ 'running' if j.status in ('queued', 'running') else j.status }}" data-q="{{ (name ~ ' ' ~ j.source ~ ' ' ~ (j.options.get('tracker') or '') ~ ' ' ~ (j.options.get('upload') or '')) | lower }}">
+    <span class="bake-thumb">{% if thumbs.get(j.id) %}<img src="{{ thumbs[j.id] }}" alt="" loading="lazy" referrerpolicy="no-referrer">{% else %}{{ ic("image") }}{% endif %}<span class="pill pill--{{ j.status }}">{{ j.status }}</span></span>
+    <div class="bake-body">
+      <span class="pill pill--{{ j.status }}">{{ j.status }}</span>
+      <a class="bake-title" href="/jobs/{{ j.id }}">{{ name }}</a>
+      <p class="bake-meta"><time data-ts="{{ j.created }}">{{ j.created | datetime }}</time>{% if j.options.get("tracker") %}<span>{{ j.options.get("tracker") }}</span>{% endif %}{% if j.options.get("upload") %}<span>{{ j.options.get("upload") }}</span>{% endif %}</p>
+      {% if j.status == "error" %}<p class="bake-error">{{ j.error[:200] }}</p>{% endif %}
+      {% set pub = published.get(j.id, {}) %}{% if pub %}<p class="bake-pub">Published at {% for tn, r in pub.items() %}<a href="{{ r.torrent_url }}" target="_blank" rel="noopener">{{ tn }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+    </div>
+    <div class="bake-foot">
+      <span class="src" title="{{ j.source }}">{{ j.source.rsplit("/", 1)[-1] }}</span>
+      <form class="inline" method="post" action="/jobs/{{ j.id }}/delete"
+        onsubmit="return confirm('Delete this entry and all its files?{% if shared[j.id] %} {{ shared[j.id] }} other entr{{ "y" if shared[j.id] == 1 else "ies" }} for the same release folder will be removed too.{% endif %}')"><button class="ghost danger" aria-label="Delete {{ name }}">{{ ic("trash") }}Delete</button></form>
+    </div>
+  </li>
+  {% endfor %}
+</ol>
+<p class="empty no-match">{{ ic("search") }}No bake matches this filter.</p>
+<script>
+(() => {
+  const q = document.getElementById("h-q"), list = document.getElementById("bakes"), cards = [...list.children], btns = document.querySelectorAll("[data-f]");
+  let f = "";
+  const apply = () => {
+    const words = q.value.toLowerCase().split(/\s+/).filter(Boolean); let n = 0;
+    for (const c of cards) { const on = (!f || c.dataset.status === f) && words.every(w => c.dataset.q.includes(w)); c.hidden = !on; n += on; }
+    list.classList.toggle("is-empty", !n);
+  };
+  q.addEventListener("input", apply);
+  btns.forEach(b => b.addEventListener("click", () => { f = b.dataset.f; btns.forEach(x => x.setAttribute("aria-pressed", String(x === b))); apply(); }));
+})();
+</script>
+{% else %}<div class="empty">{{ ic("bake") }}<p>Nothing baked yet.</p><a class="btn" href="/">Bake your first release</a></div>{% endif %}
 {% endblock %}

@@ -46,9 +46,10 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     static_dir = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     # stylesheet links carry a content hash, so an update never leaves a browser on the old design
-    templates.env.globals["asset_v"] = hashlib.sha256(b"".join(p.read_bytes() for p in sorted(static_dir.glob("css/*.css")))).hexdigest()[:10]
+    templates.env.globals["asset_v"] = hashlib.sha256(b"".join(p.read_bytes() for p in sorted(static_dir.glob("*/*.[cj]s*")))).hexdigest()[:10]
     # announce URLs carry the tracker passkey: the pages only ever show the host
     templates.env.filters["datetime"] = lambda ts: time.strftime("%Y-%m-%d %H:%M", time.localtime(ts)) if ts else ""
+    templates.env.filters["size"] = lambda n: f"{n / 2**30:.2f} GiB" if n >= 2**30 else f"{n / 2**20:.1f} MiB" if n >= 2**20 else f"{max(1, round(n / 2**10))} KiB"
     templates.env.filters["urlhost"] = lambda u: urlparse(u).netloc or u
     jobs = manager or JobManager(out_root, config_path)
     cfg = lambda: config_mod.load(config_path)  # noqa: E731 - re-read per request so settings edits apply at once
@@ -70,11 +71,23 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     def job_files(job) -> list[str]:
         return sorted(p.name for p in job.out_dir.iterdir() if p.is_file()) if job.out_dir and job.out_dir.is_dir() else []
 
+    def job_thumbs(js) -> dict[str, str]:
+        """A picture per entry: the Stash scene's screenshot, else the baked cover."""
+        thumbs, stash_on = {}, bool(cfg().stash.url)
+        for j in js:
+            if j.source.startswith("stash:") and j.source[6:].isdigit() and stash_on:
+                thumbs[j.id] = f"/stash-thumb/{j.source[6:]}"
+            elif j.out_dir and j.out_dir.is_dir():
+                cover = next(iter(sorted(j.out_dir.glob("cover.*"))), None)
+                if cover:
+                    thumbs[j.id] = f"/jobs/{j.id}/files/{cover.name}"
+        return thumbs
+
     # ---- bake ----
     @app.get("/")
     def index(request: Request):
         c = cfg()
-        return templates.TemplateResponse(request, "index.html", {"default_host": c.default_host, "cover_source": c.cover_source, "cover_format": c.cover_format, "last": c.last_used, "trackers": list(c.trackers), "tracker_hosts": {n: {"site": t.site, "hosts": list(t.template.image_hosts) if t.template else []} for n, t in c.trackers.items()}, "host_sites": HOST_SITES, "publishable": [n for n, t in c.trackers.items() if t.site], "hosts": HOST_NAMES, "stash": bool(c.stash.url), "has_boxes": bool(c.stashboxes), "roots": c.web_media_roots, "jobs": jobs.recent(), "total_jobs": len(jobs.jobs)})
+        return templates.TemplateResponse(request, "index.html", {"default_host": c.default_host, "cover_source": c.cover_source, "cover_format": c.cover_format, "last": c.last_used, "trackers": list(c.trackers), "tracker_hosts": {n: {"site": t.site, "hosts": list(t.template.image_hosts) if t.template else []} for n, t in c.trackers.items()}, "host_sites": HOST_SITES, "publishable": [n for n, t in c.trackers.items() if t.site], "hosts": HOST_NAMES, "stash": bool(c.stash.url), "has_boxes": bool(c.stashboxes), "roots": c.web_media_roots, "jobs": jobs.recent(), "thumbs": job_thumbs(jobs.recent()), "total_jobs": len(jobs.jobs)})
 
     @app.get("/history")
     def history(request: Request):
@@ -87,15 +100,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
                 except ValueError:
                     pass
         shared = {j.id: len(jobs.related(j)) - 1 for j in jobs.all()}  # other entries that would go with it (same output folder)
-        thumbs = {}
-        for j in jobs.all():  # a picture per entry: the Stash scene's screenshot, else the baked cover
-            if j.source.startswith("stash:") and j.source[6:].isdigit() and cfg().stash.url:
-                thumbs[j.id] = f"/stash-thumb/{j.source[6:]}"
-            elif j.out_dir and j.out_dir.is_dir():
-                cover = next(iter(sorted(j.out_dir.glob("cover.*"))), None)
-                if cover:
-                    thumbs[j.id] = f"/jobs/{j.id}/files/{cover.name}"
-        return templates.TemplateResponse(request, "history.html", {"jobs": jobs.all(), "published": published, "shared": shared, "thumbs": thumbs})
+        return templates.TemplateResponse(request, "history.html", {"jobs": jobs.all(), "published": published, "shared": shared, "thumbs": job_thumbs(jobs.all())})
 
     @app.post("/jobs/{job_id}/delete")
     def job_delete(job_id: str):
@@ -224,7 +229,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
             pub_error = (job.out_dir / "publish-error.txt").read_text().strip()
         c = cfg()
         return templates.TemplateResponse(request, "job.html", {"job": job, "title": title, "failed_label": STEPS[job.failed_step][0] if job.failed_step in STEPS else "", "published": published, "pub_error": pub_error, "publishable": [n for n, t in c.trackers.items() if t.site],
-                       "job_tracker": job.options.get("tracker") or "", "has_image_host": bool(meta.get("uploads")), "files": job_files(job), "post": post, "uploads": meta.get("uploads", {}), "host": meta.get("image_host", ""), "cover_file": meta.get("cover_file", "cover.jpg"),
+                       "job_tracker": job.options.get("tracker") or "", "has_image_host": bool(meta.get("uploads")), "files": job_files(job), "sizes": {f: (job.out_dir / f).stat().st_size for f in job_files(job)}, "post": post, "uploads": meta.get("uploads", {}), "host": meta.get("image_host", ""), "cover_file": meta.get("cover_file", "cover.jpg"),
                        "folder_name": meta.get("folder_name", ""), "folder_path": meta.get("folder_path", ""),
                        "release_title": meta.get("release", {}).get("title") or title,
                        "tags": release_tags(meta.get("release", {}))})

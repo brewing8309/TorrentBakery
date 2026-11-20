@@ -4,7 +4,7 @@
 {% macro mark(on) %}<span class="mark{{ ' on' if on }}" role="img" aria-label="{{ 'set up' if on else 'not set up' }}"></span>{% endmacro %}
 <div class="page-head">
   <h1>Settings</h1>
-  <p class="lead">Here you decide where TorrentBakery gets its data and where the torrents go. For the usual case (baking a scene from Stash) you only need the Stash and Tracker profiles tabs.</p>
+  <p class="lead">Where TorrentBakery gets its data and where the torrents go. For the usual case, a Stash scene, you only need <b>Stash</b> and <b>Tracker profiles</b>.</p>
 </div>
 <div class="settings-layout">
 <nav class="tabs" role="tablist" aria-label="Settings sections">
@@ -18,7 +18,7 @@
   <a role="tab" href="#tags">{{ mark(tag_default or tag_tracker or tag_ignored) }}Tag mapping</a>
   <a role="tab" href="#auth">{{ mark(c.auth.enabled) }}Login</a>
 </nav>
-<p class="help tabs-note"><span class="mark on" aria-hidden="true"></span> = set up. Every change is saved immediately and applies to the next bake. Saved API keys are never shown again.</p>
+<p class="help tabs-note"><span class="mark on" aria-hidden="true"></span> set up · changes apply to the next bake · saved keys are never shown again.</p>
 <div class="settings-main">
 
 <section role="tabpanel" id="stash" class="sheet">

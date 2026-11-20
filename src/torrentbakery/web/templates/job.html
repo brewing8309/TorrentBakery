@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from "_icons.html" import ic %}
 {% block body %}
 {% if job.status in ("queued", "running") %}
 <div class="bake" id="bake">
   <header class="bake-head">
-    <p class="eyebrow"><span id="b-eyebrow">In the oven</span> · <span id="b-elapsed">0:00</span></p>
+    <p class="eyebrow">{{ ic("bake") }}<span id="b-eyebrow">In the oven</span> · <span id="b-elapsed">0:00</span></p>
     <h1>{{ title }}</h1>
     <p class="bake-sub" id="b-sub" hidden></p>
   </header>
@@ -145,108 +146,144 @@
 </script>
 {% elif job.status == "error" %}
 <div class="page-head release-head">
-  <p class="eyebrow err-eyebrow">Burnt</p>
+  <p class="eyebrow err-eyebrow">{{ ic("alert") }} Burnt</p>
   <h1>{{ title }}</h1>
-  <div class="note note--err">
-    <p><b>The bake failed{% if failed_label %} while “{{ failed_label }}”{% endif %}.</b></p>
+  <div class="panel note--err" style="margin-top:var(--sp-5)">
+    <p style="margin-top:0"><b>The bake failed{% if failed_label %} while “{{ failed_label }}”{% endif %}.</b></p>
     <pre class="errtext">{{ job.error }}</pre>
   </div>
   <form class="actions" method="post" action="/jobs">
     <input type="hidden" name="source" value="{{ job.source }}"><input type="hidden" name="label" value="{{ job.label }}">
     {% for k, v in (("tracker", job.options.get("tracker") or ""), ("upload", job.options.get("upload") or ""), ("stashbox", job.options.get("stashbox") or ""), ("cover_source", job.options.get("cover_source") or ""), ("cover_format", job.options.get("cover_format") or "")) %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
     {% if job.options.get("nsfw") is false %}<input type="hidden" name="sfw" value="1">{% endif %}
-    <button>Bake again</button> <a class="btn ghost" href="/">Back</a>
+    <button>{{ ic("refresh") }}Bake again</button> <a class="btn ghost" href="/">Back</a>
   </form>
 </div>
 {% else %}
-<div class="page-head release-head">
-  <p class="eyebrow ok-eyebrow">Fresh out of the oven{% if job.started and job.finished %} · baked in {{ ((job.finished - job.started) // 60) | int }}:{{ "%02d" | format(((job.finished - job.started) % 60) | int) }}{% endif %}</p>
-  <h1>{{ title }}</h1>
-  <p class="actions">
-    <a class="btn{% if publishable %} ghost{% endif %}" href="/jobs/{{ job.id }}/zip">Download everything as ZIP</a>
-    {% for f in files if f.endswith(".torrent") %}<a class="btn ghost" href="/jobs/{{ job.id }}/files/{{ f | urlencode }}">{{ f }}</a>{% endfor %}
-    {% if publishable %}<a class="btn" href="#publish">Next: review &amp; publish ↓</a>{% endif %}
-  </p>
-</div>
+{% set cover_up = uploads.get("cover") %}
+{% set cover_src = cover_up.direct_url if cover_up else ("/jobs/" ~ job.id ~ "/files/" ~ cover_file if cover_file in files else "") %}
+<header class="release-hero{% if not cover_src %} no-cover{% endif %}">
+  {% if cover_src %}<a class="release-cover" href="{{ cover_src }}" target="_blank" rel="noopener"><img src="{{ cover_src }}" alt="Animated cover" referrerpolicy="no-referrer"><span class="pill pill--done">baked</span></a>{% endif %}
+  <div class="release-info">
+    <p class="eyebrow ok-eyebrow">{{ ic("check") }} Fresh out of the oven{% if job.started and job.finished %} · baked in {{ ((job.finished - job.started) // 60) | int }}:{{ "%02d" | format(((job.finished - job.started) % 60) | int) }}{% endif %}</p>
+    <h1>{{ title }}</h1>
+    <ul class="facts-row">
+      <li>{{ ic("history") }}<time data-ts="{{ job.created }}">{{ job.created | datetime }}</time></li>
+      {% if job.options.get("tracker") %}<li>{{ ic("torrent") }}{{ job.options.get("tracker") }}</li>{% endif %}
+      <li>{{ ic("image") }}{{ host or "no image host" }}</li>
+      {% for tname in published %}<li class="ok-fact">{{ ic("check") }}on {{ tname }}</li>{% endfor %}
+    </ul>
+    <p class="actions">
+      {% if publishable %}<a class="btn" href="#publish">{{ ic("arrow-down") }}Next: review &amp; publish ↓</a>{% endif %}
+      <a class="btn{% if publishable %} ghost{% endif %}" href="/jobs/{{ job.id }}/zip">{{ ic("zip") }}Download everything as ZIP</a>
+    </p>
+  </div>
+</header>
 {% endif %}
 {% if job.status not in ("queued", "running", "error") %}
-<section class="sheet sheet--rail">
-  <div class="sheet-head"><h2>Title</h2></div>
-  <div class="sheet-body">
+<div class="release-grid">
+<div class="release-main">
+  <section class="panel">
+    <div class="panel-head"><h2>Title</h2><button type="button" class="ghost sm btn-copy" onclick="copyText('release-title', 'Title')">{{ ic("copy") }}Copy</button></div>
     <input type="text" id="release-title" readonly value="{{ release_title }}">
-    <p class="actions"><button type="button" class="ghost" onclick="copyText('release-title', 'copied-title')">Copy title</button> <span id="copied-title" class="ok"></span></p>
-  </div>
-</section>
-{% if folder_name %}
-<section class="sheet sheet--rail">
-  <div class="sheet-head"><h2>Folder</h2><p class="help">The folder you selected, or the parent folder of the file.</p></div>
-  <div class="sheet-body">
-    <input type="text" id="folder-name" readonly value="{{ folder_name }}">
-    <p class="actions"><button type="button" class="ghost" onclick="copyText('folder-name', 'copied-folder')">Copy folder name</button> <span id="copied-folder" class="ok"></span></p>
-    <input type="text" id="folder-path" readonly value="{{ folder_path }}">
-    <p class="actions"><button type="button" class="ghost" onclick="copyText('folder-path', 'copied-folder')">Copy full path</button></p>
-  </div>
-</section>
-{% endif %}
-<section class="sheet sheet--rail">
-  <div class="sheet-head"><h2>Forum post (BBCode)</h2></div>
-  <div class="sheet-body">
-    {% if not uploads %}<p class="note">No image host was chosen: the post contains only the file names (<code>{{ cover_file }}</code> and <code>contactsheet.jpg</code>) instead of image links. Pick a host on the start page next time, or download the images below and upload them yourself.</p>{% endif %}
-    <textarea id="post" rows="18" readonly>{{ post }}</textarea>
-    <p class="actions"><button type="button" class="ghost" onclick="copyText('post', 'copied')">Copy post</button> <span id="copied" class="ok"></span></p>
-  </div>
-</section>
-{% if tags %}
-<section class="sheet sheet--rail">
-  <div class="sheet-head"><h2>Tags</h2><p class="help">The tags from Stash for the tracker's tag field: separated by spaces, with spaces inside a tag replaced by dots.</p></div>
-  <div class="sheet-body">
-    <textarea id="tags" rows="2" readonly>{{ tags }}</textarea>
-    <p class="actions"><button type="button" class="ghost" onclick="copyText('tags', 'copied-tags')">Copy tags</button> <span id="copied-tags" class="ok"></span></p>
-  </div>
-</section>
-{% endif %}
-<section class="sheet sheet--rail">
-  <div class="sheet-head"><h2>Images</h2></div>
-  <div class="sheet-body">
-    <div class="result-grid">
-      {% for role, f, name in (("cover", cover_file, "Animated cover"), ("sheet", "contactsheet.jpg", "Screenshot sheet")) if f in files %}
-      {% set up = uploads.get(role) %}
-      <div>
-        {% if up %}
-          <a href="{{ up.page_url or up.direct_url }}" target="_blank" rel="noopener"><img class="preview" src="{{ (up.direct_url if role == "cover" else (up.thumb_url or up.direct_url)) }}" alt="{{ name }}"></a>
-          <p><b>{{ name }}</b> at {{ host }}: <a href="{{ up.page_url or up.direct_url }}" target="_blank" rel="noopener">page</a> · <a href="{{ up.direct_url }}" target="_blank" rel="noopener">image link</a><br>
-          <span class="mute">File to upload yourself: <a href="/jobs/{{ job.id }}/files/{{ f }}" download>{{ f }}</a></span></p>
-        {% else %}
-          <img class="preview" src="/jobs/{{ job.id }}/files/{{ f }}" alt="{{ name }}">
-          <p><b>{{ name }}</b> (not uploaded): <a href="/jobs/{{ job.id }}/files/{{ f }}" download>download {{ f }}</a></p>
-        {% endif %}
+    {% if folder_name %}
+    <label class="field-label" for="folder-name" style="margin-top:var(--sp-4)">Folder <span class="mute" style="text-transform:none;letter-spacing:0">· the folder you picked, or the file's parent</span></label>
+    <div class="copy-field"><input type="text" id="folder-name" readonly value="{{ folder_name }}"><button type="button" class="ghost icon" onclick="copyText('folder-name', 'Folder name')" aria-label="Copy folder name" title="Copy folder name">{{ ic("copy") }}</button></div>
+    <div class="copy-field"><input type="text" id="folder-path" readonly value="{{ folder_path }}"><button type="button" class="ghost icon" onclick="copyText('folder-path', 'Full path')" aria-label="Copy full path" title="Copy full path">{{ ic("copy") }}</button></div>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Forum post (BBCode)</h2>
+      <div class="seg" role="group" aria-label="View">
+        <button type="button" aria-pressed="false" data-view="preview">{{ ic("eye") }}Preview</button><button type="button" aria-pressed="true" data-view="code">{{ ic("code") }}BBCode</button>
       </div>
-      {% endfor %}
+      <button type="button" class="ghost sm btn-copy" onclick="copyText('post', 'Post')">{{ ic("copy") }}Copy</button>
     </div>
-    <p class="mute">All files: {% for f in files %}<a href="/jobs/{{ job.id }}/files/{{ f | urlencode }}">{{ f }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>
-    <script>
-      function copyText(id, msg) {
-        const t = document.getElementById(id); t.select();
-        const done = () => document.getElementById(msg).textContent = "Copied";
-        if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t.value).then(done);
-        else { document.execCommand("copy"); done(); }  // plain-http LAN pages have no clipboard API
-      }
-    </script>
-  </div>
-</section>
-<section id="publish" class="sheet sheet--rail sheet--accent">
-  <div class="sheet-head">
+    {% if not uploads %}<p class="note">No image host was chosen: the post names the files (<code>{{ cover_file }}</code>, <code>contactsheet.jpg</code>) instead of linking them. Upload them yourself, or pick a host next time.</p>{% endif %}
+    <textarea id="post" rows="18" readonly>{{ post }}</textarea>
+    <div class="bb-preview" id="post-preview" hidden></div>
+  </section>
+
+  {% if tags %}
+  <section class="panel">
+    <div class="panel-head"><h2>Tags</h2><button type="button" class="ghost sm btn-copy" onclick="copyText('tags', 'Tags')">{{ ic("copy") }}Copy</button>
+      <p class="help">From Stash for the tracker's tag field: spaces between tags, dots inside them.</p></div>
+    <textarea id="tags" rows="2" readonly>{{ tags }}</textarea>
+  </section>
+  {% endif %}
+</div>
+
+<aside class="release-side">
+  <section class="panel">
+    <div class="panel-head"><h2>Downloads</h2></div>
+    <ul class="files">
+      <li class="file file--zip"><span class="file-ic">{{ ic("zip") }}</span><span><a class="file-name" href="/jobs/{{ job.id }}/zip">Everything as ZIP</a><span class="file-sub">{{ files | length }} files</span></span>{{ ic("download") }}</li>
+      {% for f in files if f.endswith(".torrent") %}
+      {% set parts = f[:-8].rsplit(".tracker.", 1) %}
+      {% if parts | length == 2 %}{% set dl = parts[1].endswith(".downloaded") %}{% set tn = parts[1][:-11] if dl else parts[1] %}{% endif %}
+      <li class="file file--torrent"><span class="file-ic">{{ ic("torrent") }}</span><span><a class="file-name" href="/jobs/{{ job.id }}/files/{{ f | urlencode }}" title="{{ f }}">{% if parts | length == 2 %}{{ tn }} · {{ "from the tracker (seed this)" if dl else "as uploaded" }}{% else %}Baked torrent{% endif %}</a><span class="file-sub">{{ sizes[f] | size }} · .torrent</span></span>{{ ic("download") }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Images</h2>{% if host %}<span class="badge">{{ host }}</span>{% endif %}</div>
+    {% for role, f, name in (("cover", cover_file, "Animated cover"), ("sheet", "contactsheet.jpg", "Screenshot sheet")) if f in files %}
+    {% set up = uploads.get(role) %}
+    <figure class="shot">
+      {% if up %}
+      <a class="shot-img" href="{{ up.page_url or up.direct_url }}" target="_blank" rel="noopener"><img class="preview" src="{{ (up.direct_url if role == "cover" else (up.thumb_url or up.direct_url)) }}" alt="{{ name }}" loading="lazy" referrerpolicy="no-referrer"></a>
+      <figcaption><b>{{ name }}</b><a href="{{ up.page_url or up.direct_url }}" target="_blank" rel="noopener">{{ ic("external") }}page</a><a href="{{ up.direct_url }}" target="_blank" rel="noopener">{{ ic("external") }}image link</a><a href="/jobs/{{ job.id }}/files/{{ f }}" download title="{{ f }}">{{ ic("download") }}file</a></figcaption>
+      {% else %}
+      <a class="shot-img" href="/jobs/{{ job.id }}/files/{{ f }}" target="_blank" rel="noopener"><img class="preview" src="/jobs/{{ job.id }}/files/{{ f }}" alt="{{ name }}" loading="lazy"></a>
+      <figcaption><b>{{ name }}</b><span class="mute">not uploaded</span><a href="/jobs/{{ job.id }}/files/{{ f }}" download>{{ ic("download") }}{{ f }}</a></figcaption>
+      {% endif %}
+    </figure>
+    {% endfor %}
+  </section>
+
+  <section class="panel">
+    <details style="margin:0;border:0;background:none">
+      <summary style="padding:0">All files ({{ files | length }})</summary>
+      <ul class="files files--compact" style="margin:var(--sp-3) 0 0">
+        {% for f in files %}<li class="file"><span class="file-ic">{{ ic("torrent" if f.endswith(".torrent") else "image" if f.rsplit(".", 1)[-1] in ("jpg", "png", "webp", "gif") else "file") }}</span><a class="file-name" href="/jobs/{{ job.id }}/files/{{ f | urlencode }}">{{ f }}</a><span class="file-sub">{{ sizes[f] | size }}</span></li>{% endfor %}
+      </ul>
+    </details>
+  </section>
+</aside>
+</div>
+<script>
+(() => {
+  const post = document.getElementById("post"), view = document.getElementById("post-preview"), btns = document.querySelectorAll("[data-view]");
+  const show = v => {
+    const pre = v === "preview";
+    if (pre && !view.childElementCount) view.innerHTML = tbBBCode(post.value);
+    post.hidden = pre; view.hidden = !pre;
+    btns.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === v)));
+    try { localStorage.setItem("tb-post-view", v); } catch (e) {}
+  };
+  btns.forEach(b => b.addEventListener("click", () => show(b.dataset.view)));
+  let saved = null; try { saved = localStorage.getItem("tb-post-view"); } catch (e) {}
+  if (saved === "preview") document.addEventListener("DOMContentLoaded", () => show("preview"));
+})();
+</script>
+<section id="publish" class="panel panel--accent" style="margin-top:var(--sp-5)">
+  <div class="publish-head">
+    <p class="eyebrow">{{ ic("upload") }} Last step</p>
     <h2>Step 2: review and publish</h2>
-    <p class="help">The bake is finished and nothing has been uploaded yet. Look through the result above (title, post, tags, images), change what you want below, then upload.</p>
+    <p class="help">Nothing has been uploaded yet. Look through the result above, adjust what you want below, then upload.</p>
   </div>
   <div class="sheet-body">
     {% if pub_error %}<p class="err">Automatic publishing failed: {{ pub_error }}</p>{% endif %}
     {% for tname, r in published.items() %}
-      <p class="ok published">Published on <b>{{ tname }}</b>: <a href="{{ r.torrent_url }}" target="_blank" rel="noopener">{{ r.torrent_url }}</a>
-        {% if r.qbit %}· qBittorrent: <span class="{{ 'ok' if r.qbit.ok else 'err' }}" id="seed-msg-{{ loop.index0 }}">{{ r.qbit.message }}</span>{% endif %}
-        {% if r.artwork is defined and r.artwork %}<br><span class="{{ 'ok' if r.artwork.ok else 'err' }}" id="art-msg-{{ loop.index0 }}">Cover and banner: {{ r.artwork.message }}</span>
-          {% if not r.artwork.ok %}<button type="button" class="ghost" onclick="artworkAgain({{ tname | tojson | forceescape }}, 'art-msg-{{ loop.index0 }}', this)">Set cover and banner again</button>{% endif %}{% endif %}
-        <button type="button" class="ghost" onclick="seedAgain({{ tname | tojson | forceescape }}, 'seed-msg-{{ loop.index0 }}', this)">Add to qBittorrent again</button></p>
+      <div class="published"><span class="pub-ic">{{ ic("check") }}</span>
+        <span class="published-title">Published on {{ tname }}: <a href="{{ r.torrent_url }}" target="_blank" rel="noopener">{{ r.torrent_url }}</a></span>
+        <span>{% if r.qbit %}qBittorrent: <span class="{{ 'ok' if r.qbit.ok else 'err' }}" id="seed-msg-{{ loop.index0 }}">{{ r.qbit.message }}</span>{% endif %}
+        {% if r.artwork is defined and r.artwork %}<br><span class="{{ 'ok' if r.artwork.ok else 'err' }}" id="art-msg-{{ loop.index0 }}">Cover and banner: {{ r.artwork.message }}</span>{% endif %}</span>
+        <span class="actions">{% if r.artwork is defined and r.artwork and not r.artwork.ok %}<button type="button" class="ghost sm" onclick="artworkAgain({{ tname | tojson | forceescape }}, 'art-msg-{{ loop.index0 }}', this)">{{ ic("refresh") }}Set cover and banner again</button>{% endif %}
+        <button type="button" class="ghost sm" onclick="seedAgain({{ tname | tojson | forceescape }}, 'seed-msg-{{ loop.index0 }}', this)">{{ ic("refresh") }}Add to qBittorrent again</button></span></div>
     {% endfor %}
     {% if published %}<script>
       async function artworkAgain(tracker, id, btn) {
@@ -271,8 +308,8 @@
       }
     </script>{% endif %}
     {% if job.pub.status in ("queued", "running") %}
-      <p id="pub-stage" class="mute">{{ job.pub.stage or job.pub.status }}</p>
-      <div class="bar"><div id="pub-bar"></div></div>
+      <div class="pub-progress"><p id="pub-stage">{{ job.pub.stage or job.pub.status }}</p>
+      <div class="bar"><div id="pub-bar"></div></div></div>
       <script>
         (async function poll() {
           try {
@@ -302,15 +339,15 @@
         <label for="pub-tags">Tags</label><textarea id="pub-tags" name="tags" rows="2"></textarea>
         <div id="pub-suggest"></div>
         <p id="pub-msg" class="mute"></p>
-        <p class="actions"><button type="button" class="ghost" id="pub-preview">Load preview</button>
-           <button id="pub-go"{% if not has_image_host %} disabled{% endif %}>Publish</button></p>
+        <p class="actions"><button id="pub-go" class="btn-lg"{% if not has_image_host %} disabled{% endif %}>{{ ic("upload") }}Publish</button>
+           <button type="button" class="ghost" id="pub-preview">{{ ic("refresh") }}Load preview</button></p>
       </form>
       <script>
         const $ = id => document.getElementById(id), jobId = "{{ job.id }}";
         const msg = (t, cls) => { $("pub-msg").textContent = t; $("pub-msg").className = cls || "mute"; };
         async function teach(row, body) {
           const r = await fetch(`/jobs/${jobId}/tags`, {method: "POST", body: new URLSearchParams(body)});
-          if (r.ok) row.remove();
+          if (r.ok) { row.remove(); tbToast("Tag mapping saved"); }
         }
         async function preview() {
           msg("Reading the tracker's upload form…");
@@ -319,17 +356,22 @@
           $("pub-title").value = r.title; $("pub-tags").value = r.tags; $("pub-desc").value = r.description;
           const sel = $("pub-category"), keep = sel.value || r.category; sel.replaceChildren(new Option("(choose a category)", ""));
           for (const [v, l] of r.categories) sel.add(new Option(l, v, false, v === keep));
-          const box = $("pub-suggest"); box.replaceChildren();
-          for (const [tag, proposed] of Object.entries(r.suggestions)) {
-            const row = document.createElement("p"), inp = document.createElement("input");
-            row.className = "suggest-row";
-            inp.type = "text"; inp.value = proposed; inp.style.width = "14em";
-            row.append("Unknown tag ", Object.assign(document.createElement("b"), {textContent: tag}), " → ", inp, " ");
-            const ok = Object.assign(document.createElement("button"), {type: "button", textContent: "Remember"});
-            const no = Object.assign(document.createElement("button"), {type: "button", textContent: "Never send", className: "ghost"});
+          const box = $("pub-suggest"); box.replaceChildren(); box.className = "";
+          const unknown = Object.entries(r.suggestions);
+          if (unknown.length) {
+            box.className = "suggest";
+            box.append(Object.assign(document.createElement("p"), {className: "suggest-head", textContent: unknown.length + " Stash tag" + (unknown.length === 1 ? "" : "s") + " the mapping does not know"}));
+          }
+          for (const [tag, proposed] of unknown) {
+            const row = document.createElement("div"), inp = document.createElement("input"), act = document.createElement("span");
+            row.className = "suggest-row"; act.className = "act";
+            inp.type = "text"; inp.value = proposed; inp.setAttribute("aria-label", "Tracker tags for " + tag);
+            row.append(Object.assign(document.createElement("b"), {textContent: tag}), inp, act);
+            const ok = Object.assign(document.createElement("button"), {type: "button", textContent: "Remember", className: "sm"});
+            const no = Object.assign(document.createElement("button"), {type: "button", textContent: "Never send", className: "ghost sm"});
             ok.onclick = () => teach(row, {stash_tag: tag, tracker_tags: inp.value, tracker: $("pub-tracker").value});
             no.onclick = () => teach(row, {stash_tag: tag, ignore: "1"});
-            row.append(ok, " ", no); box.append(row);
+            act.append(ok, no); box.append(row);
           }
           if (r.warning) return msg(r.warning, "err");
           msg(r.suggestions && Object.keys(r.suggestions).length ? "Tags the mapping does not know are sent in their dotted form; remember or drop them." : "Ready.", "ok");

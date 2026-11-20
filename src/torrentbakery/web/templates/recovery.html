@@ -5,9 +5,9 @@
   <h1>Recovery codes</h1>
   <p class="lead">{{ what }} Save these codes somewhere safe (a password manager, a printout). <b>They are shown only once.</b> Each works once, instead of the app's code, if you lose your phone.</p>
 </div>
-<section class="sheet">
-  <pre class="key" style="font-size:1.1rem;line-height:1.8">{% for c in codes %}{{ c }}
+<section class="panel panel--accent">
+  <pre class="key codes">{% for c in codes %}{{ c }}
 {% endfor %}</pre>
-  <p class="actions"><a href="/settings#auth">I saved them: back to settings</a></p>
+  <p class="actions"><a class="btn" href="/settings#auth">I saved them: back to settings</a></p>
 </section>
 {% endblock %}

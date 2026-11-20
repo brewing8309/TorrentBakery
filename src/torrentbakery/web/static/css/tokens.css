@@ -56,8 +56,13 @@
   --line-field: 1.5px;
   --line-heavy: 3px;
 
-  /* elevation: only floating layers get a shadow */
+  --radius-card: 1rem 1rem .3125rem .3125rem;
+  --radius-pill: 999px;
+
+  /* elevation: panels sit on the tray with a soft shadow, floating layers lift off */
   --shadow-float: 0 1.25rem 3rem rgb(10 12 14 / .35);
+  --shadow-card: 0 1px 0 rgb(21 24 27 / .04), 0 .75rem 1.75rem -1rem rgb(21 24 27 / .22);
+  --shadow-lift: 0 1px 0 rgb(21 24 27 / .05), 0 1.25rem 2.5rem -1.25rem rgb(21 24 27 / .35);
 
   /* motion */
   --dur-fast: 120ms;
@@ -65,7 +70,9 @@
   --ease: cubic-bezier(.2, .7, .2, 1);
 
   /* layout */
-  --page-max: 76rem;
+  --page-max: 80rem;
+  --topbar-h: 4rem;
+  --tabbar-h: 4.25rem;
   --gutter: var(--sp-4);
 
   /* icons, used as masks */
@@ -79,8 +86,10 @@
   /* light theme */
   color-scheme: light;
   --bg: var(--flour);
-  --surface: #FBFBF9;
-  --sunken: #E6E8E3;
+  --surface: #FDFDFB;
+  --raised: #FFFFFF;
+  --sunken: #E9EBE6;
+  --chrome: rgb(253 253 251 / .82);
   --text: var(--ink);
   --muted: #4F585C;
   --rule: #C6CBC5;
@@ -98,6 +107,11 @@
   --err: var(--ember);
   --warn: #7A5200;
   --focus: var(--petrol);
+  --focus-ring: rgb(10 100 102 / .22);
+  --yolk-soft: rgb(245 179 1 / .16);
+  --petrol-soft: rgb(10 100 102 / .1);
+  --ember-soft: rgb(179 38 26 / .08);
+  --glow: rgb(245 179 1 / .18);
   --backdrop: rgb(21 24 27 / .55);
   --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%2315181B' d='M2 4.5 8 9l6-4.5v3.2L8 12.2 2 7.700Z'/%3E%3C/svg%3E");
 }
@@ -121,6 +135,15 @@
     --warn: var(--yolk);
     --focus: var(--yolk);
     --backdrop: rgb(4 5 6 / .7);
+    --raised: #1F2427;
+    --chrome: rgb(24 28 31 / .82);
+    --focus-ring: rgb(245 179 1 / .25);
+    --yolk-soft: rgb(245 179 1 / .14);
+    --petrol-soft: rgb(87 199 190 / .12);
+    --ember-soft: rgb(255 138 117 / .1);
+    --glow: rgb(245 179 1 / .07);
+    --shadow-card: 0 1px 0 rgb(255 255 255 / .03) inset, 0 .75rem 1.75rem -1rem rgb(0 0 0 / .7);
+    --shadow-lift: 0 1px 0 rgb(255 255 255 / .04) inset, 0 1.25rem 2.5rem -1.25rem rgb(0 0 0 / .8);
     --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%23ECEEEA' d='M2 4.5 8 9l6-4.5v3.2L8 12.2 2 7.700Z'/%3E%3C/svg%3E");
   }
 }
@@ -143,6 +166,15 @@
   --warn: var(--yolk);
   --focus: var(--yolk);
   --backdrop: rgb(4 5 6 / .7);
+  --raised: #1F2427;
+  --chrome: rgb(24 28 31 / .82);
+  --focus-ring: rgb(245 179 1 / .25);
+  --yolk-soft: rgb(245 179 1 / .14);
+  --petrol-soft: rgb(87 199 190 / .12);
+  --ember-soft: rgb(255 138 117 / .1);
+  --glow: rgb(245 179 1 / .07);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / .03) inset, 0 .75rem 1.75rem -1rem rgb(0 0 0 / .7);
+  --shadow-lift: 0 1px 0 rgb(255 255 255 / .04) inset, 0 1.25rem 2.5rem -1.25rem rgb(0 0 0 / .8);
   --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%23ECEEEA' d='M2 4.5 8 9l6-4.5v3.2L8 12.2 2 7.700Z'/%3E%3C/svg%3E");
 }
 
