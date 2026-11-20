@@ -8,21 +8,24 @@
 </div>
 <section class="sheet">
   {% if jobs %}
-  <table class="ledger">
-    <tr class="head"><th>When</th><th>Release</th><th>Source</th><th>Tracker · Host</th><th>Status</th><th>Published</th><th></th></tr>
+  <ol class="bakes">
     {% for j in jobs %}
-    <tr>
-      <td class="mute nowrap" data-label="When">{{ j.created | datetime }}</td>
-      <td data-label="Release"><a href="/jobs/{{ j.id }}">{{ j.label or j.title or j.source.rsplit("/", 1)[-1] }}</a></td>
-      <td class="mute" data-label="Source">{{ j.source.rsplit("/", 1)[-1] }}</td>
-      <td class="mute" data-label="Tracker">{{ j.options.get("tracker") or "–" }} · {{ j.options.get("upload") or "–" }}</td>
-      <td data-label="Status"><span class="{{ 'ok' if j.status == 'done' else 'err' if j.status == 'error' else 'mute' }}">{{ j.status }}</span>{% if j.status == "error" %}<br><span class="help">{{ j.error[:140] }}</span>{% endif %}</td>
-      <td class="mute" data-label="Published">{% for tn, r in published.get(j.id, {}).items() %}<a href="{{ r.torrent_url }}" target="_blank" rel="noopener">{{ tn }}</a>{% if not loop.last %}, {% endif %}{% else %}–{% endfor %}</td>
-      <td class="act"><form class="inline" method="post" action="/jobs/{{ j.id }}/delete"
-          onsubmit="return confirm('Delete this entry and all its files?{% if shared[j.id] %} {{ shared[j.id] }} other entr{{ "y" if shared[j.id] == 1 else "ies" }} for the same release folder will be removed too.{% endif %}')"><button class="ghost danger">Delete</button></form></td>
-    </tr>
+    <li class="bake-row">
+      <a class="bake-thumb" href="/jobs/{{ j.id }}" tabindex="-1" aria-hidden="true">{% if thumbs.get(j.id) %}<img src="{{ thumbs[j.id] }}" alt="" loading="lazy" referrerpolicy="no-referrer">{% endif %}</a>
+      <div class="bake-main">
+        <a class="bake-title" href="/jobs/{{ j.id }}">{{ j.label or j.title or j.source.rsplit("/", 1)[-1] }}</a>
+        <p class="bake-meta"><time>{{ j.created | datetime }}</time><span>{{ j.source.rsplit("/", 1)[-1] }}</span>{% if j.options.get("tracker") %}<span>{{ j.options.get("tracker") }}</span>{% endif %}{% if j.options.get("upload") %}<span>{{ j.options.get("upload") }}</span>{% endif %}</p>
+        {% if j.status == "error" %}<p class="bake-error">{{ j.error[:200] }}</p>{% endif %}
+        {% set pub = published.get(j.id, {}) %}{% if pub %}<p class="bake-pub">Published at {% for tn, r in pub.items() %}<a href="{{ r.torrent_url }}" target="_blank" rel="noopener">{{ tn }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+      </div>
+      <div class="bake-side">
+        <span class="pill pill--{{ j.status }}">{{ j.status }}</span>
+        <form class="inline" method="post" action="/jobs/{{ j.id }}/delete"
+          onsubmit="return confirm('Delete this entry and all its files?{% if shared[j.id] %} {{ shared[j.id] }} other entr{{ "y" if shared[j.id] == 1 else "ies" }} for the same release folder will be removed too.{% endif %}')"><button class="ghost danger">Delete</button></form>
+      </div>
+    </li>
     {% endfor %}
-  </table>
+  </ol>
   {% else %}<p class="empty">Nothing baked yet.</p>{% endif %}
 </section>
 {% endblock %}

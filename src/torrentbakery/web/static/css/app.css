@@ -283,3 +283,24 @@ button.scene-hit img { flex: none; display: block; border-radius: var(--radius-t
 .errtext { margin: var(--sp-2) 0 0; font: var(--text-sm)/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ember); }
 @media (prefers-reduced-motion: reduce) { .bar.is-running > div, .step[data-state="running"] .step-mark { animation: none; } .tile img { transform: none; } }
 .card h3 .badge:empty { display: none; }
+
+/* ---- history: one card per bake ---- */
+.bakes { list-style: none; margin: 0; padding: 0; }
+.bake-row { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr) auto; gap: var(--sp-4); align-items: start; padding: var(--sp-4) var(--sp-2); border-bottom: var(--line-thin) solid var(--rule); transition: background-color var(--dur-fast) var(--ease); }
+.bake-row:hover { background: var(--sunken); }
+.bake-thumb { display: block; aspect-ratio: 16 / 9; background: var(--sunken); border: var(--line-thin) solid var(--rule); border-radius: var(--radius-loaf-sm); overflow: hidden; }
+.bake-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.bake-title { font: 700 var(--text-lg)/1.2 var(--font-display); letter-spacing: .01em; text-decoration: none; overflow-wrap: anywhere; }
+.bake-title:hover { text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; }
+.bake-meta { display: flex; flex-wrap: wrap; gap: 0 var(--sp-4); margin: var(--sp-1) 0 0; font: 500 var(--text-xs)/1.7 var(--font-mono); color: var(--muted); }
+.bake-meta span { overflow-wrap: anywhere; }
+.bake-error { margin: var(--sp-2) 0 0; font: var(--text-sm)/1.45 var(--font-mono); color: var(--ember); overflow-wrap: anywhere; }
+.bake-pub { margin: var(--sp-2) 0 0; font-size: var(--text-sm); color: var(--muted); }
+.bake-side { display: flex; flex-direction: column; align-items: flex-end; gap: var(--sp-2); }
+.bake-side button { min-height: 2rem; padding: .2rem .75rem; font-size: var(--text-xs); white-space: nowrap; }
+.pill { padding: .1rem .6rem; border: var(--line-field) solid currentColor; border-radius: var(--radius-loaf-sm); font: 600 var(--text-xs)/1.6 var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.pill--done { color: var(--ok); } .pill--error { color: var(--err); } .pill--running, .pill--queued { color: var(--text); background: var(--accent); border-color: var(--accent-edge); }
+@media (max-width: 47.99rem) {
+  .bake-row { grid-template-columns: 6rem minmax(0, 1fr); }
+  .bake-side { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; align-items: center; }
+}

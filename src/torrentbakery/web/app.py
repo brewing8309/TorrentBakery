@@ -87,7 +87,15 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
                 except ValueError:
                     pass
         shared = {j.id: len(jobs.related(j)) - 1 for j in jobs.all()}  # other entries that would go with it (same output folder)
-        return templates.TemplateResponse(request, "history.html", {"jobs": jobs.all(), "published": published, "shared": shared})
+        thumbs = {}
+        for j in jobs.all():  # a picture per entry: the Stash scene's screenshot, else the baked cover
+            if j.source.startswith("stash:") and j.source[6:].isdigit() and cfg().stash.url:
+                thumbs[j.id] = f"/stash-thumb/{j.source[6:]}"
+            elif j.out_dir and j.out_dir.is_dir():
+                cover = next(iter(sorted(j.out_dir.glob("cover.*"))), None)
+                if cover:
+                    thumbs[j.id] = f"/jobs/{j.id}/files/{cover.name}"
+        return templates.TemplateResponse(request, "history.html", {"jobs": jobs.all(), "published": published, "shared": shared, "thumbs": thumbs})
 
     @app.post("/jobs/{job_id}/delete")
     def job_delete(job_id: str):
