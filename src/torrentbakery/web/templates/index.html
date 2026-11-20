@@ -178,7 +178,10 @@ const coverSel = document.getElementById("cover_source"), hostSel = document.get
 let coverWanted = coverSel.value;  // restored when the source is a Stash scene again
 function syncOptions() {
   const isScene = /^(stash:)?\d+$/.test(srcValue.value.trim());
-  limitOptions(coverSel, isScene, o => o.value !== "stash" || isScene);
+  const stashOpt = coverSel.querySelector('option[value="stash"]');
+  stashOpt.disabled = !isScene;  // stays listed, greyed out, with the reason in its label
+  stashOpt.textContent = isScene ? "use Stash's preview" : "use Stash's preview (only for scenes picked from Stash)";
+  if (!isScene && coverSel.value === "stash") coverSel.value = "own";
   if (isScene && coverWanted === "stash") coverSel.value = "stash";
   limitOptions(hostSel, 0, o => o.dataset.site === undefined || trackerSites[trackerSel.value] === o.dataset.site);
 }
