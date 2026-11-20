@@ -127,3 +127,21 @@ def test_stashbox_search_falls_back_to_search_scene():
             {"id": "x1", "title": "T", "release_date": None, "studio": None, "performers": [], "images": []}]}})
     rows = stashbox.search(BOX, "boxkey", "some title", transport=httpx.MockTransport(h))
     assert [r["id"] for r in rows] == ["x1"] and rows[0]["image"] == ""
+
+
+def test_search_terms_split_studio_date_performer_title_names():
+    terms, date = stashbox.search_terms("/m/Throated - 2024-08-23 - Anna Claire Clouds - Cloudy with a Chance of Meat and Balls.mp4")
+    assert date == "2024-08-23"
+    assert terms == ["Cloudy with a Chance of Meat and Balls", "Throated Anna Claire Clouds Cloudy with a Chance of Meat and Balls"]
+    assert stashbox.search_terms("Sloppy Head 06 Scene 05.mp4") == (["Sloppy Head 06 Scene 05"], "")
+
+
+def test_find_tries_next_term_and_puts_matching_date_first():
+    def h(req: httpx.Request) -> httpx.Response:
+        text = json.loads(req.content)["variables"]["input"]["text"]
+        scenes = [] if text == "title" else [
+            {"id": "old", "title": "A", "release_date": "2020-01-01", "studio": None, "performers": [], "images": []},
+            {"id": "hit", "title": "B", "release_date": "2024-08-23", "studio": None, "performers": [], "images": []}]
+        return httpx.Response(200, json={"data": {"queryScenes": {"scenes": scenes}}})
+    rows = stashbox.find(BOX, "k", ["title", "studio title"], "2024-08-23", transport=httpx.MockTransport(h))
+    assert [r["id"] for r in rows] == ["hit", "old"]

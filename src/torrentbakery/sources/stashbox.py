@@ -77,6 +77,33 @@ def clean_query(name: str) -> str:
     return re.sub(r"\s+", " ", stem).strip(" -")
 
 
+_DATE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+
+
+def search_terms(name: str) -> tuple[list[str], str]:
+    """File name → search terms, best first, plus the release date found in it. Names like "Studio - 2024-08-23 - Performer - Title" find
+    nothing as a whole in a stash-box's text search, which matches the title: so the title part is tried first, then everything but the date."""
+    q = clean_query(name)
+    m = _DATE.search(q)
+    date = m.group(1) if m else ""
+    parts = [p.strip() for p in re.split(r"\s+-\s+", q) if p.strip() and not _DATE.fullmatch(p.strip())]
+    terms = ([parts[-1]] if len(parts) > 1 else []) + [" ".join(parts) if parts else q]
+    if len(terms[0].split()) > 8:  # very long titles: the first words are the safest thing to match
+        terms.append(" ".join(terms[0].split()[:8]))
+    return list(dict.fromkeys(t for t in terms if t)), date
+
+
+def find(endpoint: str, api_key: str, terms: list[str], date: str = "", limit: int = 8, transport: httpx.BaseTransport | None = None) -> list[dict]:
+    """Try the terms in turn until there are enough scenes; scenes released on the file's date come first."""
+    rows: dict[str, dict] = {}
+    for term in terms:
+        for r in search(endpoint, api_key, term, limit, transport):
+            rows.setdefault(r["id"], r)
+        if len(rows) >= limit:
+            break
+    return sorted(rows.values(), key=lambda r: bool(date) and r["date"] != date)[:limit]
+
+
 def search(endpoint: str, api_key: str, term: str, limit: int = 8, transport: httpx.BaseTransport | None = None) -> list[dict]:
     """Scenes of one stash-box matching a free-text term, as short rows for the user to pick from."""
     scenes = None

@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 from urllib.parse import urlparse
@@ -147,17 +148,21 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
     def stashbox_search(name: str):
         """Scene candidates for a picked file, from every configured stash-box; the user makes the final choice."""
         c = cfg()
-        term = stashbox_source.clean_query(name)
-        boxes = []
-        for box_name, box in c.stashboxes.items():
+        terms, date = stashbox_source.search_terms(name)
+
+        def one(item):
+            box_name, box = item
             entry = {"name": box_name, "scenes": [], "error": ""}
-            if term:
+            if terms:
                 try:
-                    entry["scenes"] = stashbox_source.search(box.endpoint, box.api_key, term, transport=transport)
+                    entry["scenes"] = stashbox_source.find(box.endpoint, box.api_key, terms, date, transport=transport)
                 except Exception as exc:  # one broken box must not take the others down
                     entry["error"] = str(exc) or type(exc).__name__
-            boxes.append(entry)
-        return {"term": term, "boxes": boxes}
+            return entry
+
+        with ThreadPoolExecutor(max_workers=max(1, len(c.stashboxes))) as pool:
+            boxes = list(pool.map(one, c.stashboxes.items()))
+        return {"term": " / ".join(terms), "terms": terms, "date": date, "boxes": boxes}
 
     @app.get("/stash-thumb/{scene_id}")
     def stash_thumb(scene_id: int):
