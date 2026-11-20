@@ -220,6 +220,11 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
                        "release_title": meta.get("release", {}).get("title") or title,
                        "tags": release_tags(meta.get("release", {}))})
 
+    @app.get("/busy")
+    def busy():
+        """How many bakes are running; deploy.sh waits for 0 so an update does not kill one."""
+        return {"running": sum(1 for j in jobs.jobs.values() if j.status in ("queued", "running"))}
+
     @app.get("/jobs/{job_id}/state")
     def job_state(job_id: str):
         j = job_or_404(job_id)

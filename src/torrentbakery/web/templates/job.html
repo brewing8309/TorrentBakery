@@ -9,7 +9,12 @@
       const bar = document.getElementById("bar"), stage = document.getElementById("stage");
       async function poll() {
         try {
-          const s = await (await fetch("/jobs/{{ job.id }}/state")).json();
+          const r = await fetch("/jobs/{{ job.id }}/state");
+          if (r.status === 404) {  // jobs live in memory: a restart of the server (update) loses a running bake
+            stage.textContent = "This bake is gone: the server was restarted while it was running. Start it again."; stage.className = "err"; bar.parentElement.hidden = true;
+            return;
+          }
+          const s = await r.json();
           if (s.status === "done" || s.status === "error") return location.reload();
           stage.textContent = s.stage || s.status;
           bar.style.width = Math.round(s.fraction * 100) + "%";
