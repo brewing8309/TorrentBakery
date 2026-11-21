@@ -3,7 +3,7 @@ id = "happyfappy"
 name = "HappyFappy"
 engine = "gazelle"
 description = "Gazelle tracker. Fills in and posts upload.php with your browser session."
-base_url = "https://happyfappy.org"
+base_url = "https://www.happyfappy.net"
 source = "HF"
 private = true
 
@@ -11,7 +11,7 @@ private = true
 field = "cookie"
 label = "Login cookies"
 required = true
-help = "Log in at happyfappy.org, then copy the values of these cookies (browser developer tools -> Application/Storage -> Cookies). They expire; paste fresh ones when Test login says so."
+help = "Log in at www.happyfappy.net, then copy the values of these cookies (browser developer tools -> Application/Storage -> Cookies). They expire; paste fresh ones when Test login says so."
 cookies = [
   { name = "cid", label = "Account id" },
   { name = "sid", label = "Session" },
