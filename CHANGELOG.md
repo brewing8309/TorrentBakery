@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.1.1 – 2026-11-21
+
+### Fixed
+- HappyFappy moved from `happyfappy.org` to `www.happyfappy.net`. The built-in template points to the new address. If you set up HappyFappy before, change the address under Settings → Trackers and paste fresh `cid` and `sid` cookies from the new domain.
+
+### Changed
+- Publishing shows live progress: a step list (prepare, hash, upload, cover and banner, qBittorrent), elapsed time, an animated bar for steps without a percentage, and a notice when the server stops answering, so a running upload no longer looks frozen.
+
 ### Security
 - Cross-site requests are refused even without a login. Without a login, the UI only answers to IP addresses, localhost, single-label names and the names added under Settings → Login → Host names or in `TB_ALLOWED_HOSTS` (DNS rebinding).
 - Saved secrets (qBittorrent password, tracker cookies and tokens, Stash API key) only go to the address they were saved for. Redirects to other sites drop them.
