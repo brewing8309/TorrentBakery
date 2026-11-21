@@ -2,7 +2,7 @@
 
 [← Documentation](README.md)
 
-TorrentBakery is installed from a release tarball, natively (no Docker). It runs well in a small unprivileged LXC container: 2 cores, 2 GB RAM and a few GB of disk are plenty; the work is done by `ffmpeg`.
+TorrentBakery is installed from a release tarball, natively, or runs as a [Docker image](#docker). The native way runs well in a small unprivileged LXC container: 2 cores, 2 GB RAM and a few GB of disk are plenty; the work is done by `ffmpeg`.
 
 ## Requirements
 - Debian 12/13 or Ubuntu 22.04+ (anything with `apt`, `systemd` and Python ≥ 3.11)
@@ -58,6 +58,19 @@ bakery.example.org {
   reverse_proxy 10.0.0.16:8080
 }
 ```
+
+## Docker
+For Docker hosts (NAS, Unraid, VM). The image contains `ffmpeg`, `mediainfo` and the web UI, and runs as a non-root user. Copy [`docker-compose.example.yml`](../docker-compose.example.yml) and start it:
+```sh
+docker compose up -d        # then open http://<host>:8080/
+```
+- **Volumes:** `/data` holds `config.toml` (all secrets, mode 0600), `history.jsonl` and `out/` (releases). Mount your videos read-only at the **same path as in Stash**, so no path mapping is needed.
+- **PUID / PGID:** the container starts as root only to hand `/data` to that user (default 1000:1000), then drops privileges. With `--user` / `user:` it starts unprivileged and `/data` must already be writable for that user.
+- **Command line:** run `tb` as the service user, so `config.toml` stays readable: `docker exec -it -u torrentbakery torrentbakery tb auth set-password USER`, or one-off `docker run --rm -v ./data:/data -v /media:/media:ro ghcr.io/brewing8309/torrentbakery tb bake /media/demo.mp4`.
+- **Update:** check `curl localhost:8080/busy` shows `"running": 0` (a restart kills running bakes, jobs live in memory), then `docker compose pull && docker compose up -d`.
+- **Reverse proxy:** set `TB_TRUSTED_PROXIES` to the proxy's network and, while the login is off, `TB_ALLOWED_HOSTS` to its host name (see above).
+- **qBittorrent:** `qbit.path_map` must map to the paths qBittorrent sees, not to the container's.
+- **Package visibility:** while the repository is private, so is the image; `docker login ghcr.io` first.
 
 ## Run from a checkout (development)
 ```sh

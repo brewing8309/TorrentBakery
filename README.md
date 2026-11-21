@@ -63,6 +63,9 @@ It runs as a small web app on your own server (an LXC container is ideal), next 
 **You need:** a Debian 12/13 or Ubuntu host or LXC container with Python ≥ 3.11, internet access to pypi.org, and your videos mounted on it. `ffmpeg` and `mediainfo` are installed for you.
 
 ### 1. Install
+> [!TIP]
+> On a Docker host, use the [Docker image](docs/installation.md#docker) instead.
+
 ```sh
 curl -fLO https://github.com/brewing8309/TorrentBakery/releases/latest/download/torrentbakery-0.1.0.tar.gz
 tar xzf torrentbakery-0.1.0.tar.gz
@@ -92,7 +95,7 @@ At the bottom of the result page, review title, post, tags and category, then pr
 
 | | |
 |---|---|
-| [Installation & updates](docs/installation.md) | Tarball install, LXC tips, update, remove, reverse proxy, running from a checkout |
+| [Installation & updates](docs/installation.md) | Tarball install, Docker image, LXC tips, update, remove, reverse proxy, running from a checkout |
 | [Using the web UI](docs/web-ui.md) | Bake, result page, review step, history, settings |
 | [Configuration](docs/configuration.md) | Stash & stash-box, path mappings, covers, sheet, image hosts, qBittorrent, tags, `config.toml` |
 | [Publishing to trackers](docs/publishing.md) | Gazelle and UNIT3D, cookies and tokens, review step, seeding |

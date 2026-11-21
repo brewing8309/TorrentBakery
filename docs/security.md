@@ -23,7 +23,7 @@ The login is **optional and off by default**. Without it, anyone who reaches the
 - **DNS rebinding:** while the login is off, the UI only answers to IP addresses, `localhost`, single-label names (`bakery`) and the names you add under *Settings → Login → Host names* (or in `TB_ALLOWED_HOSTS`).
 - **Secrets stay with their site.** A saved password, cookie or API key is only sent to the address it was saved for. Changing a profile's address drops the old secret. *Test* buttons use the saved secret only for the saved address. Requests that are redirected to another site go out without it.
 - The web UI only reads media inside the permitted media folders, Stash scenes included.
-- The service runs as its own user with a hardened systemd unit (no capabilities, read-only system, no devices, filtered system calls).
+- The service runs as its own user with a hardened systemd unit (no capabilities, read-only system, no devices, filtered system calls). The Docker image runs as a non-root user too; keep the `/data` volume private (mode 700), it holds `config.toml` with all secrets.
 
 ## Locked out?
 On the server:

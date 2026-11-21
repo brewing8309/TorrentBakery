@@ -13,5 +13,22 @@ jobs:
           python-version: "3.12"
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg mediainfo
       - run: pip install -e '.[dev]'
-      - run: sh -n install.sh && sh -n uninstall.sh && sh -n scripts/build.sh && sh -n packaging/tb
+      - run: sh -n install.sh && sh -n uninstall.sh && sh -n scripts/build.sh && sh -n packaging/tb && sh -n packaging/docker-entrypoint.sh
       - run: pytest -q
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t tb:test .
+      - name: Version matches the code
+        run: |
+          V=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/torrentbakery/__init__.py)
+          test "$(docker run --rm tb:test tb version)" = "$V"
+      - run: docker run --rm tb:test sh -c 'ffmpeg -version | head -1 && mediainfo --version'
+      - name: Server answers, data is owned by uid 1000
+        run: |
+          docker run -d --name tb -p 8080:8080 tb:test
+          for i in $(seq 30); do curl -fsS localhost:8080/busy && break; sleep 1; done
+          curl -fsS localhost:8080/busy
+          docker exec tb stat -c '%u %a' /data
+          docker logs tb

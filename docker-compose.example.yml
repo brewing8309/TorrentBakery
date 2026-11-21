@@ -1,0 +1,15 @@
+services:
+  torrentbakery:
+    image: ghcr.io/brewing8309/torrentbakery:latest
+    container_name: torrentbakery
+    restart: unless-stopped
+    ports: ["8080:8080"]
+    environment:
+      PUID: 1000
+      PGID: 1000
+      # TB_ALLOWED_HOSTS: tb.example.lan
+      # TB_TRUSTED_PROXIES: 172.18.0.0/16   # behind a reverse proxy
+    volumes:
+      - ./data:/data
+      # media at the SAME path as in Stash -> no path_map needed
+      - /media/BF-stshpp:/media/BF-stshpp:ro
