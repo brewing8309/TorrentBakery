@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0 – 2026-11-21
+
 ### Added
 - Docker image (`ghcr.io/brewing8309/torrentbakery`, amd64 and arm64) with `docker-compose.example.yml`; see Installation → Docker. The native install is unchanged.
 
