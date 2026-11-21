@@ -308,17 +308,41 @@
       }
     </script>{% endif %}
     {% if job.pub.status in ("queued", "running") %}
-      <div class="pub-progress"><p id="pub-stage">{{ job.pub.stage or job.pub.status }}</p>
-      <div class="bar"><div id="pub-bar"></div></div></div>
+      <div class="pub-progress" id="pub-progress">
+        <div class="pub-head"><span class="busy-dot"></span><p id="pub-stage">{{ job.pub.stage or job.pub.status }}</p><span class="pub-time mute" id="pub-time">0:00</span></div>
+        <div class="bar is-running" id="pub-barwrap"><div id="pub-bar"></div></div>
+        <ol class="pub-steps" id="pub-steps">
+          <li data-k="Prepar">Prepare</li><li data-k="Hashing">Hash torrent</li><li data-k="Uploading to">Upload to tracker</li>
+          <li data-k="cover">Cover &amp; banner</li><li data-k="qBittorrent">qBittorrent</li>
+        </ol>
+        <p class="help" id="pub-hint">Still working. Large releases and slow trackers can take a few minutes; this page updates by itself.</p>
+      </div>
       <script>
-        (async function poll() {
-          try {
-            const s = await (await fetch("/jobs/{{ job.id }}/publish/state")).json();
-            if (s.status === "done" || s.status === "error") return location.reload();
-            document.getElementById("pub-stage").textContent = s.stage || s.status;
-            document.getElementById("pub-bar").style.width = Math.round(s.fraction * 100) + "%";
-          } catch (e) {}
-          setTimeout(poll, 1000);
+        (function () {
+          const t0 = Date.now() - {{ ((now - job.pub.get("t0", now)) * 1000) | int }}, steps = [...document.querySelectorAll("#pub-steps li")];
+          let ok = true, last = Date.now();
+          const fmt = ms => { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+          setInterval(() => { document.getElementById("pub-time").textContent = fmt(Date.now() - t0); }, 1000);
+          function mark(stage) {
+            let cur = steps.findIndex(li => stage.includes(li.dataset.k) || (li.dataset.k === "cover" && /cover/i.test(stage)) || (li.dataset.k === "Prepar" && /^Prepar/.test(stage)) || (li.dataset.k === "qBittorrent" && /qBittorrent|tracker's torrent/.test(stage)));
+            if (cur < 0) return;
+            steps.forEach((li, i) => li.dataset.state = i < cur ? "done" : i === cur ? "running" : "");
+          }
+          (async function poll() {
+            try {
+              const s = await (await fetch("/jobs/{{ job.id }}/publish/state")).json();
+              if (s.status === "done" || s.status === "error") return location.reload();
+              last = Date.now(); document.getElementById("pub-hint").classList.remove("err");
+              document.getElementById("pub-stage").textContent = s.stage || (s.status === "queued" ? "Waiting for other jobs to finish" : s.status);
+              const w = document.getElementById("pub-barwrap"), bar = document.getElementById("pub-bar");
+              w.classList.toggle("indeterminate", !(s.fraction > 0 && s.fraction < 1));
+              bar.style.width = s.fraction > 0 && s.fraction < 1 ? Math.round(s.fraction * 100) + "%" : "";
+              mark(s.stage || "");
+            } catch (e) {
+              if (Date.now() - last > 15000) { const h = document.getElementById("pub-hint"); h.textContent = "No answer from TorrentBakery for a while. The upload may still be running; reload the page in a moment."; h.classList.add("err"); }
+            }
+            setTimeout(poll, 1000);
+          })();
         })();
       </script>
     {% else %}

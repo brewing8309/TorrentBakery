@@ -74,7 +74,7 @@ class JobManager:
 
     def submit_publish(self, job: Job, **kw) -> None:
         """Queue an upload of a finished bake behind whatever else is running (it may hash a tracker-specific torrent)."""
-        job.pub = {"status": "queued", "stage": "", "fraction": 0.0, "error": "", "result": None, "tracker": kw.get("name", "")}
+        job.pub = {"status": "queued", "stage": "", "fraction": 0.0, "error": "", "result": None, "tracker": kw.get("name", ""), "t0": time.time()}
         self._pool.submit(self._run_publish, job, kw)
 
     def _run_publish(self, job: Job, kw: dict) -> None:

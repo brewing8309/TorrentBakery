@@ -239,7 +239,7 @@ def create_app(out_root: Path = Path("out"), config_path: Path | None = None, ma
         if job.out_dir and (job.out_dir / "publish-error.txt").exists():
             pub_error = (job.out_dir / "publish-error.txt").read_text().strip()
         c = cfg()
-        return templates.TemplateResponse(request, "job.html", {"job": job, "title": title, "failed_label": STEPS[job.failed_step][0] if job.failed_step in STEPS else "", "published": published, "pub_error": pub_error, "publishable": [n for n, t in c.trackers.items() if t.site],
+        return templates.TemplateResponse(request, "job.html", {"job": job, "now": time.time(), "title": title, "failed_label": STEPS[job.failed_step][0] if job.failed_step in STEPS else "", "published": published, "pub_error": pub_error, "publishable": [n for n, t in c.trackers.items() if t.site],
                        "job_tracker": job.options.get("tracker") or "", "has_image_host": bool(meta.get("uploads")), "files": job_files(job), "sizes": {f: (job.out_dir / f).stat().st_size for f in job_files(job)}, "post": post, "uploads": meta.get("uploads", {}), "host": meta.get("image_host", ""), "cover_file": meta.get("cover_file", "cover.jpg"),
                        "folder_name": meta.get("folder_name", ""), "folder_path": meta.get("folder_path", ""),
                        "release_title": meta.get("release", {}).get("title") or title,

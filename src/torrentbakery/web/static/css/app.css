@@ -365,7 +365,7 @@ dialog h2 { font-size: var(--text-xl); }
 .slot { display: grid; place-items: center; min-height: 7rem; background: var(--sunken); border: var(--line-field) dashed var(--rule); border-radius: var(--radius-tin); }
 .slot:has(img) { display: block; border: 0; min-height: 0; background: none; }
 .errtext { margin: var(--sp-2) 0 0; font: var(--text-sm)/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ember); }
-@media (prefers-reduced-motion: reduce) { .bar.is-running > div, .step[data-state="running"] .step-mark, .pill--running::before, .busy-dot { animation: none !important; } .tile img { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .bar.is-running > div, .bar.indeterminate > div, .step[data-state="running"] .step-mark, .pill--running::before, .busy-dot { animation: none !important; } .tile img { transform: none; } }
 
 /* ================= Result page ================= */
 .release-hero { display: grid; gap: var(--sp-5); grid-template-columns: minmax(0, 1fr); align-items: center; margin-bottom: var(--sp-5); }
@@ -436,6 +436,17 @@ dialog h2 { font-size: var(--text-xl); }
 .published .actions { margin: var(--sp-1) 0 0; }
 .pub-progress { padding: var(--sp-4); background: var(--yolk-soft); border-radius: var(--radius-loaf-sm); }
 .pub-progress p { margin: 0; font-weight: 700; }
+.pub-progress .help { font-weight: 400; margin-top: var(--sp-2); }
+.pub-head { display: flex; align-items: center; gap: var(--sp-3); }
+.pub-head p { flex: 1; }
+.pub-time { font-variant-numeric: tabular-nums; font-family: var(--font-mono, monospace); }
+.bar.indeterminate > div { width: 35%; animation: sweep 1.6s ease-in-out infinite alternate; transition: none; }
+@keyframes sweep { from { margin-left: 0; } to { margin-left: 65%; } }
+.pub-steps { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-4); margin: var(--sp-2) 0 0; padding: 0; list-style: none; font-size: var(--text-sm); color: var(--muted, inherit); }
+.pub-steps li::before { content: "○ "; }
+.pub-steps li[data-state="running"] { font-weight: 700; color: inherit; }
+.pub-steps li[data-state="running"]::before { content: "● "; }
+.pub-steps li[data-state="done"]::before { content: "✓ "; }
 
 /* ================= History ================= */
 .toolbar { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; margin-bottom: var(--sp-4); }
